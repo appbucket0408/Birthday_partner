@@ -92,8 +92,10 @@ obligation that comes with that.
 
 ### 4.2 Gifting and fulfillment
 
-- `products` — cake catalog. Name, size, flavour, price, image, per-city
-  availability.
+- `products` — cake catalog. Name, size, flavour, price, image, and the
+  service area it is available in. In v1 there is exactly one service area, so
+  the sender browses one catalog at one set of prices. The per-area column
+  exists so a second city does not require a migration.
 - `gifts` — sender profile, recipient person, occasion date, product, amount,
   message, status, payment reference.
 - `addresses` — owned by a profile. Lines, city, pincode, geo, label.
@@ -127,11 +129,18 @@ Rules:
    confirmation time. Reserving late oversells a Saturday the kitchen cannot
    serve. Expiry releases the slot.
 4. **Hard confirm cutoff.** The recipient must supply address and slot by a
-   fixed lead time before the delivery date, because ops needs the morning to
-   place orders. Missing it moves the gift to `expired` and refunds it.
-5. **`delivered` fires the social moment.** It auto-posts to the birthday wall:
+   configured lead time before the delivery date, because ops needs the morning
+   to place orders. Missing it moves the gift to `expired` and refunds it. The
+   lead time is a config value, set per section 12.1.
+5. **An address outside the service area refunds the gift.** The sender cannot
+   know the recipient's city before they confirm — for a contact-imported
+   non-user the app does not hold it either. So checkout states plainly which
+   area is served, and a confirmed address outside it moves the gift to
+   `declined` and refunds it, telling the sender only that delivery is not yet
+   available there.
+6. **`delivered` fires the social moment.** It auto-posts to the birthday wall:
    "<sender> sent a cake". This is the loop that makes other people send one.
-6. **A decline is never reported as a decline.** The sender is told "expired,
+7. **A decline is never reported as a decline.** The sender is told "expired,
    refunded" in both the ignore case and the decline case, and learns nothing
    about the recipient's intent.
 
@@ -140,8 +149,10 @@ Rules:
 1. **Addresses are owner-readable only.** RLS on `addresses` permits select to
    the owning profile. There is no sender role on that table.
 2. **The sender's gift view shows display name, city, slot window, and status.**
-   No address line, no pincode, no phone number. City is visible because
-   catalog availability and price depend on it; that is the ceiling.
+   No address line, no pincode, no phone number. The city appears only *after*
+   the recipient confirms, and is the ceiling on what the sender ever learns
+   about where they live. Before confirmation the sender sees no location at
+   all — pricing does not require it, because v1 serves one area.
 3. **Ops sees an address only while it is needed.** Service-role access gated
    on `gift.status in (confirmed, placed, out_for_delivery)`, and every read is
    written to `address_access_log` with staff id and gift id. That log is the
@@ -186,7 +197,7 @@ Screens in v1:
 2. Contacts import — choose who you celebrate, fill missing birthdays
 3. Celebrating — home timeline: Today / This week / This month
 4. Person page — birthday, who else celebrates them, wish wall, Send a cake
-5. Send a cake — city-filtered catalog, message, payment
+5. Send a cake — service-area catalog, message, payment
 6. My gifts — sent and received, with status
 7. Confirm incoming gift — address and slot
 8. My day — my wall, who celebrates me
@@ -264,7 +275,10 @@ owner before launch, not derived here.
 
 ## 12. Open questions
 
-1. Pilot city, daily order cap, and confirm cutoff time — required before M5.
-2. Payment provider selection and refund SLA.
-3. SMS provider for invites.
-4. Sender price points per cake tier.
+None of these block M0–M2.
+
+1. Pilot city, daily order cap, and confirm cutoff lead time — blocks M5.
+   Needed as config values only; the schema does not depend on the numbers.
+2. Payment provider selection and refund SLA — blocks M3.
+3. SMS provider for invites — blocks M3.
+4. Sender price points per cake tier — blocks M3.
