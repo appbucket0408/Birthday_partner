@@ -1,0 +1,5 @@
+# Worktrees and SDD scratch live inside the repo; never commit them.
+.claude/
+.superpowers/
+
+.DS_Store
