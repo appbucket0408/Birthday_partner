@@ -3,3 +3,8 @@
 .superpowers/
 
 .DS_Store
+
+supabase/.temp/
+supabase/.branches/
+.env
+.env.local
