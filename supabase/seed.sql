@@ -78,6 +78,79 @@ as $$
   select private.upsert_person(p_phone, p_name, p_birthday);
 $$;
 
+-- Opens two real connections and races them for the last unit of capacity on
+-- the committed 'Race Test Area' slot. Returns whether the second connection
+-- was made to wait, and the SQLSTATE it eventually failed with.
+create or replace function tests.race_last_slot()
+returns table (blocked boolean, loser_sqlstate text)
+language plpgsql
+as $$
+declare
+  -- R18: the plan's 'host=127.0.0.1 port=54322' cannot work, and the note telling
+  -- you to re-read the port from `supabase status` points at the wrong thing.
+  -- dblink dials from INSIDE the Postgres container, so (a) the port is 5432,
+  -- not the 54322 host-side mapping, and (b) the host must be the container's
+  -- own address, not loopback: pg_hba trusts 127.0.0.1, so no password is used
+  -- and dblink refuses the connection outright for a non-superuser
+  -- ("Non-superusers may only connect using credentials they provide").
+  -- The container address falls under the 172.16.0.0/12 scram-sha-256 rule, so
+  -- the password is genuinely exercised. inet_server_addr() keeps this correct
+  -- if the docker subnet changes.
+  v_host text := coalesce(host(inet_server_addr()), 'localhost');
+  v_conn text := format(
+    'dbname=postgres user=postgres password=postgres host=%s port=5432', v_host);
+  v_slot bigint;
+  v_blocked boolean;
+  v_sqlstate text := null;
+begin
+  select s.id into v_slot
+  from public.delivery_slots s
+  join public.service_areas a on a.id = s.service_area_id
+  where a.name = 'Race Test Area';
+
+  perform extensions.dblink_connect('race_a', v_conn);
+  perform extensions.dblink_connect('race_b', v_conn);
+
+  -- Reset committed state so the test is repeatable without a db reset.
+  perform extensions.dblink_exec(
+    'race_a', format('update public.delivery_slots set reserved = 0 where id = %s', v_slot));
+
+  -- Connection A takes the only unit and holds its transaction open.
+  perform extensions.dblink_exec('race_a', 'begin');
+  -- R19: dblink_exec refuses a statement that returns rows, and
+  -- `select private.reserve_slot(...)` returns one (a void). Use dblink().
+  perform * from extensions.dblink(
+    'race_a', format('select private.reserve_slot(%s)', v_slot)) as t(r text);
+
+  -- Connection B tries for the same unit and must wait on A's row lock.
+  perform extensions.dblink_send_query('race_b', format('select private.reserve_slot(%s)', v_slot));
+  perform pg_sleep(0.3);
+  v_blocked := extensions.dblink_is_busy('race_b') = 1;
+
+  -- A commits; B now re-evaluates the predicate and must lose.
+  perform extensions.dblink_exec('race_a', 'commit');
+
+  begin
+    perform * from extensions.dblink_get_result('race_b') as r(result text);
+  exception
+    when others then
+      v_sqlstate := sqlstate;
+  end;
+
+  -- Drain and close.
+  begin
+    perform * from extensions.dblink_get_result('race_b') as r(result text);
+  exception
+    when others then null;
+  end;
+
+  perform extensions.dblink_disconnect('race_a');
+  perform extensions.dblink_disconnect('race_b');
+
+  return query select v_blocked, v_sqlstate;
+end;
+$$;
+
 -- R15: a test that switches from one user to another calls tests.as_user()
 -- while it is already in the authenticated role, so the role it is switching
 -- FROM needs to reach this schema. Without these grants every multi-user test
