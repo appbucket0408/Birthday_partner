@@ -86,3 +86,20 @@ $$;
 -- to a hosted environment.
 grant usage on schema tests to anon, authenticated;
 grant execute on all functions in schema tests to anon, authenticated;
+
+-- Committed local fixtures. Task 7's concurrency test reserves against
+-- 'Race Test Area' from separate connections, so this data must exist outside
+-- any test transaction.
+insert into public.service_areas (name)
+values ('Gurugram'), ('Race Test Area')
+on conflict (name) do nothing;
+
+insert into public.products (service_area_id, name, flavour, size, price_minor)
+select id, 'Classic Chocolate Truffle', 'chocolate', '500g', 84900
+from public.service_areas where name = 'Gurugram'
+on conflict do nothing;
+
+insert into public.delivery_slots (service_area_id, slot_date, window_start, window_end, capacity)
+select id, current_date + 7, time '10:00', time '13:00', 1
+from public.service_areas where name = 'Race Test Area'
+on conflict (service_area_id, slot_date, window_start) do nothing;
