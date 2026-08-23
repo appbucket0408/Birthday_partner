@@ -1,5 +1,5 @@
 begin;
-select plan(8);
+select plan(9);
 
 select has_table('public', 'profiles', 'profiles exists');
 
@@ -56,6 +56,17 @@ select throws_ok(
   '42501',
   null,
   'alice cannot promote herself to staff'
+);
+
+-- R14 leaves a narrowed column grant behind, so prove the ordinary path still
+-- works: a user renames themselves. This also exercises a write that fires
+-- private.sync_person_from_profile(), which authenticated may NOT execute — a
+-- trigger fires regardless of the caller's EXECUTE privilege, and this is what
+-- keeps the R13 revokes from disarming the triggers they guard.
+select lives_ok(
+  $$ update public.profiles set display_name = 'Alice Renamed'
+     where id = (select auth.uid()) $$,
+  'a user can still update the columns the grant list allows'
 );
 
 select * from finish();
