@@ -4,6 +4,24 @@ create schema if not exists private;
 revoke all on schema private from public;
 revoke all on schema private from anon, authenticated;
 
+-- R10: RLS policies are evaluated as the CALLING role, so every policy that
+-- calls a private helper needs `authenticated` to hold schema USAGE. Without
+-- this, Tasks 4, 6, 8, 10 and 11 raise permission-denied for ordinary signed-in
+-- users instead of returning a boolean. USAGE alone grants nothing: EXECUTE is
+-- revoked from public below and granted back one function at a time, so the
+-- per-function grant list stays the real boundary.
+grant usage on schema private to authenticated;
+
+-- R13: there is no default-privileges guard here on purpose. `alter default
+-- privileges ... revoke execute on functions from public` is a NO-OP on this
+-- Postgres 17 — a private function created afterwards still comes out
+-- PUBLIC-executable (verified: pg_proc.proacl is null and
+-- has_function_privilege('authenticated', ...) is true). The guarantee is
+-- enforced by 01_private.test.sql instead, which asserts is_staff() is the ONLY
+-- private function authenticated may execute. Every new private function must
+-- therefore carry its own explicit revoke, and the suite fails loudly if one
+-- does not.
+
 create table private.config (
   key text primary key,
   value text not null
@@ -64,3 +82,8 @@ $$;
 
 revoke execute on function private.is_staff() from public;
 revoke execute on function private.is_staff() from anon;
+
+-- R12: the revoke above removes the PUBLIC grant that was authenticated's only
+-- route to EXECUTE, so the grant it is meant to keep has to be explicit. This
+-- is the one private function policies may call.
+grant execute on function private.is_staff() to authenticated;

@@ -1,5 +1,5 @@
 begin;
-select plan(6);
+select plan(9);
 
 select has_schema('private', 'private schema exists');
 select has_table('private', 'config', 'private.config exists');
@@ -28,6 +28,41 @@ select isnt(
   private.phone_hash('+919876543210'),
   private.phone_hash('+919876543211'),
   'different numbers hash differently'
+);
+
+-- R10: a policy calling a private helper is evaluated as the CALLING role, so
+-- `authenticated` needs USAGE on the schema as well as EXECUTE on the function.
+-- These two assertions together ARE the private-schema boundary: the door is
+-- open for is_staff() and shut for phone_hash(). tests.as_user does not exist
+-- until Task 3's seed.sql, so set the role directly.
+set local role authenticated;
+
+select is(
+  (select private.is_staff()),
+  false,
+  'authenticated can call private.is_staff() and gets false'
+);
+
+select throws_ok(
+  $$ select private.phone_hash('+919876543210') $$,
+  '42501',
+  null,
+  'authenticated cannot call private.phone_hash()'
+);
+
+reset role;
+
+-- R13: the standing guard on the schema boundary. A new private function added
+-- without its own revoke is PUBLIC-executable by default, and default
+-- privileges cannot prevent that on PG17 — so this assertion is what catches it.
+select is(
+  (select coalesce(string_agg(p.proname, ',' order by p.proname), '')
+     from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'private'
+      and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
+  'is_staff',
+  'is_staff is the ONLY private function authenticated may execute'
 );
 
 select * from finish();
