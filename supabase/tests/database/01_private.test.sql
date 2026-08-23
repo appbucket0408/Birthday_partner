@@ -55,14 +55,17 @@ reset role;
 -- R13: the standing guard on the schema boundary. A new private function added
 -- without its own revoke is PUBLIC-executable by default, and default
 -- privileges cannot prevent that on PG17 — so this assertion is what catches it.
+-- The expected list is the ALLOWLIST: a helper belongs here only because an RLS
+-- policy calls it as the signed-in user. Growing this list is a security
+-- decision, so it must be a deliberate edit, never a convenience one.
 select is(
   (select coalesce(string_agg(p.proname, ',' order by p.proname), '')
      from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'private'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  'is_staff',
-  'is_staff is the ONLY private function authenticated may execute'
+  'can_see_person,is_staff,my_person_id',
+  'only the policy helpers are executable by authenticated'
 );
 
 select * from finish();

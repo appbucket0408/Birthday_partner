@@ -67,6 +67,17 @@ begin
 end;
 $$;
 
+create or replace function tests.create_person(
+  p_phone text,
+  p_name text,
+  p_birthday date default null
+)
+returns bigint
+language sql
+as $$
+  select private.upsert_person(p_phone, p_name, p_birthday);
+$$;
+
 -- R15: a test that switches from one user to another calls tests.as_user()
 -- while it is already in the authenticated role, so the role it is switching
 -- FROM needs to reach this schema. Without these grants every multi-user test
