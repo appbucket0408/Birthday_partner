@@ -134,7 +134,7 @@ set search_path = ''
 as $$
   with claimed as (
     update private.notification_outbox o
-    set claimed_at = now()
+    set claimed_at = now(), attempts = o.attempts + 1
     where o.id in (
       select c.id
       from private.notification_outbox c
@@ -154,8 +154,17 @@ as $$
   )
   select cl.id, d.token, d.platform, p.display_name, cl.offset_days, cl.occasion_date
   from claimed cl
-  join public.device_tokens d on d.profile_id = cl.recipient_profile_id
   join public.people p on p.id = cl.subject_person_id
+  -- At most five devices per reminder. A user may register unlimited tokens and
+  -- this join is per-token, so without a bound one reminder becomes an unbounded
+  -- number of FCM calls at the user's own discretion.
+  cross join lateral (
+    select d2.token, d2.platform
+    from public.device_tokens d2
+    where d2.profile_id = cl.recipient_profile_id
+    order by d2.last_seen_at desc, d2.id desc
+    limit 5
+  ) d
   order by cl.id;
 $$;
 
@@ -185,8 +194,11 @@ language sql
 security definer
 set search_path = ''
 as $$
+  -- The counter now advances at claim time (private.next_reminder_batch), not
+  -- here. Incrementing again on failure would double-count: one delivery
+  -- attempt would consume two of the five retries.
   update private.notification_outbox
-  set attempts = attempts + 1, last_error = p_error
+  set last_error = p_error
   where id = p_outbox_id;
 $$;
 

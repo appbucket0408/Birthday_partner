@@ -97,13 +97,26 @@ select is(
   'a sent reminder never comes back'
 );
 
--- Failure increments attempts, and the cap excludes a row that keeps failing.
+-- attempts advances at CLAIM time now, so a failure's observable effect is
+-- last_error. Assert that, or this proves only that some earlier claim
+-- incremented a counter.
 select private.mark_reminder_failed(
   (select id from private.notification_outbox order by id limit 1), 'fcm 500');
 select is(
-  (select attempts from private.notification_outbox order by id limit 1),
+  (select last_error from private.notification_outbox order by id limit 1),
+  'fcm 500',
+  'a failed delivery records why'
+);
+
+-- The counter has to advance somewhere or the retry cap never engages. It is
+-- the claim that does it, which is what bounds a drain that dies mid-send.
+update private.notification_outbox
+set sent_at = null, claimed_at = null, attempts = 0;
+select private.next_reminder_batch();
+select is(
+  (select max(attempts) from private.notification_outbox),
   1,
-  'a failed delivery increments attempts'
+  'claiming a reminder counts an attempt'
 );
 
 update private.notification_outbox set sent_at = null, claimed_at = null, attempts = 5;
@@ -111,6 +124,36 @@ select is(
   (select count(*)::int from private.next_reminder_batch()),
   0,
   'a reminder that has failed five times is not retried'
+);
+
+-- F5(a): one claimed reminder must not become an unbounded number of FCM
+-- calls. A user may register unlimited devices; the lateral join in
+-- next_reminder_batch bounds it to five per reminder, regardless of how many
+-- device rows exist for the recipient.
+delete from private.notification_outbox;
+delete from public.device_tokens
+where profile_id = (select id from public.profiles where handle = 'remindme');
+
+insert into public.device_tokens (profile_id, token, platform)
+select (select id from public.profiles where handle = 'remindme'),
+       'fcm-remind-' || g, 'android'
+from generate_series(1, 6) g;
+
+select private.enqueue_reminders(date '2027-01-01');
+select is(
+  (select count(*)::int from private.next_reminder_batch()),
+  5,
+  'a recipient with six registered devices yields at most five rows for one reminder'
+);
+
+-- The lease is what stops a crashed drain stranding rows forever. Age a claim
+-- past it rather than clearing it, or the expiry branch is never exercised and
+-- the interval could be changed to anything without failing a test.
+update private.notification_outbox
+set sent_at = null, claimed_at = now() - interval '11 minutes', attempts = 0;
+select isnt_empty(
+  $$ select outbox_id from private.next_reminder_batch() $$,
+  'a claim older than the lease is reclaimable'
 );
 
 -- The public wrapper is what the Edge Function actually calls. Return-type drift
