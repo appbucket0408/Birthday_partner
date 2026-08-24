@@ -182,12 +182,15 @@ select is(
   'a blocked celebrator gets no reminder about the person who blocked them'
 );
 
--- The fan-out is useless unless something runs it. pg_cron stores schedules as
--- rows, so the schedule itself is assertable.
+-- The fan-out is useless unless something runs it, and pg_cron stores schedules
+-- as rows — so assert the whole job, not just its timing. A job pointed at the
+-- wrong function, or left inactive, would silently mean no reminders ever fire.
 select is(
-  (select schedule from cron.job where jobname = 'birthday-reminder-fanout'),
-  '0 3 * * *',
-  'the reminder fan-out is scheduled daily'
+  (select j.jobname || ' | ' || j.schedule || ' | ' || btrim(j.command) || ' | active=' || j.active
+     from cron.job j
+    where j.jobname = 'birthday-reminder-fanout'),
+  'birthday-reminder-fanout | 0 3 * * * | select private.enqueue_reminders(); | active=true',
+  'the reminder fan-out is scheduled daily and enabled'
 );
 
 select * from finish();

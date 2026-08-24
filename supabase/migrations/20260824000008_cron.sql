@@ -10,6 +10,9 @@ create extension if not exists pg_cron;
 -- 03:00 UTC. Reminders are day-granular, so the exact hour only needs to be
 -- early enough that a T-0 reminder arrives on the morning of the day itself.
 -- unschedule first so re-running a reset does not accumulate duplicate jobs.
+-- A FROM-less select is one synthesized row filtered by WHERE, so when the
+-- exists() is false the target list is never evaluated and unschedule is never
+-- called. This is a skip, not a call-and-ignore-the-error.
 select cron.unschedule('birthday-reminder-fanout')
 where exists (select 1 from cron.job where jobname = 'birthday-reminder-fanout');
 
