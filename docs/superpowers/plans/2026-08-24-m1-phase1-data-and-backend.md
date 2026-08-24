@@ -78,7 +78,7 @@ Every task's requirements implicitly include this section. These are M0's hard-w
 
 - [ ] **Step 1: Write the failing assertion**
 
-In `supabase/tests/database/11_rls_coverage.test.sql`, change `select plan(2);` to `select plan(3);` and insert this assertion immediately before `select * from finish();`:
+In `supabase/tests/database/11_rls_coverage.test.sql`, change `select plan(2);` to `select plan(4);` and insert these assertions immediately before `select * from finish();`:
 
 ```sql
 -- Private tables are server-only, but "server-only" is a schema property, not a
@@ -93,6 +93,21 @@ select is_empty(
        and c.relkind = 'r'
        and not c.relrowsecurity $$,
   'every private table has row level security enabled'
+);
+
+-- R3: the same PUBLIC-executable-by-default trap as R13, but in `public`, where
+-- the private allowlist does not look. Later tasks add server-side wrapper
+-- functions in public that must be callable by service_role and nobody else; a
+-- forgotten revoke would hand every signed-in user a server-side entry point.
+-- This is an ALLOWLIST: extend it only for a function clients are meant to call.
+select is(
+  (select coalesce(string_agg(p.proname, ',' order by p.proname), '')
+     from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
+  'ops_get_delivery_address',
+  'only intentionally client-callable public functions are executable'
 );
 ```
 
@@ -116,13 +131,13 @@ docker exec supabase_db_birthday_app psql -U postgres -d postgres -c \
 supabase test db
 ```
 
-Expected: `Files=12, Tests=97, PASS`.
+Expected: `Files=12, Tests=98, PASS`.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add supabase/tests/database/11_rls_coverage.test.sql
-git commit -m "test(db): guard RLS on private tables too, not just public"
+git commit -m "test(db): guard RLS on private tables and public function grants"
 ```
 
 ---
@@ -563,7 +578,7 @@ select lives_ok(
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=13, Tests=111, PASS` — M0's 96 plus Task 1's private-RLS assertion, plus 12 birthday-model assertions and the new profiles assertion. If `03_people_graph`, `08_gift_lifecycle` or `10_ops` fails, a `create_person` call was missed; the error names the file and line.
+Expected: `Files=13, Tests=112, PASS` — M0's 96 plus Task 1's private-RLS assertion, plus 12 birthday-model assertions and the new profiles assertion. If `03_people_graph`, `08_gift_lifecycle` or `10_ops` fails, a `create_person` call was missed; the error names the file and line.
 
 - [ ] **Step 8: Commit**
 
@@ -705,7 +720,7 @@ create policy celebrations_select_incoming
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=14, Tests=115, PASS`.
+Expected: `Files=14, Tests=116, PASS`.
 
 - [ ] **Step 5: Commit**
 
@@ -827,7 +842,7 @@ create policy wishes_select_visible
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=15, Tests=118, PASS`. `09_wishes.test.sql` must still pass — its assertions cover the subject-side branch this migration leaves alone.
+Expected: `Files=15, Tests=119, PASS`. `09_wishes.test.sql` must still pass — its assertions cover the subject-side branch this migration leaves alone.
 
 - [ ] **Step 5: Commit**
 
@@ -999,19 +1014,32 @@ revoke execute on function public.my_birthday_stats() from public, anon;
 grant execute on function public.my_birthday_stats() to authenticated;
 ```
 
-- [ ] **Step 4: Run the suite**
+- [ ] **Step 4: Extend the public-function allowlist**
+
+This task grants `authenticated` execute on a new `public` function, so Task 1's
+allowlist must be widened deliberately. In `supabase/tests/database/11_rls_coverage.test.sql`,
+change the expected string:
+
+```sql
+  'my_birthday_stats,ops_get_delivery_address',
+```
+
+Alphabetical order matters — the query sorts by `proname`.
+
+- [ ] **Step 5: Run the suite**
 
 ```bash
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=16, Tests=122, PASS`.
+Expected: `Files=16, Tests=123, PASS`.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add supabase/migrations/20260824000004_birthday_stats.sql \
-        supabase/tests/database/15_birthday_stats.test.sql
+        supabase/tests/database/15_birthday_stats.test.sql \
+        supabase/tests/database/11_rls_coverage.test.sql
 git commit -m "feat(db): add per-year birthday stats for the profile"
 ```
 
@@ -1136,7 +1164,7 @@ create policy device_tokens_all_own
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=17, Tests=127, PASS`.
+Expected: `Files=17, Tests=128, PASS`.
 
 - [ ] **Step 5: Commit**
 
@@ -1164,6 +1192,9 @@ The heart of Phase 1. All scheduling logic lives here so it is pgTAP-testable; t
   - `private.next_reminder_batch(p_limit int default 100) returns table (outbox_id bigint, token text, platform text, subject_name text, offset_days smallint, occasion_date date)`
   - `private.mark_reminder_sent(p_outbox_id bigint) returns void`
   - `private.mark_reminder_failed(p_outbox_id bigint, p_error text) returns void`
+  - `public.rpc_next_reminder_batch(int)`, `public.rpc_mark_reminder_sent(bigint)`,
+    `public.rpc_mark_reminder_failed(bigint, text)` — service_role-only wrappers,
+    because PostgREST cannot reach the `private` schema (R2)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1415,6 +1446,67 @@ $$;
 
 revoke execute on function private.mark_reminder_failed(bigint, text)
   from public, anon, authenticated;
+
+-- ------------------------------------------------------------- rpc surface
+
+-- R2: PostgREST exposes only the schemas in config.toml's `[api] schemas`,
+-- which is ["public", "graphql_public"]. An Edge Function therefore CANNOT call
+-- a private function directly — verified against the running stack, a request
+-- with `Content-Profile: private` returns PGRST106 "Invalid schema: private".
+--
+-- Adding `private` to that list was rejected: the point of the private schema is
+-- that it is unreachable through the API by construction, not merely by grant.
+-- Instead each function the drain needs gets a thin public wrapper granted to
+-- service_role and nobody else. Task 1's public allowlist assertion is what
+-- catches a forgotten revoke here.
+create or replace function public.rpc_next_reminder_batch(p_limit int default 100)
+returns table (
+  outbox_id bigint,
+  token text,
+  platform text,
+  subject_name text,
+  offset_days smallint,
+  occasion_date date
+)
+language sql
+security definer
+set search_path = ''
+as $$
+  select * from private.next_reminder_batch(p_limit);
+$$;
+
+revoke execute on function public.rpc_next_reminder_batch(int)
+  from public, anon, authenticated;
+grant execute on function public.rpc_next_reminder_batch(int) to service_role;
+
+create or replace function public.rpc_mark_reminder_sent(p_outbox_id bigint)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  select private.mark_reminder_sent(p_outbox_id);
+$$;
+
+revoke execute on function public.rpc_mark_reminder_sent(bigint)
+  from public, anon, authenticated;
+grant execute on function public.rpc_mark_reminder_sent(bigint) to service_role;
+
+create or replace function public.rpc_mark_reminder_failed(
+  p_outbox_id bigint,
+  p_error text
+)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  select private.mark_reminder_failed(p_outbox_id, p_error);
+$$;
+
+revoke execute on function public.rpc_mark_reminder_failed(bigint, text)
+  from public, anon, authenticated;
+grant execute on function public.rpc_mark_reminder_failed(bigint, text) to service_role;
 ```
 
 - [ ] **Step 4: Run the suite**
@@ -1423,7 +1515,7 @@ revoke execute on function private.mark_reminder_failed(bigint, text)
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=18, Tests=135, PASS`. `01_private.test.sql`'s allowlist must still read `'can_see_person,is_staff,my_person_id'` — none of the four new functions is called by a policy, so all four are revoked from `authenticated` and the allowlist does not change. If it fails, a `revoke` was missed and the failure names the function.
+Expected: `Files=18, Tests=136, PASS`. `01_private.test.sql`'s allowlist must still read `'can_see_person,is_staff,my_person_id'` — none of the four new functions is called by a policy, so all four are revoked from `authenticated` and the allowlist does not change. If it fails, a `revoke` was missed and the failure names the function.
 
 - [ ] **Step 5: Commit**
 
@@ -1445,7 +1537,9 @@ Importing must not mint a `people` row for every contact in an address book. Thi
 
 **Interfaces:**
 - Consumes: `private.phone_hash(text)`, `private.suppressions`, `public.people`.
-- Produces: `private.resolve_contacts(p_phones text[]) returns table (phone text, person_id bigint, display_name text, birth_month smallint, birth_day smallint)`.
+- Produces:
+  - `private.resolve_contacts(p_phones text[]) returns table (phone text, person_id bigint, display_name text, birth_month smallint, birth_day smallint)`
+  - `public.rpc_resolve_contacts(text[])` — an identical service_role-only wrapper, because PostgREST cannot reach the `private` schema (R2)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1541,6 +1635,28 @@ $$;
 
 revoke execute on function private.resolve_contacts(text[])
   from public, anon, authenticated;
+
+-- R2: the Edge Function reaches this through a public wrapper, because
+-- PostgREST exposes only public and graphql_public. service_role only.
+create or replace function public.rpc_resolve_contacts(p_phones text[])
+returns table (
+  phone text,
+  person_id bigint,
+  display_name text,
+  birth_month smallint,
+  birth_day smallint
+)
+language sql
+security definer
+set search_path = ''
+stable
+as $$
+  select * from private.resolve_contacts(p_phones);
+$$;
+
+revoke execute on function public.rpc_resolve_contacts(text[])
+  from public, anon, authenticated;
+grant execute on function public.rpc_resolve_contacts(text[]) to service_role;
 ```
 
 - [ ] **Step 4: Run the suite**
@@ -1549,7 +1665,7 @@ revoke execute on function private.resolve_contacts(text[])
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=19, Tests=140, PASS`.
+Expected: `Files=19, Tests=141, PASS`.
 
 - [ ] **Step 5: Commit**
 
@@ -1628,7 +1744,7 @@ select cron.schedule(
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=19, Tests=141, PASS`.
+Expected: `Files=19, Tests=142, PASS`.
 
 If `create extension pg_cron` fails with a message about the database, note that pg_cron can only be installed in one database per cluster; on local Supabase that database is `postgres`, which is where migrations run, so this should succeed. Do not work around a failure here by dropping the assertion — stop and report.
 
@@ -1651,7 +1767,7 @@ A thin wrapper. It exists only because the app cannot reach a `private` function
 - Create: `supabase/functions/resolve_contacts/deno.json`
 
 **Interfaces:**
-- Consumes: `private.resolve_contacts(text[])`.
+- Consumes: `public.rpc_resolve_contacts(text[])` — the service_role-only wrapper from Task 8 (R2).
 - Produces: `POST /functions/v1/resolve_contacts` with body `{"phones": string[]}` returning `{"matches": [{phone, person_id, display_name, birth_month, birth_day}]}`.
 
 - [ ] **Step 1: Write the function**
@@ -1731,9 +1847,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
+  // R2: no .schema("private") — PostgREST exposes only public and
+  // graphql_public, so the private function is reached through its
+  // service_role-only public wrapper.
   const { data, error } = await admin
-    .schema("private")
-    .rpc("resolve_contacts", { p_phones: phones });
+    .rpc("rpc_resolve_contacts", { p_phones: phones });
 
   if (error) {
     console.error("resolve_contacts failed", error.message);
@@ -1812,7 +1930,7 @@ The only part of the reminder pipeline that cannot live in Postgres: the HTTP ca
 - Create: `supabase/functions/drain_reminders/deno.json`
 
 **Interfaces:**
-- Consumes: `private.next_reminder_batch(int)`, `private.mark_reminder_sent(bigint)`, `private.mark_reminder_failed(bigint, text)`.
+- Consumes: `public.rpc_next_reminder_batch(int)`, `public.rpc_mark_reminder_sent(bigint)`, `public.rpc_mark_reminder_failed(bigint, text)` — the service_role-only wrappers from Task 7 (R2).
 - Produces: `POST /functions/v1/drain_reminders` returning `{"sent": n, "failed": n}`.
 
 - [ ] **Step 1: Write the function**
@@ -1850,9 +1968,9 @@ Deno.serve(async (): Promise<Response> => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
+  // R2: public wrapper, not .schema("private") — see 20260824000006.
   const { data, error } = await admin
-    .schema("private")
-    .rpc("next_reminder_batch", { p_limit: 100 });
+    .rpc("rpc_next_reminder_batch", { p_limit: 100 });
 
   if (error) {
     console.error("next_reminder_batch failed", error.message);
@@ -1890,7 +2008,7 @@ Deno.serve(async (): Promise<Response> => {
       });
 
       if (!res.ok) {
-        await admin.schema("private").rpc("mark_reminder_failed", {
+        await admin.rpc("rpc_mark_reminder_failed", {
           p_outbox_id: r.outbox_id,
           p_error: `fcm ${res.status}`,
         });
@@ -1898,12 +2016,12 @@ Deno.serve(async (): Promise<Response> => {
         continue;
       }
 
-      await admin.schema("private").rpc("mark_reminder_sent", {
+      await admin.rpc("rpc_mark_reminder_sent", {
         p_outbox_id: r.outbox_id,
       });
       sent++;
     } catch (e) {
-      await admin.schema("private").rpc("mark_reminder_failed", {
+      await admin.rpc("rpc_mark_reminder_failed", {
         p_outbox_id: r.outbox_id,
         p_error: String(e).slice(0, 500),
       });
@@ -1966,7 +2084,7 @@ kill %1
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=19, Tests=141, PASS`.
+Expected: `Files=19, Tests=142, PASS`.
 
 - [ ] **Step 5: Commit**
 
@@ -1979,7 +2097,7 @@ git commit -m "feat(functions): add drain_reminders with dry-run fallback"
 
 ## Phase 1 Definition of Done
 
-- `supabase db reset && supabase test db` → **`Files=19, Tests=141, PASS`** from a cold database
+- `supabase db reset && supabase test db` → **`Files=19, Tests=142, PASS`** from a cold database
 - `supabase db lint --level warning` reports warnings only inside `extensions.*` (pgTAP's own code)
 - `01_private.test.sql`'s allowlist still reads exactly `'can_see_person,is_staff,my_person_id'`
 - Both Edge Functions respond correctly, with `drain_reminders` in dry-run mode
