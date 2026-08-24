@@ -8,17 +8,17 @@ select tests.as_postgres();
 
 -- Two users import the same phone number: they must converge on one person.
 select is(
-  tests.create_person('+919000000001', 'Cousin Meera', date '1995-04-12'),
-  tests.create_person('+919000000001', 'Meera', date '1995-04-12'),
+  tests.create_person('+919000000001', 'Cousin Meera', 4::smallint, 12::smallint, 1995::smallint),
+  tests.create_person('+919000000001', 'Meera', 4::smallint, 12::smallint, 1995::smallint),
   'the same phone number resolves to the same person row'
 );
 
 -- A suppressed number cannot be resurrected by a later import.
 select private.suppress_person(
-  tests.create_person('+919000000002', 'Nope', null)
+  tests.create_person('+919000000002', 'Nope')
 );
 select is(
-  tests.create_person('+919000000002', 'Nope Again', null),
+  tests.create_person('+919000000002', 'Nope Again'),
   null,
   'a suppressed number returns null instead of a new person'
 );

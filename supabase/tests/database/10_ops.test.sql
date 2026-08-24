@@ -12,9 +12,10 @@ update public.profiles set is_staff = true where handle = 'opsuser';
 select tests.create_user('normaluser');
 select tests.create_user('buyer');
 select private.claim_person((select id from public.profiles where handle = 'buyer'), '+919500000001');
--- R21 again: people.birthday is a date of birth and must be in the past.
 select tests.create_person(
-  '+919500000002', 'Recipient Rita', ((current_date + 2) - interval '28 years')::date);
+  '+919500000002', 'Recipient Rita',
+  extract(month from current_date + 2)::smallint,
+  extract(day from current_date + 2)::smallint);
 
 insert into public.celebrations (celebrator_profile_id, person_id, source)
 values (

@@ -70,12 +70,15 @@ $$;
 create or replace function tests.create_person(
   p_phone text,
   p_name text,
-  p_birthday date default null
+  p_birth_month smallint default null,
+  p_birth_day smallint default null,
+  p_birth_year smallint default null
 )
 returns bigint
 language sql
 as $$
-  select private.upsert_person(p_phone, p_name, p_birthday);
+  select private.upsert_person(
+    p_phone, p_name, p_birth_month, p_birth_day, p_birth_year);
 $$;
 
 -- Opens two real connections and races them for the last unit of capacity on

@@ -6,13 +6,12 @@ select tests.as_postgres();
 -- Fixtures.
 select tests.create_user('payer');
 select private.claim_person((select id from public.profiles where handle = 'payer'), '+919300000001');
--- R21: the plan passed `current_date + 5` as the birthday, but people.birthday
--- is a DATE OF BIRTH and Task 4's people_birthday_sane requires it to be in the
--- past. The intent is "their birthday falls in five days", so give a real DOB
--- with that month and day: they turn 30 on the occasion date.
+-- Their birthday falls in five days. Month and day are all a reminder needs;
+-- the year is optional and omitted here.
 select tests.create_person(
   '+919300000002', 'Unregistered Friend',
-  ((current_date + 5) - interval '30 years')::date);
+  extract(month from current_date + 5)::smallint,
+  extract(day from current_date + 5)::smallint);
 
 insert into public.celebrations (celebrator_profile_id, person_id, source)
 values (

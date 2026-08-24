@@ -1,5 +1,5 @@
 begin;
-select plan(9);
+select plan(10);
 
 select has_table('public', 'profiles', 'profiles exists');
 
@@ -67,6 +67,16 @@ select lives_ok(
   $$ update public.profiles set display_name = 'Alice Renamed'
      where id = (select auth.uid()) $$,
   'a user can still update the columns the grant list allows'
+);
+
+-- The birthday columns are new and R14's grant list had to be extended for
+-- them. Prove the ordinary path works, because a missing column grant fails
+-- silently rather than erroring.
+select lives_ok(
+  $$ update public.profiles
+     set birth_month = 7::smallint, birth_day = 4::smallint
+     where id = (select auth.uid()) $$,
+  'a user can set their own birthday'
 );
 
 select * from finish();
