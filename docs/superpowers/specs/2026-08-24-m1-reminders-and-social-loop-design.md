@@ -68,9 +68,26 @@ Rewires `private.upsert_person`, `private.claim_person` and
 `private.sync_person_from_profile`, and drops `people_birthday_sane` and
 `profiles_dob_sane`.
 
-**Blast radius, measured:** 2 migrations, 5 test files and `seed.sql` — 22
-references, and `tests.create_person`'s signature changes. M0's 96 assertions
-passing afterwards is Phase 1's acceptance gate, not a footnote.
+**Blast radius, measured against the live database:** `seed.sql` (where
+`tests.create_person`'s signature changes) and three test files —
+`03_people_graph`, `08_gift_lifecycle`, `10_ops`. An earlier estimate of five
+files over-counted: `09_wishes` only matches the *handle* `birthday_kid` and
+`07_gifts` only the string `'Happy birthday!'`; neither touches the column.
+
+Two dependencies that make this migration more than a column swap, both
+confirmed by trying them:
+
+- `alter table public.profiles drop column date_of_birth` **fails** — the
+  `profiles_sync_person` trigger is declared `after update of display_name,
+  date_of_birth` and depends on the column. The trigger must be dropped and
+  recreated with the new column list.
+- The column sits in R14's grant list (`date_of_birth -> authenticated=w`), so
+  dropping it silently removes that grant. The three new columns need an explicit
+  `grant update (...) on public.profiles to authenticated`, or a user loses the
+  ability to edit their own birthday with no error anywhere.
+
+M0's 96 assertions passing afterwards is Phase 1's acceptance gate, not a
+footnote.
 
 ### 4.2 Push and reminder tables
 
