@@ -67,6 +67,11 @@ begin
 end;
 $$;
 
+-- The signature changed from a single date to month/day/year. `create or
+-- replace` cannot drop the old overload, and leaving it makes two-argument
+-- calls ambiguous if seed.sql is re-run against an existing database.
+drop function if exists tests.create_person(text, text, date);
+
 create or replace function tests.create_person(
   p_phone text,
   p_name text,

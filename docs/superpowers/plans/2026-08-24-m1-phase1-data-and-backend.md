@@ -170,7 +170,7 @@ Create `supabase/tests/database/12_birthday_model.test.sql`:
 
 ```sql
 begin;
-select plan(13);
+select plan(16);
 
 select has_column('public', 'people', 'birth_month', 'people.birth_month exists');
 select has_column('public', 'people', 'birth_day', 'people.birth_day exists');
@@ -578,7 +578,7 @@ select lives_ok(
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=13, Tests=112, PASS` — M0's 96 plus Task 1's private-RLS assertion, plus 12 birthday-model assertions and the new profiles assertion. If `03_people_graph`, `08_gift_lifecycle` or `10_ops` fails, a `create_person` call was missed; the error names the file and line.
+Expected: `Files=13, Tests=115, PASS` — M0's 96 plus Task 1's private-RLS assertion, plus 12 birthday-model assertions and the new profiles assertion. If `03_people_graph`, `08_gift_lifecycle` or `10_ops` fails, a `create_person` call was missed; the error names the file and line.
 
 - [ ] **Step 8: Commit**
 
@@ -720,7 +720,7 @@ create policy celebrations_select_incoming
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=14, Tests=116, PASS`.
+Expected: `Files=14, Tests=119, PASS`.
 
 - [ ] **Step 5: Commit**
 
@@ -842,7 +842,7 @@ create policy wishes_select_visible
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=15, Tests=119, PASS`. `09_wishes.test.sql` must still pass — its assertions cover the subject-side branch this migration leaves alone.
+Expected: `Files=15, Tests=122, PASS`. `09_wishes.test.sql` must still pass — its assertions cover the subject-side branch this migration leaves alone.
 
 - [ ] **Step 5: Commit**
 
@@ -1032,7 +1032,7 @@ Alphabetical order matters — the query sorts by `proname`.
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=16, Tests=123, PASS`.
+Expected: `Files=16, Tests=126, PASS`.
 
 - [ ] **Step 6: Commit**
 
@@ -1164,7 +1164,7 @@ create policy device_tokens_all_own
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=17, Tests=128, PASS`.
+Expected: `Files=17, Tests=131, PASS`.
 
 - [ ] **Step 5: Commit**
 
@@ -1515,7 +1515,7 @@ grant execute on function public.rpc_mark_reminder_failed(bigint, text) to servi
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=18, Tests=136, PASS`. `01_private.test.sql`'s allowlist must still read `'can_see_person,is_staff,my_person_id'` — none of the four new functions is called by a policy, so all four are revoked from `authenticated` and the allowlist does not change. If it fails, a `revoke` was missed and the failure names the function.
+Expected: `Files=18, Tests=139, PASS`. `01_private.test.sql`'s allowlist must still read `'can_see_person,is_staff,my_person_id'` — none of the four new functions is called by a policy, so all four are revoked from `authenticated` and the allowlist does not change. If it fails, a `revoke` was missed and the failure names the function.
 
 - [ ] **Step 5: Commit**
 
@@ -1665,7 +1665,7 @@ grant execute on function public.rpc_resolve_contacts(text[]) to service_role;
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=19, Tests=141, PASS`.
+Expected: `Files=19, Tests=144, PASS`.
 
 - [ ] **Step 5: Commit**
 
@@ -1744,7 +1744,7 @@ select cron.schedule(
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=19, Tests=142, PASS`.
+Expected: `Files=19, Tests=145, PASS`.
 
 If `create extension pg_cron` fails with a message about the database, note that pg_cron can only be installed in one database per cluster; on local Supabase that database is `postgres`, which is where migrations run, so this should succeed. Do not work around a failure here by dropping the assertion — stop and report.
 
@@ -2084,7 +2084,7 @@ kill %1
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=19, Tests=142, PASS`.
+Expected: `Files=19, Tests=145, PASS`.
 
 - [ ] **Step 5: Commit**
 
@@ -2097,7 +2097,7 @@ git commit -m "feat(functions): add drain_reminders with dry-run fallback"
 
 ## Phase 1 Definition of Done
 
-- `supabase db reset && supabase test db` → **`Files=19, Tests=142, PASS`** from a cold database
+- `supabase db reset && supabase test db` → **`Files=19, Tests=145, PASS`** from a cold database
 - `supabase db lint --level warning` reports warnings only inside `extensions.*` (pgTAP's own code)
 - `01_private.test.sql`'s allowlist still reads exactly `'can_see_person,is_staff,my_person_id'`
 - Both Edge Functions respond correctly, with `drain_reminders` in dry-run mode

@@ -1,5 +1,5 @@
 begin;
-select plan(13);
+select plan(16);
 
 select has_column('public', 'people', 'birth_month', 'people.birth_month exists');
 select has_column('public', 'people', 'birth_day', 'people.birth_day exists');
@@ -36,6 +36,21 @@ select throws_ok(
   'Feb 29 with a non-leap year is rejected'
 );
 
+-- 2000 is a leap year because it is divisible by 400; 1900 is not because it is
+-- divisible by 100 but not 400. This is the half of the rule that gets written
+-- wrong.
+select lives_ok(
+  $$ select tests.create_person('+919600000006', 'Century Leap', 2::smallint, 29::smallint, 2000::smallint) $$,
+  'Feb 29 with 2000 is accepted'
+);
+
+select throws_ok(
+  $$ select tests.create_person('+919600000007', 'Century Common', 2::smallint, 29::smallint, 1900::smallint) $$,
+  '23514',
+  null,
+  'Feb 29 with 1900 is rejected'
+);
+
 -- Days must be valid for their month.
 select throws_ok(
   $$ select tests.create_person('+919600000004', 'No Such Day', 4::smallint, 31::smallint) $$,
@@ -68,6 +83,25 @@ select is(
        || has_column_privilege('authenticated', 'public.profiles', 'birth_year', 'UPDATE')::text),
   'truetruetrue',
   'a user may update their own birthday columns'
+);
+
+-- The sync trigger's `update of` list gained two columns in this task. A column
+-- missing from that list is silent staleness, not an error, so assert the
+-- propagation rather than just the write.
+select tests.create_user('syncer');
+select private.claim_person(
+  (select id from public.profiles where handle = 'syncer'), '+919600000010');
+
+update public.profiles
+set birth_month = 7::smallint, birth_day = 4::smallint, birth_year = 1990::smallint
+where handle = 'syncer';
+
+select is(
+  (select p.birth_month || '-' || p.birth_day || '-' || p.birth_year
+     from public.people p
+    where p.profile_id = (select id from public.profiles where handle = 'syncer')),
+  '7-4-1990',
+  'editing a profile birthday propagates to the person row'
 );
 
 select * from finish();

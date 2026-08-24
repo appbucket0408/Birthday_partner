@@ -36,8 +36,18 @@ alter table public.people
   add constraint people_birth_year_needs_parts
     check (birth_year is null or birth_month is not null),
   add constraint people_birth_year_sane
-    check (birth_year is null
-           or birth_year between 1900 and extract(year from current_date)::int),
+    check (
+      birth_year is null
+      or (
+        birth_year between 1900 and extract(year from current_date)::int
+        and (
+          birth_year < extract(year from current_date)::int
+          or (birth_month, birth_day)
+             <= (extract(month from current_date)::smallint,
+                 extract(day from current_date)::smallint)
+        )
+      )
+    ),
   add constraint people_birth_leap_valid
     check (
       birth_year is null or birth_month is null
@@ -89,8 +99,18 @@ alter table public.profiles
   add constraint profiles_birth_year_needs_parts
     check (birth_year is null or birth_month is not null),
   add constraint profiles_birth_year_sane
-    check (birth_year is null
-           or birth_year between 1900 and extract(year from current_date)::int),
+    check (
+      birth_year is null
+      or (
+        birth_year between 1900 and extract(year from current_date)::int
+        and (
+          birth_year < extract(year from current_date)::int
+          or (birth_month, birth_day)
+             <= (extract(month from current_date)::smallint,
+                 extract(day from current_date)::smallint)
+        )
+      )
+    ),
   add constraint profiles_birth_leap_valid
     check (
       birth_year is null or birth_month is null
