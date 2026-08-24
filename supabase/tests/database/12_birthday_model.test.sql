@@ -96,12 +96,20 @@ update public.profiles
 set birth_month = 7::smallint, birth_day = 4::smallint, birth_year = 1990::smallint
 where handle = 'syncer';
 
+-- Second update touches ONLY birth_day. An `update of` trigger fires when any
+-- listed column is touched and NEW carries every column, so updating all three
+-- at once would still pass with birth_day missing from the trigger's list.
+-- Changing one column alone is what actually detects that.
+update public.profiles
+set birth_day = 5::smallint
+where handle = 'syncer';
+
 select is(
   (select p.birth_month || '-' || p.birth_day || '-' || p.birth_year
      from public.people p
     where p.profile_id = (select id from public.profiles where handle = 'syncer')),
-  '7-4-1990',
-  'editing a profile birthday propagates to the person row'
+  '7-5-1990',
+  'a single-column birthday edit propagates to the person row'
 );
 
 select * from finish();
