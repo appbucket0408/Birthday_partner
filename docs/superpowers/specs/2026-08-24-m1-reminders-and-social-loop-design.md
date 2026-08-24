@@ -279,13 +279,38 @@ decision rather than arriving as a side effect of the Celebrates list.
 
 None block Phase 1.
 
-1. SMS provider selection — blocks the first real-device OTP test, not the
+1. **Nothing triggers the drain yet, deliberately.** §5 above describes the cron
+   job as enqueueing "then trigger the drain", and Phase 1 shipped only the
+   enqueue half. This is a deferral, not an oversight: scheduling the drain
+   before FCM credentials exist would have it claim a batch every ten minutes,
+   drop it, and recycle it forever. Phase 2 must add a second `cron.schedule`
+   posting to `/functions/v1/drain_reminders` via `pg_net`, carrying the
+   `x-drain-secret` header the function now requires, in the same change that
+   supplies the credentials. Until then the pipeline enqueues correctly and sends
+   nothing, and the outbox grows — which is fine at zero users and must not
+   reach a pilot.
+
+2. SMS provider selection — blocks the first real-device OTP test, not the
    build. The product spec lists this as blocking M3; it actually surfaces here
    first.
-2. Firebase project and FCM credentials — blocks the first real-device reminder,
+
+3. Firebase project and FCM credentials — blocks the first real-device reminder,
    not the outbox logic, which is fully testable without them.
-3. Copy and visual design for the seven screens — needed during Phase 2, not
+4. Copy and visual design for the seven screens — needed during Phase 2, not
    before.
-4. Whether "wishes received" counts `kind = 'cake'` posts alongside typed
+5. Whether "wishes received" counts `kind = 'cake'` posts alongside typed
    messages once gifting exists in M3. M1 has no cakes, so the question is
    dormant.
+
+6. **No backend supports the Settings notification toggle** (§7.7). There is no
+   column for it and `private.enqueue_reminders` consults nothing, so Phase 2
+   needs both a migration and a fan-out change — it will reopen a file Phase 1
+   declares finished. Named here so the Phase 2 plan budgets for it.
+
+7. **Reminder delivery is at-most-once per outbox row, not per device.** A user
+   with several registered devices whose first device succeeds and second fails
+   will not have the second retried, because `sent_at` is set on the shared row.
+   Accepted at pilot scale, where users are effectively single-device; the fix is
+   a per-device deliveries table. The fan-out is also bounded to five devices per
+   reminder, so a user with more than five registered devices will not reach them
+   all.

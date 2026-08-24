@@ -2100,5 +2100,11 @@ git commit -m "feat(functions): add drain_reminders with dry-run fallback"
 - `supabase db reset && supabase test db` → **`Files=19, Tests=162, PASS`** from a cold database
 - `supabase db lint --level warning` reports warnings only inside `extensions.*` (pgTAP's own code)
 - `01_private.test.sql`'s allowlist still reads exactly `'can_see_person,is_staff,my_person_id'`
-- Both Edge Functions respond correctly, with `drain_reminders` in dry-run mode
-- Deferred to Phase 2 by design: real FCM credentials, real SMS provider, and any app code
+- Both Edge Functions respond correctly, with `drain_reminders` in dry-run mode.
+  **Dry-run is not end-to-end coverage.** Nothing schedules the drain, so the
+  pipeline enqueues daily and never sends; and the dry-run path still claims the
+  rows it looks at. Phase 2 schedules it alongside the FCM credentials. See the
+  spec's open question 1.
+- Deferred to Phase 2 by design: real FCM credentials, real SMS provider,
+  scheduling the drain, a per-device delivery record, the Settings notification
+  toggle's backend, and any app code
