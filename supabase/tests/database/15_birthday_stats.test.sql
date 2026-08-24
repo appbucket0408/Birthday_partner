@@ -73,11 +73,27 @@ insert into public.wishes (author_profile_id, subject_person_id, body, occasion_
 values ((select me from ids), (select p_one from ids), 'Next year',
         (select this_year from ids) + 1);
 
+-- A second wish to a subject already wished this year, as a 'cake' row since the
+-- partial unique index allows only one 'message' per subject per year. This is
+-- what makes wishes_sent and birthdays_celebrated diverge, so a regression
+-- dropping DISTINCT cannot pass.
+insert into public.wishes (author_profile_id, subject_person_id, body, kind, occasion_year)
+values ((select me from ids), (select p_one from ids), 'sent a cake', 'cake',
+        (select this_year from ids));
+
 select tests.as_user((select me from ids));
+-- One assertion covering three things at once: that grouping produces exactly
+-- one row per year, that each row's values are right, and that
+-- birthdays_celebrated counts DISTINCT subjects (3 wishes sent this year, but
+-- only 2 distinct people).
 select is(
-  (select count(*)::int from public.my_birthday_stats()),
-  2,
-  'stats are grouped per year, one row each'
+  (select string_agg(
+            stat_year || ':' || wishes_sent || '/' || wishes_received
+              || '/' || birthdays_celebrated,
+            ' ' order by stat_year)
+     from public.my_birthday_stats()),
+  (select this_year || ':3/1/2 ' || (this_year + 1) || ':1/0/1' from ids),
+  'stats group per year with correct values, counting distinct subjects'
 );
 
 select * from finish();

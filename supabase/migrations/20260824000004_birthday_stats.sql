@@ -17,13 +17,20 @@ stable
 security invoker
 set search_path = ''
 as $$
-  with mine as (
-    select w.occasion_year, w.author_profile_id, w.subject_person_id
-    from public.wishes w
-  ),
-  me as (
+  with me as (
     select (select auth.uid()) as profile_id,
            (select private.my_person_id()) as person_id
+  ),
+  mine as (
+    -- Filtered to the caller's own rows. Without this, a wish authored by
+    -- someone else about a person the caller merely celebrates is visible under
+    -- wishes_select_visible, lands in this CTE, and produces a phantom
+    -- all-zero row for its year. RLS already guarantees both branches are
+    -- readable, so nothing is lost by filtering here.
+    select w.occasion_year, w.author_profile_id, w.subject_person_id
+    from public.wishes w
+    where w.author_profile_id = (select profile_id from me)
+       or w.subject_person_id = (select person_id from me)
   )
   select
     m.occasion_year as stat_year,
