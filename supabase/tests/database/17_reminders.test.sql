@@ -1,5 +1,5 @@
 begin;
-select plan(17);
+select plan(18);
 
 select has_table('private', 'notification_outbox', 'the outbox exists');
 
@@ -182,6 +182,13 @@ select is(
   'a blocked celebrator gets no reminder about the person who blocked them'
 );
 
+-- The fan-out is useless unless something runs it. pg_cron stores schedules as
+-- rows, so the schedule itself is assertable.
+select is(
+  (select schedule from cron.job where jobname = 'birthday-reminder-fanout'),
+  '0 3 * * *',
+  'the reminder fan-out is scheduled daily'
+);
 
 select * from finish();
 rollback;
