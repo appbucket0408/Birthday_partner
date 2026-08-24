@@ -1,5 +1,5 @@
 begin;
-select plan(4);
+select plan(5);
 
 select tests.as_postgres();
 select tests.create_user('starkid');
@@ -29,13 +29,26 @@ grant select on ids to authenticated;
 
 select tests.as_user((select star from ids));
 
+-- F3: the incoming (Celebrates) direction is a function, not a policy, so it
+-- cannot hand the subject the celebrator's private nickname or the source
+-- that reveals how they were found.
 select is(
-  (select count(*)::int from public.celebrations),
+  (select count(*)::int from public.my_celebrates()),
   2,
-  'the star sees both people who celebrate them'
+  'the star sees both people who celebrate them, via my_celebrates()'
 );
 
--- A fan sees only their own outgoing edge, never the other fan's.
+-- The whole point of moving this off RLS: a direct select against
+-- public.celebrations from the subject's own session now returns nothing at
+-- all -- nickname and source are unreachable in this direction.
+select is(
+  (select count(*)::int from public.celebrations),
+  0,
+  'the subject selecting public.celebrations directly sees zero rows'
+);
+
+-- A fan sees only their own outgoing edge, never the other fan's. This
+-- direction is untouched -- it still uses celebrations_select_own directly.
 select tests.as_postgres();
 select tests.as_user((select fan_one from ids));
 select is(
@@ -51,14 +64,14 @@ values ((select star from ids), (select fan_two from ids));
 
 select tests.as_user((select star from ids));
 select is(
-  (select count(*)::int from public.celebrations),
+  (select count(*)::int from public.my_celebrates()),
   1,
   'a blocked celebrator drops out of the Celebrates list'
 );
 
 -- And the surviving row is the one that was not blocked.
 select is(
-  (select celebrator_profile_id from public.celebrations),
+  (select celebrator_profile_id from public.my_celebrates()),
   (select fan_one from ids),
   'the remaining celebrator is the unblocked fan'
 );
