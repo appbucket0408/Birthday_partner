@@ -18,7 +18,7 @@ security definer
 set search_path = ''
 stable
 as $$
-  select c.phone, p.id, p.display_name, p.birth_month, p.birth_day
+  select distinct c.phone, p.id, p.display_name, p.birth_month, p.birth_day
   from unnest(p_phones) as c(phone)
   join public.people p
     on p.phone_e164_hash = private.phone_hash(c.phone)

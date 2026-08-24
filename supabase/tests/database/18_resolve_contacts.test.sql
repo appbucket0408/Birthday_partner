@@ -1,5 +1,5 @@
 begin;
-select plan(5);
+select plan(8);
 
 select tests.as_postgres();
 
@@ -21,6 +21,23 @@ select is(
   'the match carries the name the app needs to show'
 );
 
+-- The Edge Function calls the wrapper, never the private function. Signature
+-- drift between the two fails at runtime, not at DDL time.
+select is(
+  (select person_id from public.rpc_resolve_contacts(array['+919120000001'])),
+  (select id from public.people where display_name = 'Known Friend'),
+  'the service_role wrapper returns what the private function returns'
+);
+
+-- One number saved under two contact entries must not surface the same person
+-- twice.
+select is(
+  (select count(*)::int from private.resolve_contacts(
+     array['+919120000001', '+919120000001', '+919120000001'])),
+  1,
+  'a number repeated in the input resolves to one row'
+);
+
 select is_empty(
   $$ select phone from private.resolve_contacts(array['+919120000099']) $$,
   'an unknown number resolves to nothing'
@@ -36,6 +53,20 @@ select is(
   (select count(*)::int from public.people),
   1,
   'resolving unknown numbers creates no people rows'
+);
+
+-- The suppressions filter defends a real path: private.claim_person upserts into
+-- public.people with no suppression check, so a suppressed hash can resurface
+-- via signup. Reproduce that state directly — a people row co-existing with a
+-- suppressions row — and prove resolution still refuses it. Without this, the
+-- not-exists clause could be deleted from the migration and every test would
+-- still pass.
+insert into public.people (phone_e164_hash, display_name)
+values (private.phone_hash('+919120000002'), 'Resurfaced');
+
+select is_empty(
+  $$ select phone from private.resolve_contacts(array['+919120000002']) $$,
+  'a suppressed number stays unresolvable even when a person row exists again'
 );
 
 select * from finish();
