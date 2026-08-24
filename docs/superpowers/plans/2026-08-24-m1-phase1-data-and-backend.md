@@ -1665,7 +1665,7 @@ grant execute on function public.rpc_resolve_contacts(text[]) to service_role;
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=19, Tests=158, PASS`.
+Expected: `Files=19, Tests=161, PASS`.
 
 - [ ] **Step 5: Commit**
 
@@ -1744,7 +1744,7 @@ select cron.schedule(
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=19, Tests=159, PASS`.
+Expected: `Files=19, Tests=162, PASS`.
 
 If `create extension pg_cron` fails with a message about the database, note that pg_cron can only be installed in one database per cluster; on local Supabase that database is `postgres`, which is where migrations run, so this should succeed. Do not work around a failure here by dropping the assertion — stop and report.
 
@@ -2084,7 +2084,7 @@ kill %1
 supabase db reset && supabase test db
 ```
 
-Expected: `Files=19, Tests=159, PASS`.
+Expected: `Files=19, Tests=162, PASS`.
 
 - [ ] **Step 5: Commit**
 
@@ -2097,7 +2097,7 @@ git commit -m "feat(functions): add drain_reminders with dry-run fallback"
 
 ## Phase 1 Definition of Done
 
-- `supabase db reset && supabase test db` → **`Files=19, Tests=159, PASS`** from a cold database
+- `supabase db reset && supabase test db` → **`Files=19, Tests=162, PASS`** from a cold database
 - `supabase db lint --level warning` reports warnings only inside `extensions.*` (pgTAP's own code)
 - `01_private.test.sql`'s allowlist still reads exactly `'can_see_person,is_staff,my_person_id'`
 - Both Edge Functions respond correctly, with `drain_reminders` in dry-run mode
