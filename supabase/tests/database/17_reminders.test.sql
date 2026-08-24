@@ -1,5 +1,5 @@
 begin;
-select plan(9);
+select plan(17);
 
 select has_table('private', 'notification_outbox', 'the outbox exists');
 
@@ -74,6 +74,114 @@ select isnt_empty(
   $$ select outbox_id from private.next_reminder_batch() $$,
   'once a device is registered the batch has work'
 );
+
+-- The batch CLAIMS. A second drain arriving immediately must get nothing.
+select is(
+  (select count(*)::int from private.next_reminder_batch()),
+  0,
+  'a second drain gets nothing because the first claimed the batch'
+);
+
+-- A sent row never returns, even once its claim lease has expired.
+-- Every row in the outbox is marked sent, not just the first: assertions 6 and 7
+-- added two more rows after "the outbox still holds exactly one row", so marking
+-- only `order by id limit 1` would leave two genuinely-eligible rows behind and
+-- the count below would be 2 for a reason that has nothing to do with sent_at.
+-- Marking all three still tests exactly what the assertion claims -- were the
+-- `sent_at is null` filter dropped from the claim, this would return 3 and fail.
+select private.mark_reminder_sent(o.id) from private.notification_outbox o;
+update private.notification_outbox set claimed_at = null;
+select is(
+  (select count(*)::int from private.next_reminder_batch()),
+  0,
+  'a sent reminder never comes back'
+);
+
+-- Failure increments attempts, and the cap excludes a row that keeps failing.
+select private.mark_reminder_failed(
+  (select id from private.notification_outbox order by id limit 1), 'fcm 500');
+select is(
+  (select attempts from private.notification_outbox order by id limit 1),
+  1,
+  'a failed delivery increments attempts'
+);
+
+update private.notification_outbox set sent_at = null, claimed_at = null, attempts = 5;
+select is(
+  (select count(*)::int from private.next_reminder_batch()),
+  0,
+  'a reminder that has failed five times is not retried'
+);
+
+-- The public wrapper is what the Edge Function actually calls. Return-type drift
+-- fails at runtime, not at DDL time, and no grant guard would catch it.
+select lives_ok(
+  $$ select * from public.rpc_next_reminder_batch(1) $$,
+  'the service_role wrapper for the batch is callable and its shape matches'
+);
+
+-- Offset 1 is otherwise never exercised anywhere in this file.
+-- The fan-out is called as its own statement rather than from the assertion's
+-- WHERE clause: the outbox is empty at that point, so a qual on the scan of it
+-- would never be evaluated and the sub-select would return null regardless of
+-- what the fan-out did.
+select tests.as_postgres();
+delete from private.notification_outbox;
+select private.enqueue_reminders(date '2027-01-07');
+select is(
+  (select o.offset_days || ' on ' || o.occasion_date
+     from private.notification_outbox o
+    order by o.id desc limit 1),
+  '1 on 2027-01-08',
+  'a birthday tomorrow is queued at offset 1'
+);
+
+-- The highest-risk path in the task: a leap-year T-1 must use the real Feb 29
+-- via the plain arm, with the Feb-28 arm gated off so nothing double-fires.
+delete from private.notification_outbox;
+select is(
+  private.enqueue_reminders(date '2028-02-28') || ' row(s)',
+  '1 row(s)',
+  'in a leap year the Feb 29 birthday is queued once, at T-1'
+);
+
+-- A block must stop the fan-out, not just the read paths.
+-- Built explicitly rather than selected out of the existing fixture: the people
+-- created by tests.create_person carry no profile_id, so there is no profile to
+-- block with. 'Week Away' and 'Leap Friend' also have to stop being celebrated
+-- first -- Week Away's Jan 8 birthday fires at offset 7 from 2027-01-01, which
+-- would mask the block entirely. What is left is one edge, pointing at a person
+-- who has a profile, and that profile blocks the celebrator.
+delete from private.notification_outbox;
+select tests.create_user('blockerguy');
+select private.claim_person(
+  (select id from public.profiles where handle = 'blockerguy'), '+919110000004');
+update public.people
+set birth_month = 1::smallint, birth_day = 8::smallint
+where phone_e164_hash = private.phone_hash('+919110000004');
+
+delete from public.celebrations
+where celebrator_profile_id = (select id from public.profiles where handle = 'remindme');
+
+-- The edge has to predate the block: private.guard_celebration refuses to
+-- create an edge towards someone who has already blocked you.
+insert into public.celebrations (celebrator_profile_id, person_id, source)
+values (
+  (select id from public.profiles where handle = 'remindme'),
+  (select id from public.people where phone_e164_hash = private.phone_hash('+919110000004')),
+  'contacts');
+
+insert into public.blocks (blocker_profile_id, blocked_profile_id)
+values (
+  (select id from public.profiles where handle = 'blockerguy'),
+  (select id from public.profiles where handle = 'remindme'));
+
+select is(
+  private.enqueue_reminders(date '2027-01-01'),
+  0,
+  'a blocked celebrator gets no reminder about the person who blocked them'
+);
+
 
 select * from finish();
 rollback;

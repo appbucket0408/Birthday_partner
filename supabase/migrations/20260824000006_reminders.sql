@@ -12,6 +12,7 @@ create table private.notification_outbox (
   occasion_date date not null,
   created_at timestamptz not null default now(),
   sent_at timestamptz,
+  claimed_at timestamptz,
   attempts int not null default 0,
   last_error text,
   constraint notification_outbox_kind_valid check (kind in ('reminder')),
@@ -19,12 +20,20 @@ create table private.notification_outbox (
   -- THE no-double-send guarantee. A cron re-run, a retry, or two overlapping
   -- schedules cannot produce a second notification for the same person, day and
   -- offset. Idempotency is a constraint here, not a convention.
+  --
+  -- `kind` is part of the key even though the check constraint admits only one
+  -- value today: the day a second kind is added, a reminder and the new kind for
+  -- the same person, date and offset would collide and the second would vanish
+  -- silently into the fan-out's DO NOTHING.
   constraint notification_outbox_once
-    unique (recipient_profile_id, subject_person_id, occasion_date, offset_days)
+    unique (recipient_profile_id, subject_person_id, occasion_date, offset_days, kind)
 );
 
+-- `sent_at` is constant-null across every row this partial index contains, so
+-- it is dead weight as a leading column. `attempts` is what the drain actually
+-- filters on next.
 create index notification_outbox_unsent_idx
-  on private.notification_outbox (sent_at, id)
+  on private.notification_outbox (attempts, id)
   where sent_at is null;
 
 create index notification_outbox_subject_idx
@@ -78,6 +87,14 @@ begin
             )
           )
         )
+        and not exists (
+          -- A block does not delete existing edges, so the fan-out has to
+          -- filter. Without this we push a blocked person's name to the very
+          -- user they blocked.
+          select 1 from public.blocks b
+          where b.blocker_profile_id = p.profile_id
+            and b.blocked_profile_id = c.celebrator_profile_id
+        )
       on conflict on constraint notification_outbox_once do nothing
       returning 1
     )
@@ -91,8 +108,17 @@ $$;
 revoke execute on function private.enqueue_reminders(date)
   from public, anon, authenticated;
 
--- What the drain reads. Joins to device_tokens so a user with no device yields
--- no work, and exposes only what a push notification needs.
+-- Claims its batch rather than just reading it. Two drains overlapping (a cron
+-- tick landing on a slow retry) would otherwise both take the same rows and both
+-- send; the enqueue-side unique constraint cannot help, because it guards
+-- insertion, not delivery. `for update skip locked` alone is not enough either —
+-- this runs as one implicit transaction, so the lock is gone the moment the
+-- select returns.
+--
+-- The 10-minute lease means a drain that dies mid-send does not strand its rows
+-- permanently. Eligibility requires a device to EXIST rather than joining to
+-- one, which keeps p_limit counting reminders instead of token-rows AND stops a
+-- device-less row being claimed and stranded.
 create or replace function private.next_reminder_batch(p_limit int default 100)
 returns table (
   outbox_id bigint,
@@ -106,14 +132,31 @@ language sql
 security definer
 set search_path = ''
 as $$
-  select o.id, d.token, d.platform, p.display_name, o.offset_days, o.occasion_date
-  from private.notification_outbox o
-  join public.device_tokens d on d.profile_id = o.recipient_profile_id
-  join public.people p on p.id = o.subject_person_id
-  where o.sent_at is null
-    and o.attempts < 5
-  order by o.id
-  limit p_limit;
+  with claimed as (
+    update private.notification_outbox o
+    set claimed_at = now()
+    where o.id in (
+      select c.id
+      from private.notification_outbox c
+      where c.sent_at is null
+        and c.attempts < 5
+        and (c.claimed_at is null or c.claimed_at < now() - interval '10 minutes')
+        and exists (
+          select 1 from public.device_tokens d
+          where d.profile_id = c.recipient_profile_id
+        )
+      order by c.id
+      limit p_limit
+      for update skip locked
+    )
+    returning o.id, o.recipient_profile_id, o.subject_person_id,
+              o.offset_days, o.occasion_date
+  )
+  select cl.id, d.token, d.platform, p.display_name, cl.offset_days, cl.occasion_date
+  from claimed cl
+  join public.device_tokens d on d.profile_id = cl.recipient_profile_id
+  join public.people p on p.id = cl.subject_person_id
+  order by cl.id;
 $$;
 
 revoke execute on function private.next_reminder_batch(int)
