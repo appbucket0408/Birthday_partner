@@ -1,5 +1,5 @@
 begin;
-select plan(2);
+select plan(4);
 
 -- Every table in public must have RLS enabled.
 select is_empty(
@@ -28,6 +28,35 @@ select is_empty(
            and a.attnum = (i.indkey)[0]
        ) $$,
   'every foreign key column in public is indexed'
+);
+
+-- Private tables are server-only, but "server-only" is a schema property, not a
+-- row property — service_role bypasses RLS and Edge Functions run as
+-- service_role. RLS stays on so that a future policy is additive rather than a
+-- retrofit, and so nothing is reachable if the schema is ever exposed.
+select is_empty(
+  $$ select c.relname
+     from pg_class c
+     join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'private'
+       and c.relkind = 'r'
+       and not c.relrowsecurity $$,
+  'every private table has row level security enabled'
+);
+
+-- R3: the same PUBLIC-executable-by-default trap as R13, but in `public`, where
+-- the private allowlist does not look. Later tasks add server-side wrapper
+-- functions in public that must be callable by service_role and nobody else; a
+-- forgotten revoke would hand every signed-in user a server-side entry point.
+-- This is an ALLOWLIST: extend it only for a function clients are meant to call.
+select is(
+  (select coalesce(string_agg(p.proname, ',' order by p.proname), '')
+     from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
+  'ops_get_delivery_address',
+  'only intentionally client-callable public functions are executable'
 );
 
 select * from finish();
