@@ -2,7 +2,7 @@
 // are due lives in the database and is covered by 17_reminders.test.sql; this
 // file is transport only.
 //
-// FCM_SERVER_KEY is absent until a Firebase project exists. Rather than fail,
+// FCM credentials are absent until a Firebase project exists. Rather than fail,
 // the function runs in dry-run mode: it reports what it would have sent and
 // leaves the rows unsent, so the pipeline is exercisable before credentials.
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -23,10 +23,15 @@ function body(r: Reminder): string {
 }
 
 Deno.serve(async (): Promise<Response> => {
-  const admin = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceKey) {
+    return new Response(JSON.stringify({ error: "function is misconfigured" }), {
+      status: 500,
+      headers: { "content-type": "application/json" },
+    });
+  }
+  const admin = createClient(url, serviceKey);
 
   // R2: public wrapper, not .schema("private") — see 20260824000006.
   // NOTE: this must stay a POST (supabase-js .rpc() default). The underlying
@@ -46,15 +51,23 @@ Deno.serve(async (): Promise<Response> => {
   }
 
   const batch = (data ?? []) as Reminder[];
-  const fcmKey = Deno.env.get("FCM_SERVER_KEY");
 
-  if (!fcmKey) {
-    // Dry run still calls rpc_next_reminder_batch above, which already
-    // claimed these rows for its 10-minute lease. We report what we would
-    // have sent and stop, but we do NOT release the claim — so an immediate
-    // second dry run (or a real drain) will see would_send/batch shrink
-    // until the lease expires. That's expected, not a bug: the claim lives
-    // in the database and exists to stop two drains racing on the same row.
+  // FCM HTTP v1. The legacy fcm.googleapis.com/fcm/send endpoint with a
+  // `key=SERVER_KEY` header was shut down by Google in 2024 and no longer accepts
+  // traffic — do not reintroduce it.
+  //
+  // PHASE 2 MUST REPLACE FCM_ACCESS_TOKEN. v1 authenticates with a short-lived
+  // OAuth2 bearer token minted from a service-account key (JWT assertion exchanged
+  // at oauth2.googleapis.com/token), and those tokens expire hourly. A static env
+  // var is a deliberate placeholder so this path has the right shape and can be
+  // exercised with a stub — it is not a deployment strategy.
+  const fcmProject = Deno.env.get("FCM_PROJECT_ID");
+  const fcmToken = Deno.env.get("FCM_ACCESS_TOKEN");
+
+  if (!fcmProject || !fcmToken) {
+    // Dry run. Note the rows in this batch are already CLAIMED for their
+    // 10-minute lease — next_reminder_batch claims as it reads — so an immediate
+    // second call reports zero. Expected, not a bug.
     return new Response(
       JSON.stringify({ dryRun: true, would_send: batch.length, sent: 0, failed: 0 }),
       { status: 200, headers: { "content-type": "application/json" } },
@@ -65,42 +78,65 @@ Deno.serve(async (): Promise<Response> => {
   let failed = 0;
 
   for (const r of batch) {
+    // One reminder yields one row per registered device. mark_reminder_sent sets
+    // sent_at on the shared outbox row, and next_reminder_batch filters on
+    // `sent_at is null` — so once ANY device succeeds, a device that failed in the
+    // same batch is never retried. Accepted at pilot scale; the real fix is
+    // per-device delivery tracking.
     try {
-      const res = await fetch("https://fcm.googleapis.com/fcm/send", {
-        method: "POST",
-        headers: {
-          "Authorization": `key=${fcmKey}`,
-          "content-type": "application/json",
+      const res = await fetch(
+        `https://fcm.googleapis.com/v1/projects/${fcmProject}/messages:send`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${fcmToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            message: {
+              token: r.token,
+              notification: { title: "Birthday reminder", body: body(r) },
+            },
+          }),
         },
-        body: JSON.stringify({
-          to: r.token,
-          notification: { title: "Birthday reminder", body: body(r) },
-        }),
-      });
+      );
 
       if (!res.ok) {
-        await admin.rpc("rpc_mark_reminder_failed", {
+        const { error: failError } = await admin.rpc("rpc_mark_reminder_failed", {
           p_outbox_id: r.outbox_id,
           p_error: `fcm ${res.status}`,
         });
+        if (failError) {
+          console.error("mark_reminder_failed failed", r.outbox_id, failError.message);
+        }
         failed++;
         continue;
       }
 
-      await admin.rpc("rpc_mark_reminder_sent", {
+      const { error: sentError } = await admin.rpc("rpc_mark_reminder_sent", {
         p_outbox_id: r.outbox_id,
       });
+      if (sentError) {
+        // The push went out but we could not record it. Counting this as failed
+        // would be a lie in the other direction; surface it instead.
+        console.error("mark_reminder_sent failed", r.outbox_id, sentError.message);
+        failed++;
+        continue;
+      }
       sent++;
     } catch (e) {
-      await admin.rpc("rpc_mark_reminder_failed", {
+      const { error: failError } = await admin.rpc("rpc_mark_reminder_failed", {
         p_outbox_id: r.outbox_id,
         p_error: String(e).slice(0, 500),
       });
+      if (failError) {
+        console.error("mark_reminder_failed failed", r.outbox_id, failError.message);
+      }
       failed++;
     }
   }
 
-  return new Response(JSON.stringify({ sent, failed }), {
+  return new Response(JSON.stringify({ dryRun: false, sent, failed }), {
     status: 200,
     headers: { "content-type": "application/json" },
   });
