@@ -55,7 +55,7 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  'my_birthday_stats,ops_get_delivery_address',
+  'my_birthday_stats,ops_get_delivery_address,register_device_token',
   'only intentionally client-callable public functions are executable'
 );
 

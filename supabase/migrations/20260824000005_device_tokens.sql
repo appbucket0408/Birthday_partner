@@ -23,3 +23,43 @@ create policy device_tokens_all_own
   to authenticated
   using (profile_id = (select auth.uid()))
   with check (profile_id = (select auth.uid()));
+
+-- A physical device's push token can legitimately move between accounts: an
+-- unclean sign-out, a reinstall that reuses the token, or a handed-down phone.
+-- Owner-only RLS means the new user can neither insert (unique violation on
+-- token) nor clear the stale row, so without this the device can never register
+-- again and the user silently receives nothing.
+--
+-- Possession of the token is what proves you are on that device, which is the
+-- standard basis for reassigning it. security definer because the caller by
+-- definition does not own the row being removed.
+create or replace function public.register_device_token(
+  p_token text,
+  p_platform text
+)
+returns bigint
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id bigint;
+begin
+  if (select auth.uid()) is null then
+    raise exception 'a device token needs a signed-in user'
+      using errcode = '42501';
+  end if;
+
+  delete from public.device_tokens where token = p_token;
+
+  insert into public.device_tokens (profile_id, token, platform)
+  values ((select auth.uid()), p_token, p_platform)
+  returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
+revoke execute on function public.register_device_token(text, text)
+  from public, anon;
+grant execute on function public.register_device_token(text, text) to authenticated;
