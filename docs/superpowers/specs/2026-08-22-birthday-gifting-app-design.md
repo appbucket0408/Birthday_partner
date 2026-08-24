@@ -244,20 +244,41 @@ applies to implementation.
 
 ## 9. Build order
 
-| Milestone | Contents |
-|---|---|
-| M0 | Schema, RLS, and their tests. No UI. Nothing else starts until green. |
-| M1 | Auth, onboarding, contacts import, Celebrating timeline, reminder push. Shippable alone. |
-| M2 | Person page, wish wall, My day. Still free. |
-| M3 | Catalog, `create_gift`, payments, webhook, confirm flow, state machine, refunds. |
-| M4 | Ops console, 6am manifest, address access audit. |
-| M5 | Pilot: one city, daily cap, confirm cutoff, human review of every order. |
+| Milestone | Contents | Status |
+|---|---|---|
+| M0 | Schema, RLS, and their tests. No UI. Nothing else starts until green. | Done, 2026-08-23 |
+| M1 | Auth, onboarding, contacts import, Celebrating timeline, reminder push, **person page, wish wall, and the profile**. Shippable alone. | Planned |
+| M2 | *Folded into M1.* | — |
+| M3 | Catalog, `create_gift`, payments, webhook, confirm flow, state machine, refunds. | Database half done in M0 |
+| M4 | Ops console, 6am manifest, address access audit. | Database half done in M0 |
+| M5 | Pilot: one city, daily cap, confirm cutoff, human review of every order. | Not started |
+
+M1 absorbed M2 on 2026-08-24. Two reasons: a reminder with nowhere to tap is
+just a notification, so wishing belongs to the milestone that ships reminders;
+and the Instagram-style profile added in M1 counts wishes, which is meaningless
+until wishes exist. See
+`2026-08-24-m1-reminders-and-social-loop-design.md`.
+
+The profile screen — `Celebrating | Celebrates | Wishes received`, both counts
+tappable, plus a per-year track record — is new since this document was written
+and is specified there, not here. It requires two policy changes to M0's
+schema, because celebration edges were readable only by their owner and a
+wish became invisible to its own author once the graph changed.
 
 ## 10. Not in v1
 
-Group pooling. Feed, stories, explore. Public profiles and follower counts.
-Non-cake gifts. A second city. Chat. Video wishes. Cake customization.
-Referrals. Ratings. A web app for the social side.
+Group pooling. Feed, stories, explore. Profiles discoverable by strangers, and
+any search that finds a person you have no edge to. Non-cake gifts. A second
+city. Chat. Video wishes. Cake customization. Referrals. Ratings. A web app for
+the social side.
+
+Note, since this list originally read "public profiles and follower counts":
+M1 does add celebrate counts and tappable Celebrating / Celebrates lists. That
+is not the same feature. A profile is reachable only through an existing edge —
+someone you celebrate, or someone who celebrates you — never through search or
+an explore surface. `private.can_see_person` is what enforces the difference,
+and a stranger's birthday stays undiscoverable, which is privacy contract §6
+rule 7.
 
 Each is a real feature. None changes whether the core loop works.
 
