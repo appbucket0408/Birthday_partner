@@ -1,5 +1,5 @@
 begin;
-select plan(8);
+select plan(9);
 
 select tests.as_postgres();
 
@@ -19,6 +19,15 @@ select is(
   (select display_name from private.resolve_contacts(array['+919120000001'])),
   'Known Friend',
   'the match carries the name the app needs to show'
+);
+
+-- F2: the import screen needs only WHETHER a birthday is missing, so it can
+-- prompt -- never the birthday itself. A match for a person with a birthday
+-- must report has_birthday = true without exposing birth_month/birth_day.
+select is(
+  (select has_birthday from private.resolve_contacts(array['+919120000001'])),
+  true,
+  'a resolved match with a known birthday reports has_birthday = true'
 );
 
 -- The Edge Function calls the wrapper, never the private function. Signature
@@ -48,9 +57,14 @@ select is_empty(
   'a suppressed number never resolves, even though a hash once existed'
 );
 
--- The whole point: resolving is read-only.
+-- The whole point: resolving is read-only. Count only this file's own
+-- fixture rows -- counting every row in public.people would break for an
+-- unrelated reason the day seed.sql grows another row.
 select is(
-  (select count(*)::int from public.people),
+  (select count(*)::int from public.people
+     where phone_e164_hash in (
+       private.phone_hash('+919120000001'), private.phone_hash('+919120000002')
+     )),
   1,
   'resolving unknown numbers creates no people rows'
 );

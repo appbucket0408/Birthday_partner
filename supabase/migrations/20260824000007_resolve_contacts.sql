@@ -10,15 +10,14 @@ returns table (
   phone text,
   person_id bigint,
   display_name text,
-  birth_month smallint,
-  birth_day smallint
+  has_birthday boolean
 )
 language sql
 security definer
 set search_path = ''
 stable
 as $$
-  select distinct c.phone, p.id, p.display_name, p.birth_month, p.birth_day
+  select distinct c.phone, p.id, p.display_name, (p.birth_month is not null)
   from unnest(p_phones) as c(phone)
   join public.people p
     on p.phone_e164_hash = private.phone_hash(c.phone)
@@ -38,8 +37,7 @@ returns table (
   phone text,
   person_id bigint,
   display_name text,
-  birth_month smallint,
-  birth_day smallint
+  has_birthday boolean
 )
 language sql
 security definer
