@@ -1,5 +1,5 @@
 begin;
-select plan(16);
+select plan(18);
 
 select has_column('public', 'people', 'birth_month', 'people.birth_month exists');
 select has_column('public', 'people', 'birth_day', 'people.birth_day exists');
@@ -110,6 +110,34 @@ select is(
     where p.profile_id = (select id from public.profiles where handle = 'syncer')),
   '7-5-1990',
   'a single-column birthday edit propagates to the person row'
+);
+
+-- F1: the sync trigger must treat the birthday as ONE value. Coalescing
+-- month/day/year independently against a stale person row can synthesise a
+-- combination nobody wrote -- (2,29) from the profile against a lingering
+-- 1985 from the person -- which then fails people_birth_leap_valid and
+-- aborts the user's own legal edit.
+select tests.create_user('f1_leap_swap');
+select private.claim_person(
+  (select id from public.profiles where handle = 'f1_leap_swap'), '+919600000011');
+
+update public.people
+set birth_month = 3::smallint, birth_day = 15::smallint, birth_year = 1985::smallint
+where profile_id = (select id from public.profiles where handle = 'f1_leap_swap');
+
+select lives_ok(
+  $$ update public.profiles
+     set birth_month = 2::smallint, birth_day = 29::smallint, birth_year = null
+     where handle = 'f1_leap_swap' $$,
+  'replacing the birthday wholesale with a year-less Feb 29 does not abort on a stale year'
+);
+
+select is(
+  (select p.birth_month || '-' || p.birth_day || '-' || coalesce(p.birth_year::text, 'null')
+     from public.people p
+    where p.profile_id = (select id from public.profiles where handle = 'f1_leap_swap')),
+  '2-29-null',
+  'the person row ends up year-less Feb 29, not the stale 1985 combined with the new month/day'
 );
 
 select * from finish();

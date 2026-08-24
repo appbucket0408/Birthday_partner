@@ -232,9 +232,14 @@ as $$
 begin
   update public.people
   set display_name = new.display_name,
-      birth_month = coalesce(new.birth_month, birth_month),
-      birth_day   = coalesce(new.birth_day, birth_day),
-      birth_year  = coalesce(new.birth_year, birth_year)
+      -- The three parts are ONE value, validated as a triple by the check
+      -- constraints. Coalescing them independently can synthesise a combination
+      -- nobody wrote — (2,29) from the profile against a stale 1985 from the
+      -- person — which then aborts the user's own legal edit. So the profile's
+      -- birthday replaces the person's wholesale, or not at all.
+      birth_month = case when new.birth_month is not null then new.birth_month else birth_month end,
+      birth_day   = case when new.birth_month is not null then new.birth_day   else birth_day   end,
+      birth_year  = case when new.birth_month is not null then new.birth_year  else birth_year  end
   where profile_id = new.id;
   return new;
 end;
