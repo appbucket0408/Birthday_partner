@@ -156,11 +156,25 @@ select isnt_empty(
   'a claim older than the lease is reclaimable'
 );
 
--- The public wrapper is what the Edge Function actually calls. Return-type drift
--- fails at runtime, not at DDL time, and no grant guard would catch it.
-select lives_ok(
-  $$ select * from public.rpc_next_reminder_batch(1) $$,
-  'the service_role wrapper for the batch is callable and its shape matches'
+-- The Edge Function calls this wrapper rather than the private function
+-- directly, so it is worth proving the wrapper actually returns rows, not
+-- merely that it exists and is callable. The outbox's only row was claimed by
+-- the lease-expiry assertion above and is therefore ineligible, so seed a
+-- fresh eligible reminder first -- a distinct (subject, occasion_date, offset)
+-- so it cannot collide with that claimed row under notification_outbox_once.
+insert into private.notification_outbox (
+  recipient_profile_id, subject_person_id, offset_days, occasion_date
+)
+values (
+  (select id from public.profiles where handle = 'remindme'),
+  (select id from public.people where display_name = 'Leap Friend'),
+  7,
+  date '2027-02-28'
+);
+
+select isnt_empty(
+  $$ select outbox_id from public.rpc_next_reminder_batch(1) $$,
+  'the service_role wrapper passes rows through, not just exists'
 );
 
 -- Offset 1 is otherwise never exercised anywhere in this file.
@@ -179,13 +193,16 @@ select is(
   'a birthday tomorrow is queued at offset 1'
 );
 
--- The highest-risk path in the task: a leap-year T-1 must use the real Feb 29
--- via the plain arm, with the Feb-28 arm gated off so nothing double-fires.
+-- The highest-risk path in the task: in a leap year, T-1 (2028-02-28) must
+-- match Feb 29 via the plain birth_day arm, not via the Feb-28 fallback arm
+-- that exists for non-leap years. This proves which arm matched, not that a
+-- duplicate is impossible -- the two arms are OR-ed inside one predicate, so
+-- this assertion cannot distinguish "one arm matched" from "no double-fire".
 delete from private.notification_outbox;
 select is(
   private.enqueue_reminders(date '2028-02-28') || ' row(s)',
   '1 row(s)',
-  'in a leap year the Feb 29 birthday is queued once, at T-1'
+  'in a leap year T-1 matches the real Feb 29, not the Feb-28 fallback'
 );
 
 -- A block must stop the fan-out, not just the read paths.

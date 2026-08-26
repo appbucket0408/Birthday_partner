@@ -63,7 +63,9 @@ select is_empty(
 select is(
   (select count(*)::int from public.people
      where phone_e164_hash in (
-       private.phone_hash('+919120000001'), private.phone_hash('+919120000002')
+       private.phone_hash('+919120000001'),
+       private.phone_hash('+919120000002'),
+       private.phone_hash('+919120000099')
      )),
   1,
   'resolving unknown numbers creates no people rows'
