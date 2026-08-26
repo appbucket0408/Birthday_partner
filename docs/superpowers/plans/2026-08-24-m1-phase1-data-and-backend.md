@@ -2097,7 +2097,7 @@ git commit -m "feat(functions): add drain_reminders with dry-run fallback"
 
 ## Phase 1 Definition of Done
 
-- `supabase db reset && supabase test db` → **`Files=19, Tests=162, PASS`** from a cold database
+- `supabase db reset && supabase test db` → **`Files=19, Tests=168, PASS`** from a cold database
 - `supabase db lint --level warning` reports warnings only inside `extensions.*` (pgTAP's own code)
 - `01_private.test.sql`'s allowlist still reads exactly `'can_see_person,is_staff,my_person_id'`
 - Both Edge Functions respond correctly, with `drain_reminders` in dry-run mode.

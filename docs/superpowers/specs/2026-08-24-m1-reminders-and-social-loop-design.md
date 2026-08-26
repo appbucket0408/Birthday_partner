@@ -108,10 +108,16 @@ inherently safe rather than safe by convention.
 
 ### 4.3 Policy changes
 
-1. **New `celebrations_select_incoming`** on `public.celebrations`: read edges
-   where `person_id = private.my_person_id()`, excluding any celebrator the
-   viewer has blocked. Without this the Celebrates count is unreadable —
-   `celebrations_select_own` exposes only outgoing edges.
+1. **New `public.my_celebrates()`**, `security definer`, returning only
+   `(celebrator_profile_id, celebrator_person_id)` for edges where
+   `person_id = private.my_person_id()`, excluding any celebrator the viewer
+   has blocked. Without this the Celebrates count is unreadable —
+   `celebrations_select_own` exposes only outgoing edges. A row-level policy
+   was rejected: RLS is row-level, not column-level, so a
+   `celebrations_select_incoming` policy exposing incoming edges would also
+   hand the subject the celebrator's private `nickname` and the `source`
+   revealing how the celebrator found them. A `security definer` function
+   returning only the celebrator's identity avoids exposing either.
 2. **Fix `wishes_select_visible`** to
    `author_profile_id = auth.uid() OR can_see_person(subject_person_id)`.
    As written in M0, un-celebrating someone erases your own past wish to them
@@ -212,7 +218,7 @@ New assertion groups, with the cases expected to break:
   Dec 28, T-7 must match Jan 4) and **Feb 29 → Feb 28** in non-leap years
 - **Outbox idempotency** — run the fan-out twice, assert exactly one row, so the
   unique constraint is proven to be doing the work
-- **`celebrations_select_incoming`** — I see who celebrates me; a blocked
+- **`public.my_celebrates()`** — I see who celebrates me; a blocked
   celebrator is excluded; edges between two strangers stay invisible
 - **`wishes_select_visible`** — an author still sees their own wish *after*
   un-celebrating the subject
