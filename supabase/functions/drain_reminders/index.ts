@@ -22,7 +22,18 @@ function body(r: Reminder): string {
   return `${r.subject_name}'s birthday is in ${r.offset_days} days.`;
 }
 
-Deno.serve(async (): Promise<Response> => {
+Deno.serve(async (req: Request): Promise<Response> => {
+  // This is a machine endpoint — cron calls it, never a user. The publishable
+  // key is a valid JWT, so JWT verification alone would let anyone who unpacks
+  // the app trigger a drain: burning claim leases now, and FCM quota later.
+  const expected = Deno.env.get("DRAIN_SECRET");
+  if (!expected || req.headers.get("x-drain-secret") !== expected) {
+    return new Response(JSON.stringify({ error: "not authorised" }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
   const url = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !serviceKey) {
