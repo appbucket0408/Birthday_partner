@@ -1,5 +1,5 @@
 begin;
-select plan(18);
+select plan(21);
 
 select has_table('private', 'notification_outbox', 'the outbox exists');
 
