@@ -241,8 +241,15 @@ otp_expiry = 3600
 # Phone is the app's front door and the whole graph is keyed on a verified
 # number, so signup by SMS has to be allowed.
 enable_signup = true
-# If enabled, users need to confirm their phone number before signing in.
-enable_confirmations = false
+# MUST stay true. When false, GoTrue sets GOTRUE_SMS_AUTOCONFIRM=true, and then
+# `PUT /auth/v1/user {"phone": ...}` rewrites auth.users.phone AND stamps
+# phone_confirmed_at with NO OTP. Since claim_profile trusts the session phone,
+# that let a signed-in user retarget their session at any number they liked and
+# claim its person row — inheriting every celebration edge pointing at it.
+# Reproduced on 27 Aug 2026: an attacker took over an unclaimed victim's row and
+# its 2 inbound edges. Checking phone_confirmed_at in the function does NOT help,
+# because autoconfirm sets it. Confirmations are the only thing that closes it.
+enable_confirmations = true
 # Template for sending OTP to users
 template = "Your code is {{ .Code }}"
 # Controls the minimum amount of time that must pass before sending another sms otp.
