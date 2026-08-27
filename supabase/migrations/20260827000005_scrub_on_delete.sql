@@ -22,16 +22,34 @@
 -- just for whatever the Edge Function happens to call.
 --
 -- What must survive (this is the entire point of Task 7): the people row
--- itself, its id, its phone_e164_hash, and every OTHER profile's
--- celebration edge into it -- other people's lists must not break.
+-- itself, its id, and every OTHER profile's celebration edge into it --
+-- other people's lists must not break.
+--
+-- CORRECTION (20260827000007): this comment originally also listed
+-- `phone_e164_hash` among what must survive. That was wrong, and it was the
+-- direct cause of two findings -- a recycled phone number re-attached the
+-- next owner to this very row (claim_person upserts on that hash), and a
+-- re-import refilled the birthday nulled below (upsert_person finds the row
+-- by that hash). 20260827000007 rotates the hash to an unmatchable random
+-- value inside this same update. The row and its edges still survive; only
+-- its findability by phone does not.
 --
 -- What must NOT survive: the deleted user's own contributed data. That is
 -- their self-entered name and birthday (scrubbed below), their own
 -- delivery address (public.addresses.owner_person_id -> people -- zero
 -- rows today since addresses is M3, but unambiguously the user's own data,
 -- contributed by nobody else), and any reminder already queued under their
--- real name (nulling birth_month also stops enqueue_reminders from ever
--- queueing a NEW one for this person).
+-- real name.
+--
+-- CORRECTION (20260827000007): this comment originally claimed that nulling
+-- birth_month "also stops enqueue_reminders from ever queueing a NEW one for
+-- this person". That is FALSE as written here. private.upsert_person refills
+-- BLANK birth columns on any row with `profile_id is null` -- and the row
+-- this trigger leaves behind is exactly that. One friend re-importing their
+-- address book put the birthday straight back and enqueue_reminders duly
+-- queued a reminder about the deleted user. What actually makes the nulls
+-- permanent is the phone-hash rotation added in 20260827000007: with no
+-- matchable hash, upsert_person can never find this row again.
 create or replace function private.scrub_person_on_profile_delete()
 returns trigger
 language plpgsql

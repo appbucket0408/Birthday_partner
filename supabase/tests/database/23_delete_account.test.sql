@@ -8,12 +8,18 @@
 --   cascades away: profiles, their outgoing celebrations, wishes they
 --     authored, their device_tokens, their blocks (both directions),
 --     their queued notification_outbox rows (as a recipient)
---   survives, but SCRUBBED (20260827000005): their own people row --
---     id and phone_e164_hash unchanged, profile_id set NULL, display_name
---     replaced with a placeholder, birth_month/day/year nulled, any
---     reminder already queued about them (as a subject) deleted, their own
---     delivery address deleted -- and every OTHER profile's celebration
---     edge still pointing at that now-unclaimed, now-scrubbed row
+--   survives, but SCRUBBED (20260827000005, extended by 20260827000007):
+--     their own people row -- id unchanged, phone_e164_hash ROTATED to an
+--     unmatchable random value, profile_id set NULL, display_name replaced
+--     with a placeholder, birth_month/day/year nulled, any reminder already
+--     queued about them (as a subject) deleted, their own delivery address
+--     deleted -- and every OTHER profile's celebration edge still pointing
+--     at that now-unclaimed, now-scrubbed row
+--
+-- The hash rotation is what makes the scrub permanent: while the hash
+-- survived, a recycled phone number re-attached its new owner to this very
+-- row and a re-import refilled the nulled birthday. That is asserted in
+-- 25_recycled_number.test.sql; this file stays on the cascade table.
 --
 -- auth.admin.deleteUser ultimately does one thing at the SQL level: delete
 -- the auth.users row. That is what actually drives every FK below, so that

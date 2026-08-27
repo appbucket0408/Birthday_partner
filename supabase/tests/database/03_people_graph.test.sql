@@ -80,13 +80,28 @@ select throws_ok(
   'authenticated cannot insert into people'
 );
 
--- Celebrating yourself is meaningless and blocked.
+-- B1 (20260827000006): `authenticated` has no INSERT path into celebrations
+-- at all any more, so this no longer reaches private.guard_celebration and
+-- no longer raises P0001. That is the point: celebrations_insert_own let the
+-- caller choose person_id freely, which turned a sequential bigint into a
+-- directory of every user's real name and date of birth. Edges are now minted
+-- only by private.add_celebration, which resolves the person from a PHONE
+-- NUMBER the caller supplied.
+--
+-- The self-celebration guard has NOT been weakened, only moved off this
+-- path: it is asserted on the add_celebration route in
+-- 21_add_celebration.test.sql, and the BEFORE UPDATE half of the guard is
+-- asserted in 24_celebrations_write_lockdown.test.sql.
+--
+-- The assertion is deliberately aimed at the caller's OWN person id -- the
+-- most sympathetic possible insert -- so it proves "no insert at all" rather
+-- than "no insert at somebody else's row".
 select throws_ok(
   $$ insert into public.celebrations (celebrator_profile_id, person_id, source)
      select (select auth.uid()), private.my_person_id(), 'manual' $$,
-  'P0001',
-  'you cannot celebrate yourself',
-  'self-celebration is rejected'
+  '42501',
+  null,
+  'authenticated cannot insert a celebration edge, not even one it would own'
 );
 
 -- Alice can drop a celebration she owns.
@@ -96,7 +111,11 @@ select lives_ok(
   'alice can delete her own celebration edge'
 );
 
--- Alice cannot forge an edge on bob's behalf.
+-- Alice cannot forge an edge on bob's behalf either. Same SQLSTATE as above
+-- and now for the same underlying reason (no INSERT privilege and no INSERT
+-- policy) rather than because of celebrations_insert_own's `with check`, but
+-- the rule this pins -- one user cannot manufacture another user's edges --
+-- is what a future migration must not regress.
 select throws_ok(
   $$ insert into public.celebrations (celebrator_profile_id, person_id, source)
      values (
