@@ -100,30 +100,47 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let added = 0;
   let skipped = 0;
   let failed = 0;
+  let duplicates = 0;
 
-  // Dedupe by phone before the loop. An address book routinely holds the
-  // same number twice (a duplicate contact, a synced-twice entry); calling
-  // rpc_add_celebration once per occurrence creates no extra edge — it's
-  // idempotent via `on conflict do nothing` — but it WOULD double-count
-  // "added" in the summary this screen shows the user (two RPC calls, two
-  // non-null person ids, "added: 2" for one real edge). Deduping first means
-  // one RPC round trip per unique phone, so added/skipped/failed always
-  // describe the batch's actual outcomes and results.length is exactly the
-  // number of distinct contacts processed — never contacts.length when the
-  // request itself contained duplicates, which is deliberate: counting the
-  // same phone as a second independent contact is the bug being fixed here.
-  const seenPhones = new Set<string>();
-  const deduped: Contact[] = [];
+  // An address book routinely holds the same number twice (a duplicate
+  // contact, a synced-twice entry). Calling rpc_add_celebration once per
+  // occurrence creates no extra edge — it is idempotent via
+  // `on conflict do nothing` — but it WOULD report "added: 2" for one real
+  // edge. So each distinct phone is sent to Postgres exactly once.
+  //
+  // The RPC calls are deduped; the RESULTS are not. Every input index gets
+  // its own entry, because `results` carries no input index of its own and
+  // the obvious client implementation zips it against the picked-contacts
+  // list positionally. Returning fewer entries than were sent would silently
+  // shift every outcome after the first duplicate onto the wrong contact.
+  // Repeat occurrences echo the first one's verdict under status
+  // "duplicate", so `added` still counts real edges while
+  // `added + skipped + failed + duplicates === contacts.length` holds.
+  type Outcome = { person_id: number | null; status: string };
+  const firstOutcome = new Map<string, Outcome>();
+
   for (const c of contacts as Contact[]) {
-    if (seenPhones.has(c.phone)) continue;
-    seenPhones.add(c.phone);
-    deduped.push(c);
-  }
+    const prior = firstOutcome.get(c.phone);
+    if (prior !== undefined) {
+      results.push({
+        phone: c.phone,
+        person_id: prior.person_id,
+        status: "duplicate",
+      });
+      duplicates++;
+      continue;
+    }
 
-  for (const c of deduped) {
+    const record = (o: Outcome) => {
+      firstOutcome.set(c.phone, o);
+      results.push({ phone: c.phone, person_id: o.person_id, status: o.status });
+    };
+
+    // Trim once and use the trimmed value for BOTH the bound check and the
+    // write, so a padded name cannot slip its whitespace into the database.
     const trimmedName = c.name.trim();
-    if (trimmedName.length === 0 || c.name.length > MAX_NAME_LENGTH) {
-      results.push({ phone: c.phone, person_id: null, status: "invalid" });
+    if (trimmedName.length === 0 || trimmedName.length > MAX_NAME_LENGTH) {
+      record({ person_id: null, status: "invalid_name" });
       failed++;
       continue;
     }
@@ -131,7 +148,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const { data, error } = await admin.rpc("rpc_add_celebration", {
       p_celebrator: userData.user.id,
       p_phone: c.phone,
-      p_name: c.name,
+      p_name: trimmedName,
       p_birth_month: c.birth_month ?? null,
       p_birth_day: c.birth_day ?? null,
       p_birth_year: c.birth_year ?? null,
@@ -149,38 +166,38 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // distinctly from a transient server fault so the app can tell the
       // user to fix the contact rather than retry the whole import.
       if (error.code === "22023") {
-        results.push({ phone: c.phone, person_id: null, status: "invalid" });
+        record({ person_id: null, status: "invalid_phone" });
         failed++;
         continue;
       }
 
-      // P0002: private.add_celebration's self-celebration guard. Importing
+      // 45001: private.add_celebration's self-celebration guard. Importing
       // your own number is the single most likely "failure" in a real
       // import — it's in your own address book — so it gets its own status
       // rather than being indistinguishable from a database outage.
-      if (error.code === "P0002") {
-        results.push({ phone: c.phone, person_id: null, status: "self" });
+      if (error.code === "45001") {
+        record({ person_id: null, status: "self" });
         failed++;
         continue;
       }
 
-      results.push({ phone: c.phone, person_id: null, status: "failed" });
+      record({ person_id: null, status: "failed" });
       failed++;
       continue;
     }
 
     if (data === null) {
-      results.push({ phone: c.phone, person_id: null, status: "suppressed" });
+      record({ person_id: null, status: "suppressed" });
       skipped++;
       continue;
     }
 
-    results.push({ phone: c.phone, person_id: data, status: "added" });
+    record({ person_id: data, status: "added" });
     added++;
   }
 
-  return new Response(JSON.stringify({ added, skipped, failed, results }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
+  return new Response(
+    JSON.stringify({ added, skipped, failed, duplicates, results }),
+    { status: 200, headers: { "content-type": "application/json" } },
+  );
 });

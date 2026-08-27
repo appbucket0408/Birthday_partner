@@ -109,12 +109,17 @@ select is(
   'no self-edge was created by any unnormalised bypass attempt'
 );
 
+-- Count the rows a fork would ACTUALLY leave behind. An earlier form of this
+-- assertion matched on `profile_id = selfguard or phone_e164_hash =
+-- phone_hash('+919330000001')` and was vacuous: a row forked from
+-- '919330000001' carries a different hash AND a null profile_id, so it
+-- satisfied neither arm and the count read 1 whether or not the guard worked.
+-- The bypass attempts all pass display_name 'Me', so any row they minted is
+-- exactly what this counts.
 select is(
-  (select count(*)::int from public.people
-    where profile_id = (select id from public.profiles where handle = 'selfguard')
-       or phone_e164_hash = private.phone_hash('+919330000001')),
-  1,
-  'the human is still exactly one people row, not forked by the bypass attempts'
+  (select count(*)::int from public.people where display_name = 'Me'),
+  0,
+  'no forked people row was minted by any unnormalised bypass attempt'
 );
 
 -- The guard is revoked from client roles like every other private helper.

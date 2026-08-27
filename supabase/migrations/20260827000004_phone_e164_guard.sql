@@ -198,8 +198,16 @@ begin
         )
       )
   ) then
+    -- 45001, not P0002. Class 45 is unassigned by Postgres, so this can never
+    -- collide with a builtin. P0002 is PL/pgSQL's own `no_data_found`, and two
+    -- things go wrong if we borrow it: PostgREST renders it as HTTP 500
+    -- (measured: P0001 -> 400, P0002 -> 500, 22023 -> 400, 45001 -> 400), so a
+    -- routine "that number is you" would leave the database looking like a
+    -- server outage to every retry and alerting layer; and the day anything in
+    -- this call path uses `select ... into strict`, a genuine no_data_found
+    -- would be reported to the user as "you cannot celebrate yourself".
     raise exception 'you cannot celebrate yourself'
-      using errcode = 'P0002';
+      using errcode = '45001';
   end if;
 
   -- on conflict: a retried request or a double tap is idempotent.
