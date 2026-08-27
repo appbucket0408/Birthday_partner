@@ -18,7 +18,7 @@ These are Phase 1's hard-won rules. Every task's requirements implicitly include
 - **Every new `private` function ships with `revoke execute on function ... from public, anon, authenticated;`.** A function is `PUBLIC`-executable the moment it is created, and `alter default privileges ... revoke execute` is a **no-op on PG17**. A guard in `01_private.test.sql` asserts the private functions `authenticated` may execute are exactly `can_see_person,is_staff,my_person_id`.
 - **`revoke ... from public` also strips `authenticated`** — it held the privilege only via the PUBLIC grant. Any private function an RLS policy calls needs an explicit `grant execute ... to authenticated`.
 - **New `public` functions are PUBLIC-executable by default too.** A guard in `11_rls_coverage.test.sql` asserts the public functions `authenticated` may execute are exactly `my_birthday_stats,my_celebrates,ops_get_delivery_address,register_device_token`. Every `rpc_*` wrapper in this plan is **service_role only** and must NOT change that list.
-- **A column-level revoke cannot cut back a table-level grant**, and a new column on `public.profiles` is not client-writable until it is added to that table's column grant list.
+- **A column-level revoke cannot cut back a table-level grant**, and a new column on `public.profiles` is not client-writable until it is added to that table's column grant list. Updating a non-granted column raises `permission denied for table profiles` — **loudly**, aborting the whole statement even when a granted column appears in the same `SET` list.
 - **Other users' profiles are invisible.** `profiles_select_own` means a session reads only its own row, so tests must resolve other users' ids **as `postgres`** before switching role.
 - **Observe RED before implementing.** A test that cannot fail is a defect.
 - **Every `public` and `private` table needs RLS; every `public` FK column needs an index.** Both are asserted by `11_rls_coverage.test.sql`.
@@ -126,7 +126,21 @@ Then, immediately below the commented `[auth.sms.test_otp]` example, add a real 
 919999000003 = "123456"
 ```
 
-**Verify the key format empirically.** Supabase's own example (`4152127777 = "123456"`) is written without a leading `+`. If sign-in fails with these keys, try the `+`-prefixed form, and report in your report which format actually worked — later tasks and the Flutter app both depend on knowing.
+**These two changes alone are NOT sufficient** — discovered during execution.
+GoTrue refuses every phone request with `phone_provider_disabled` until an SMS
+provider is nominally enabled, even when `test_otp` covers every number in use,
+and `supabase start` warns "no SMS provider is enabled. Disabling phone login".
+Enable the already-scaffolded `[auth.sms.twilio]` block with unmistakably fake
+local values (`local_test_sid` / `local_test_msid` / `local_test_token`), and
+keep a comment warning against ever putting a real token there as a literal —
+every other secret field in this file uses `env(...)` substitution.
+
+**Verify the key format empirically.** Supabase's own example (`4152127777 = "123456"`) is written without a leading `+`. If sign-in fails with these keys, try the `+`-prefixed form, and report which format actually worked — later tasks and the Flutter app both depend on knowing.
+
+**Settled during execution:** the unprefixed form is correct. GoTrue strips the
+leading `+` before matching `test_otp` and before storing `auth.users.phone`, so
+a verify response returns `user.phone` as `919999000001`. That is why Task 5's
+Edge Function re-adds the `+` before hashing — the hash is computed over E.164.
 
 - [ ] **Step 3: Restart the stack so the config is read**
 
@@ -228,12 +242,18 @@ select is(
 );
 
 -- And the user can actually flip it themselves — a new column on profiles is
--- not client-writable until it is added to the column grant list, and that
--- failure is silent (the update simply affects nothing).
+-- not client-writable until it is added to the column grant list, and updating
+-- a non-granted column raises "permission denied for table profiles".
+-- Assert the value LANDED, not merely that nothing was raised: a grant that is
+-- present while an RLS predicate matches zero rows would update nothing, raise
+-- nothing, and pass a bare lives_ok.
 select tests.as_user((select id from public.profiles where handle = 'quiet'));
-select lives_ok(
-  $$ update public.profiles set reminders_enabled = true
-     where id = (select auth.uid()) $$,
+update public.profiles set reminders_enabled = true
+where id = (select auth.uid());
+
+select is(
+  (select reminders_enabled from public.profiles where id = (select auth.uid())),
+  true,
   'a user can turn their own reminders back on'
 );
 
@@ -261,9 +281,11 @@ alter table public.profiles
   add column reminders_enabled boolean not null default true;
 
 -- R14: profiles has NO table-level update grant for authenticated — it was
--- revoked and specific columns granted back. A new column is therefore not
--- client-writable until it is named here, and the failure is silent: the
--- update affects nothing and raises nothing.
+-- revoked and specific columns granted back one at a time. A new column is
+-- therefore not client-writable until it is named here. The failure is LOUD,
+-- not silent: updating a non-granted column raises
+-- "permission denied for table profiles", and it aborts the whole statement
+-- even when a granted column appears in the same SET list.
 grant update (reminders_enabled) on public.profiles to authenticated;
 
 -- The fan-out has to consult it. Without this the toggle is decorative.
