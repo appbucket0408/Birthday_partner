@@ -238,8 +238,9 @@ otp_expiry = 3600
 # content_path = "./templates/password_changed_notification.html"
 
 [auth.sms]
-# Allow/disallow new user signups via SMS to your project.
-enable_signup = false
+# Phone is the app's front door and the whole graph is keyed on a verified
+# number, so signup by SMS has to be allowed.
+enable_signup = true
 # If enabled, users need to confirm their phone number before signing in.
 enable_confirmations = false
 # Template for sending OTP to users
@@ -250,6 +251,15 @@ max_frequency = "5s"
 # Use pre-defined map of phone number to OTP for testing.
 # [auth.sms.test_otp]
 # 4152127777 = "123456"
+
+# Local test numbers. No SMS provider is configured, and the M1 spec's decision
+# is to build the full OTP flow against these and swap in a real provider at
+# first real-device test. These are LOCAL ONLY — config.toml is not applied to a
+# hosted project by `supabase db push`.
+[auth.sms.test_otp]
+919999000001 = "123456"
+919999000002 = "123456"
+919999000003 = "123456"
 
 # Configure logged in session timeouts.
 # [auth.sessions]
@@ -270,11 +280,14 @@ max_frequency = "5s"
 
 # Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
 [auth.sms.twilio]
-enabled = false
-account_sid = ""
-message_service_sid = ""
-# DO NOT commit your Twilio auth token to git. Use environment variable substitution instead:
-auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
+# GoTrue requires an SMS provider to be enabled before it will accept any
+# phone signups, even ones served entirely from [auth.sms.test_otp] above.
+# These are fake, local-only placeholder credentials: every number this app
+# uses locally is listed in test_otp, so GoTrue never actually calls Twilio.
+enabled = true
+account_sid = "local_test_sid"
+message_service_sid = "local_test_msid"
+auth_token = "local_test_token"
 
 # Multi-factor-authentication is available to Supabase Pro plan.
 [auth.mfa]
