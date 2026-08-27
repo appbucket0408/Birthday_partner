@@ -33,12 +33,18 @@ select is(
 );
 
 -- And the user can actually flip it themselves — a new column on profiles is
--- not client-writable until it is added to the column grant list, and that
--- failure is silent (the update simply affects nothing).
+-- not client-writable until it is added to the column grant list.
 select tests.as_user((select id from public.profiles where handle = 'quiet'));
-select lives_ok(
-  $$ update public.profiles set reminders_enabled = true
-     where id = (select auth.uid()) $$,
+
+-- Prove the write LANDED, not merely that it raised nothing. A grant that is
+-- present while an RLS predicate matches zero rows would update nothing, raise
+-- nothing, and pass a bare lives_ok.
+update public.profiles set reminders_enabled = true
+where id = (select auth.uid());
+
+select is(
+  (select reminders_enabled from public.profiles where id = (select auth.uid())),
+  true,
   'a user can turn their own reminders back on'
 );
 

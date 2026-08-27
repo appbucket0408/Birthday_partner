@@ -5,9 +5,11 @@ alter table public.profiles
   add column reminders_enabled boolean not null default true;
 
 -- R14: profiles has NO table-level update grant for authenticated — it was
--- revoked and specific columns granted back. A new column is therefore not
--- client-writable until it is named here, and the failure is silent: the
--- update affects nothing and raises nothing.
+-- revoked and specific columns granted back one at a time. A new column is
+-- therefore not client-writable until it is named here. The failure is LOUD,
+-- not silent: updating a non-granted column raises
+-- "permission denied for table profiles", and it aborts the whole statement
+-- even when a granted column appears in the same SET list.
 grant update (reminders_enabled) on public.profiles to authenticated;
 
 -- The fan-out has to consult it. Without this the toggle is decorative.
