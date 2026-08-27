@@ -1,5 +1,5 @@
 begin;
-select plan(8);
+select plan(9);
 
 select tests.as_postgres();
 select tests.create_user('picker');
@@ -90,6 +90,31 @@ select throws_ok(
   'P0001',
   'you cannot celebrate yourself',
   'picking your own number is rejected'
+);
+
+-- The claim-time cleanup. A user who imports contacts BEFORE claiming their own
+-- person row can pick their own number: add_celebration cannot detect that,
+-- because an unclaimed row carries no profile_id and the phone lives in
+-- auth.users. claim_person is the first moment both facts are known, so it
+-- removes any edge that has just become a self-edge. celebrations_guard cannot
+-- help — it is BEFORE INSERT only, and inert under service_role anyway.
+select tests.as_postgres();
+select tests.create_user('lateclaimer');
+
+select private.add_celebration(
+  (select id from public.profiles where handle = 'lateclaimer'),
+  '+919230000009', 'Actually Me', null::smallint, null::smallint, null::smallint);
+
+select private.claim_person(
+  (select id from public.profiles where handle = 'lateclaimer'), '+919230000009');
+
+select is(
+  (select count(*)::int
+     from public.celebrations c
+     join public.people p on p.id = c.person_id
+    where c.celebrator_profile_id = p.profile_id),
+  0,
+  'claiming a number removes an edge that just became a self-edge'
 );
 
 select * from finish();
