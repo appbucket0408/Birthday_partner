@@ -108,3 +108,64 @@ days" is expressed as a real DOB with that month and day, not as
 - `tests.race_last_slot`'s connection string dials the container's own address
   on port 5432, not `127.0.0.1:54322`. Loopback is `trust` in `pg_hba`, so no
   password is exercised and `dblink` refuses the connection for a non-superuser.
+
+## Rules M1 Phase 2a paid for
+
+These cost real debugging or real security holes. Each one shipped a bug first.
+
+- **Every `auth.uid()`-based trigger is INERT under `service_role`.** M0's
+  `celebrations_guard` compares `new.person_id = private.my_person_id()`, which
+  reads `auth.uid()`. Under `service_role` there is no session, so the
+  comparison yields NULL and the guard silently never fires. Any code path that
+  reaches a table through a `security definer` RPC needs its OWN explicit check
+  — you cannot rely on a session-based trigger to defend it. Phase 2a shipped a
+  self-celebration bug this way and spent two fix rounds on it.
+
+- **Every phone write path must go through `private.assert_e164`.**
+  `private.phone_hash` is a bare HMAC with no normalisation, so `+919999000002`,
+  `919999000002` and `+91 99990 00002` produce three DIFFERENT hashes and
+  therefore three different `people` rows for one human. Consequences that
+  actually occurred: the self-celebration guard was bypassable with an
+  unnormalised spelling of your own number, and one person imported from two
+  address books forked into rows whose inbound edges were orphaned invisibly.
+  The guard is per-call-site, not central — adding a new writer means adding the
+  call. `resolve_contacts` is deliberately exempt: a lookup over a whole address
+  book must fail to match on junk, not raise and kill the batch.
+
+- **SQLSTATE choice is a public API decision.** PostgREST maps the code to an
+  HTTP status. Measured on this stack: `P0001` → 400, `P0002` → 500,
+  `22023` → 400, `45001` → 400. Never borrow an assigned PL/pgSQL code for an
+  application condition — `P0002` is `no_data_found`, so using it turned a
+  routine "that number is you" into an HTTP 500 that every retry and alerting
+  layer would read as an outage. Use an unassigned class; this repo uses
+  `45001`. Raise with `using errcode = ...` — a bare `raise exception` is
+  `P0001`, which every other unhandled error also carries, so it cannot be
+  branched on.
+
+- **`[auth.sms] enable_confirmations` must stay `true`.** When false, GoTrue runs
+  with `SMS_AUTOCONFIRM=true`, and `PUT /auth/v1/user {"phone": ...}` rewrites
+  `auth.users.phone` AND stamps `phone_confirmed_at` with no OTP at all. Since
+  `claim_profile` trusts the session phone, that let any signed-in user point
+  their session at a stranger's number and claim their person row, inheriting
+  every celebration edge aimed at it. Checking `phone_confirmed_at` in code does
+  NOT help — autoconfirm sets it. **`config.toml` is not applied by
+  `supabase db push`; this must be set separately in the hosted dashboard**, or
+  the hole ships to production while local looks correct. Nothing tests this.
+
+- **Deleting an account rotates `people.phone_e164_hash`.** The row survives so
+  inbound edges do not break, but if the hash survived too, `claim_person`'s
+  `on conflict (phone_e164_hash)` would hand the row — with its inbound edges
+  and wish wall — to whoever next verifies that recycled number, and
+  `upsert_person` would refill the scrubbed birthday on any re-import, queueing
+  real reminders about a deleted user. Accepted trade-off: a bystander's edge is
+  permanently stranded on a "Deleted user" row, and re-importing that number
+  mints a second row beside it.
+
+- **Writes to `public.celebrations` go through `rpc_add_celebration` only.**
+  `authenticated` holds no INSERT and no table-level UPDATE — only
+  `update (nickname)`. The reason is that a `with check` on
+  `celebrator_profile_id` constrains who owns an edge but not who it points at,
+  and `private.can_see_person` grants sight of a `people` row to anyone holding
+  an edge to it. Since `people.id` is a sequential bigint, a free `person_id`
+  let any signed-in user enumerate every user's real name and full date of
+  birth. The RPC takes a PHONE NUMBER, not a person id, which is what closes it.
