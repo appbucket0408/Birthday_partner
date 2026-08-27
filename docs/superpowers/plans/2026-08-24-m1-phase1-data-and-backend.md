@@ -10,6 +10,12 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-24-m1-reminders-and-social-loop-design.md`
 
+> **Note on the per-task `Tests=` figures below.** They record what the suite
+> read at each point *as the plan was written*, and several moved during the
+> review wave that followed execution. They are historical, not targets. The
+> authoritative final figure is in the Definition of Done at the end:
+> **`Files=19, Tests=168, PASS`**.
+
 ## Global Constraints
 
 Every task's requirements implicitly include this section. These are M0's hard-won rules; ignoring one costs a debugging session.

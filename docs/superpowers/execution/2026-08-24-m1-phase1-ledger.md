@@ -972,3 +972,74 @@ colima + supabase running; `colima start` needs the sandbox OFF (M0's R5).
 Three subagents died here to infrastructure, not logic: one session limit and
 TWO stream-watchdog stalls, both while working the large 17_reminders.test.sql.
 Prefer SMALL, single-purpose dispatches on that file.
+
+## === RESUMED 26 Aug 2026 ===
+
+CORRECTION to the pause note: it claimed two assertions in 17_reminders.test.sql
+"genuinely fail". THEY DO NOT. On a fresh `supabase db reset` all 21 assertions
+pass — TAP reports "All 18 subtests passed" and lists 19-21 as failures only
+because they ran beyond the declared plan(18). Verified stable across two
+consecutive resets.
+The earlier observation of "Failed test 13 / Failed test 15" was measured against
+a database the killed agent had left dirty with psql fixtures — precisely the
+"`supabase test db` does NOT reset" hazard recorded at Task 10. The third agent
+had in fact fixed both assertions before I stopped it; its work is in the WIP
+commit 36b0397, and I under-credited it.
+Net effect: the remaining work is SMALLER than the pause note implied. The only
+issue in that file is a stale plan count.
+
+Ruling: R35 — the WIP commit's message is now inaccurate (it says two assertions
+fail and warns against raising the plan count). NOT amending it — the branch is
+shared history and the ledger is the authoritative record. Recording the
+correction here and in the commit that fixes the count, which is where anyone
+reading `git log` will meet it. Cost if wrong: a reader of 36b0397 in isolation
+is briefly misled, then corrected by the very next commit.
+
+## Scoped re-review of the fix wave (opus)
+
+F1-F6, F8, F9 ADDRESSED, each with coverage the reviewer proved discriminating
+against the exact mutation the finding named. It also traced the retry
+arithmetic I asked about: with attempts post-incrementing at claim time, claims
+occur at attempts 0,1,2,3,4 — exactly five real delivery attempts before the cap
+engages, identical to the old increment-on-failure semantics. No row loses an
+attempt. Verdict: safe to merge, with residuals.
+
+Ruling: R36 — CLOSE the four residuals rather than surfacing them, despite the
+"no second fix wave" rule. This is completing the FIRST wave, not opening a
+second:
+  - F7 items 1 and 2 were ruled ACCEPTED in R33 and then LOST in my own 26 Aug
+    handoff note, which listed only "F7 item 3" as remaining. They were dropped
+    by accident, not deferred by decision, and shipping them as "closed" would
+    misrepresent the record.
+  - The reviewer found a REGRESSION the wave introduced: F7 item 3's scoped
+    count omits the unknown number from its IN list, so the assertion titled
+    "resolving unknown numbers creates no people rows" can no longer move no
+    matter what resolution does to an unknown number. A fix wave that leaves a
+    newly-vacuous assertion behind has not finished.
+  - The docs contradiction IS load-bearing: spec §4.3 still describes F3's
+    mechanism as an RLS policy, but F3 replaced it with public.my_celebrates().
+    The spec is Phase 2's input, so shipping it would hand Phase 2 a
+    security-relevant design that no longer exists.
+Four small edits, three test lines and two docs. Cost if wrong: twenty minutes
+against a branch that is otherwise ready.
+
+Ruling: R37 — the reviewer endorsed leaving 36b0397's stale message unamended
+(R35), on the grounds that the next commit contradicts it in its own message,
+the ledger is authoritative, and amending shared history another worktree may
+reference buys nothing. Recording the concurrence.
+
+Carried to Phase 2, NOT fixed (recorded so they are decisions, not omissions):
+  - the dry run burns retries — the claim increments attempts, so five dry-run
+    invocations permanently strand a reminder at attempts=5. Harmless today
+    since nothing schedules the drain, but if Phase 2 schedules it BEFORE FCM
+    credentials land, every enqueued row dies within five ticks. The spec's open
+    question 1 catches the scheduling half; this is the other half.
+  - clearing a birthday on profiles does not clear it on people, so a user who
+    deletes their DOB keeps generating reminders on the old date. Matches the
+    pre-fix behaviour and what the brief specified, so not a regression — but it
+    belongs beside the Settings toggle in Phase 2's backlog.
+  - re-adding attempts++ to mark_reminder_failed would fail no test; the
+    double-count guard is untested.
+  - pg_net will need DRAIN_SECRET readable from Postgres (private.config or
+    Vault) as well as in the function env, and the cron migration must not
+    embed the literal.
