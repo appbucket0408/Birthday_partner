@@ -83,13 +83,17 @@ select is(
 
 -- Celebrating yourself is meaningless. The trigger from M0 is inert here
 -- (it reads auth.uid() from a session, and there is none under service_role)
--- so the check lives inside add_celebration itself.
+-- so the check lives inside add_celebration itself. It carries a stable
+-- SQLSTATE (P0002, not the generic P0001 every other unhandled exception
+-- also carries) so the Edge Function can tell "you tried to celebrate
+-- yourself" apart from a database fault — see 22_phone_e164_guard.test.sql
+-- for the migration that added it.
 select throws_ok(
   $$ select private.add_celebration((select picker from ids), '+919230000001',
        'Me', null::smallint, null::smallint, null::smallint) $$,
-  'P0001',
+  'P0002',
   'you cannot celebrate yourself',
-  'picking your own number is rejected'
+  'picking your own number is rejected, with a stable SQLSTATE'
 );
 
 -- The claim-time cleanup. A user who imports contacts BEFORE claiming their own

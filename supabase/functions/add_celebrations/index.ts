@@ -1,12 +1,14 @@
 // The import screen's commit step. Each picked contact mints a person and a
 // celebration edge together.
 //
-// A suppressed number returns null from the RPC and is reported as "skipped",
-// not as an error — someone who asked to be removed must not be resurrected,
-// and one such contact must not fail an import of five hundred.
+// A suppressed number returns null from the RPC and is reported as
+// "skipped", not as an error — someone who asked to be removed must not be
+// resurrected, and one such contact must not fail an import of five
+// hundred.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const MAX_BATCH = 500;
+const MAX_NAME_LENGTH = 128;
 
 type Contact = {
   phone: string;
@@ -42,12 +44,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
-  if (
-    !Array.isArray(contacts) ||
-    contacts.some((c) =>
-      !c || typeof c.phone !== "string" || typeof c.name !== "string"
-    )
-  ) {
+  // Cheap, O(1) checks first: whether the payload is an array at all, then
+  // its size. A 50,000-element body should be rejected by its length, not by
+  // walking every element's shape first only to reject it anyway.
+  if (!Array.isArray(contacts)) {
     return new Response(
       JSON.stringify({ error: "contacts must be {phone, name}[]" }),
       { status: 400, headers: { "content-type": "application/json" } },
@@ -58,6 +58,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return new Response(
       JSON.stringify({ error: `at most ${MAX_BATCH} contacts per request` }),
       { status: 413, headers: { "content-type": "application/json" } },
+    );
+  }
+
+  if (
+    contacts.some((c) =>
+      !c || typeof c.phone !== "string" || typeof c.name !== "string"
+    )
+  ) {
+    return new Response(
+      JSON.stringify({ error: "contacts must be {phone, name}[]" }),
+      { status: 400, headers: { "content-type": "application/json" } },
     );
   }
 
@@ -88,8 +99,35 @@ Deno.serve(async (req: Request): Promise<Response> => {
   > = [];
   let added = 0;
   let skipped = 0;
+  let failed = 0;
 
+  // Dedupe by phone before the loop. An address book routinely holds the
+  // same number twice (a duplicate contact, a synced-twice entry); calling
+  // rpc_add_celebration once per occurrence creates no extra edge — it's
+  // idempotent via `on conflict do nothing` — but it WOULD double-count
+  // "added" in the summary this screen shows the user (two RPC calls, two
+  // non-null person ids, "added: 2" for one real edge). Deduping first means
+  // one RPC round trip per unique phone, so added/skipped/failed always
+  // describe the batch's actual outcomes and results.length is exactly the
+  // number of distinct contacts processed — never contacts.length when the
+  // request itself contained duplicates, which is deliberate: counting the
+  // same phone as a second independent contact is the bug being fixed here.
+  const seenPhones = new Set<string>();
+  const deduped: Contact[] = [];
   for (const c of contacts as Contact[]) {
+    if (seenPhones.has(c.phone)) continue;
+    seenPhones.add(c.phone);
+    deduped.push(c);
+  }
+
+  for (const c of deduped) {
+    const trimmedName = c.name.trim();
+    if (trimmedName.length === 0 || c.name.length > MAX_NAME_LENGTH) {
+      results.push({ phone: c.phone, person_id: null, status: "invalid" });
+      failed++;
+      continue;
+    }
+
     const { data, error } = await admin.rpc("rpc_add_celebration", {
       p_celebrator: userData.user.id,
       p_phone: c.phone,
@@ -100,10 +138,34 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
 
     if (error) {
-      // Never log the contact — it carries a phone number and a name.
+      // Never log the contact: error.message is safe (it never carries the
+      // phone or the name), but error.details WOULD carry display_name for
+      // a constraint violation, so only ever log .message, never the error
+      // object itself or the contact that produced it.
       console.error("rpc_add_celebration failed", error.message);
+
+      // 22023 (invalid_parameter_value): private.assert_e164 rejected a
+      // malformed phone. A permanent, caller-caused condition — report it
+      // distinctly from a transient server fault so the app can tell the
+      // user to fix the contact rather than retry the whole import.
+      if (error.code === "22023") {
+        results.push({ phone: c.phone, person_id: null, status: "invalid" });
+        failed++;
+        continue;
+      }
+
+      // P0002: private.add_celebration's self-celebration guard. Importing
+      // your own number is the single most likely "failure" in a real
+      // import — it's in your own address book — so it gets its own status
+      // rather than being indistinguishable from a database outage.
+      if (error.code === "P0002") {
+        results.push({ phone: c.phone, person_id: null, status: "self" });
+        failed++;
+        continue;
+      }
+
       results.push({ phone: c.phone, person_id: null, status: "failed" });
-      skipped++;
+      failed++;
       continue;
     }
 
@@ -117,7 +179,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     added++;
   }
 
-  return new Response(JSON.stringify({ added, skipped, results }), {
+  return new Response(JSON.stringify({ added, skipped, failed, results }), {
     status: 200,
     headers: { "content-type": "application/json" },
   });
