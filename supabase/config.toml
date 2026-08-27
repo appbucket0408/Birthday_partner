@@ -284,9 +284,15 @@ max_frequency = "5s"
 # phone signups, even ones served entirely from [auth.sms.test_otp] above.
 # These are fake, local-only placeholder credentials: every number this app
 # uses locally is listed in test_otp, so GoTrue never actually calls Twilio.
+# To move to a real provider: replace the three placeholder values below, switch
+# auth_token to env(...) substitution, and decide whether [auth.sms.test_otp]
+# stays for local development or goes.
 enabled = true
 account_sid = "local_test_sid"
 message_service_sid = "local_test_msid"
+# DO NOT put a real Twilio auth token here as a literal. When a real provider is
+# configured, switch this back to env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN) —
+# every other secret in this file uses that pattern.
 auth_token = "local_test_token"
 
 # Multi-factor-authentication is available to Supabase Pro plan.
