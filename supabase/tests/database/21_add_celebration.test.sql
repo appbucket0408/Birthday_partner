@@ -1,5 +1,5 @@
 begin;
-select plan(6);
+select plan(8);
 
 select tests.as_postgres();
 select tests.create_user('picker');
@@ -9,10 +9,15 @@ select private.claim_person(
 create temporary table ids as
 select (select id from public.profiles where handle = 'picker') as picker;
 
+-- Capture the first pick's person id so the idempotency check below can
+-- assert the retry returns the SAME id, not merely that it does not error.
+create temporary table picks as
+select private.add_celebration((select picker from ids), '+919230000002',
+  'Picked Friend', 4::smallint, 1::smallint, null::smallint) as friend_id;
+
 -- Picking a contact mints the person AND the edge together.
 select isnt(
-  private.add_celebration((select picker from ids), '+919230000002',
-    'Picked Friend', 4::smallint, 1::smallint, null::smallint),
+  (select friend_id from picks),
   null,
   'picking a contact returns a person id'
 );
@@ -27,11 +32,15 @@ select is(
 );
 
 -- Picking the same contact twice is idempotent — a retried request or a
--- double tap must not error and must not fork the graph.
-select lives_ok(
-  $$ select private.add_celebration((select picker from ids), '+919230000002',
-       'Picked Friend', 4::smallint, 1::smallint, null::smallint) $$,
-  'picking the same contact twice does not error'
+-- double tap must not error, must not fork the graph, and must return the
+-- SAME person id. A regression that returns null on the retry path would
+-- read to the app as "this contact is suppressed, skip it" — a real bug a
+-- mere lives_ok would not catch.
+select is(
+  private.add_celebration((select picker from ids), '+919230000002',
+    'Picked Friend', 4::smallint, 1::smallint, null::smallint),
+  (select friend_id from picks),
+  'picking the same contact twice returns the same person id'
 );
 
 select is(
@@ -52,7 +61,29 @@ select is(
   'a suppressed number returns null instead of a person'
 );
 
--- Celebrating yourself is meaningless. M0's guard trigger raises P0001.
+select is(
+  (select count(*)::int from public.celebrations c
+     join public.people p on p.id = c.person_id
+    where p.display_name = 'Opted Out'),
+  0,
+  'a suppressed contact creates no edge, not just a null return'
+);
+
+-- The wrapper is the only surface production can reach, and three of its six
+-- parameters are same-typed smallints — exactly where a transposition hides.
+select public.rpc_add_celebration((select picker from ids), '+919230000004',
+  'Wrapper Friend', 3::smallint, 25::smallint, null::smallint);
+
+select is(
+  (select p.birth_month || '-' || p.birth_day
+     from public.people p where p.display_name = 'Wrapper Friend'),
+  '3-25',
+  'the service_role wrapper passes month and day through in the right order'
+);
+
+-- Celebrating yourself is meaningless. The trigger from M0 is inert here
+-- (it reads auth.uid() from a session, and there is none under service_role)
+-- so the check lives inside add_celebration itself.
 select throws_ok(
   $$ select private.add_celebration((select picker from ids), '+919230000001',
        'Me', null::smallint, null::smallint, null::smallint) $$,
