@@ -32,6 +32,9 @@
   | `contacts_repository_test.dart` | `+919999000003` |
   | `graph_repository_test.dart` (Task 11) | `+919999000004` |
   | `settings_repository_test.dart` (Task 13) | `+919999000005` |
+  | `graph_repository_test.dart`, second identity | `+919999000006` |
+
+  The sixth number exists because proving the birthday-edit guards needs a **second genuinely claimed** identity — `45002` requires a caller with no edge, and `45003` requires a person who has claimed their own profile. One number cannot play both parts. It is used only inside the graph suite and is never assigned elsewhere. (Gap in the original table, found by Task 11.)
 
   Numbers 004 and 005 do not exist in `[auth.sms.test_otp]` yet. **Task 11 adds both** (`919999000004 = "123456"`, `919999000005 = "123456"`) so Task 13 finds 005 already there. This is the one sanctioned edit to `config.toml` in this phase, and the task making it must re-verify `[auth.sms] enable_confirmations = true` survives before committing.
 - **Every contract test must use the shared harness** at `test/support/contract_test_harness.dart`. Three things are required before a `flutter test` process can reach a real Supabase instance at all, and none of them are obvious (discovered in Task 5):
