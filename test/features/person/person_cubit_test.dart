@@ -43,6 +43,7 @@ class _FakeWish implements WishRepository {
 
   List<Wish> wishesToReturn;
   Object? postError;
+  Object? wishesForError;
 
   int postCalls = 0;
   int wishesForCalls = 0;
@@ -51,6 +52,7 @@ class _FakeWish implements WishRepository {
   @override
   Future<List<Wish>> wishesFor(int personId) async {
     wishesForCalls++;
+    if (wishesForError != null) throw wishesForError!;
     return wishesToReturn;
   }
 
@@ -356,5 +358,43 @@ void main() {
     expect(loaded.wishes.map((w) => w.id).toList(), [1]);
     expect(loaded.postError, 'no celebration edge to this person');
     expect(loaded.postError, isNot(contains('Instance of')));
+  });
+
+  // 8 (task-7 fix carried from task 6). The write and the post-success
+  // reload are separate failure domains: a wish that landed must never be
+  // reported back as failed, because that invites a retry that double-posts
+  // it (wishesFor.post has no idempotency key). So a reload that throws
+  // AFTER a successful post() must leave postError unset -- only the wall
+  // itself goes stale, falling back to what was already loaded.
+  test(
+      'a successful post() whose reload throws does NOT set postError -- '
+      'the wish already landed, and a false failure would invite a '
+      'duplicate', () async {
+    final existingWish = _wish(1);
+    final wish = _FakeWish(wishesToReturn: [existingWish]);
+    final person = _FakePerson(
+      personToReturn:
+          _person(1, birthday: const Birthday(month: 12, day: 20)),
+    );
+    final cubit = PersonCubit(
+      person,
+      wish,
+      _FakeGraph(celebrationsList: [_celeb(1)]),
+      now: _fixedNow,
+    );
+    await cubit.load(1);
+
+    // The write itself (post()) still succeeds -- only the RELOAD that
+    // follows it (wishesFor()) throws.
+    wish.wishesForError = StateError('reload boom');
+    await cubit.postWish('Happy belated birthday!');
+
+    expect(wish.postCalls, 1, reason: 'the write itself must have gone through');
+    final state = cubit.state;
+    expect(state, isA<PersonLoaded>());
+    final loaded = state as PersonLoaded;
+    expect(loaded.postError, isNull);
+    // The wall falls back to what load() already had -- stale, not wrong.
+    expect(loaded.wishes.map((w) => w.id).toList(), [1]);
   });
 }

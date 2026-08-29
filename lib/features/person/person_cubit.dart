@@ -84,6 +84,14 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
   /// discard the already-rendered wall -- it surfaces transiently via
   /// [PersonLoaded.postError], the same shape `TimelineLoaded.error` uses,
   /// not by replacing the state with [PersonError].
+  ///
+  /// The write and the post-success reload are two SEPARATE try/catch
+  /// blocks, not one. A failure of the write is the only thing that sets
+  /// [PersonLoaded.postError] -- a failure of the reload that follows a
+  /// successful write must not, because the wish was genuinely posted by
+  /// then; reporting it as failed would invite a retry that double-posts
+  /// it. That reload failure instead falls back to the wall already held in
+  /// [current], stale but correct, with no error shown at all.
   Future<void> postWish(String body) => guard('post', () async {
         final current = state;
         if (current is! PersonLoaded) return;
@@ -116,15 +124,6 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
             body: body,
             occasionYear: occasionYear,
           );
-          final wishes = await _wishes.wishesFor(current.person.id);
-          emit(
-            PersonLoaded(
-              person: current.person,
-              celebratorCount: current.celebratorCount,
-              wishes: wishes,
-              viewerCelebrates: current.viewerCelebrates,
-            ),
-          );
         } on AppFailure catch (f) {
           emit(
             PersonLoaded(
@@ -135,6 +134,7 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
               postError: f.message,
             ),
           );
+          return;
         } catch (_) {
           emit(
             PersonLoaded(
@@ -143,6 +143,34 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
               wishes: current.wishes,
               viewerCelebrates: current.viewerCelebrates,
               postError: AppStrings.somethingWentWrong,
+            ),
+          );
+          return;
+        }
+
+        // The write above already succeeded -- the wish exists. A failure
+        // from here on is a stale wall, not a false failure: reporting
+        // postError here would tell the user their wish was not posted when
+        // it was, and a reasonable retry would double-post it (there is no
+        // idempotency key on the write). So a failed reload falls back to
+        // the wall this cubit already has, with no postError at all.
+        try {
+          final wishes = await _wishes.wishesFor(current.person.id);
+          emit(
+            PersonLoaded(
+              person: current.person,
+              celebratorCount: current.celebratorCount,
+              wishes: wishes,
+              viewerCelebrates: current.viewerCelebrates,
+            ),
+          );
+        } catch (_) {
+          emit(
+            PersonLoaded(
+              person: current.person,
+              celebratorCount: current.celebratorCount,
+              wishes: current.wishes,
+              viewerCelebrates: current.viewerCelebrates,
             ),
           );
         }
