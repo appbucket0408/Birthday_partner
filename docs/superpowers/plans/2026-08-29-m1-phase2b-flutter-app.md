@@ -1615,7 +1615,9 @@ Spec §6.1. The guard has three states and the signal it reads is not obvious, b
 
 **Interfaces:**
 - Consumes: `AuthRepository`.
-- Produces: `SessionCubit(AuthRepository)` with `load()`, `onSignedIn()`, `onProfileCompleted()`, `signOut()`; `SessionState` = `SessionUnknown | SessionSignedOut | SessionNeedsSetup | SessionReady(Profile)`; `buildRouter(SessionCubit)`. Routes: `/phone`, `/otp`, `/setup`, `/timeline`, `/import`, `/settings`.
+- Produces: `SessionCubit(AuthRepository)` with `load()`, `onSignedIn()`, `onProfileCompleted()`, `signOut()`; `SessionState` = `SessionUnknown | SessionSignedOut | SessionNeedsSetup | SessionReady(Profile)`; `buildRouter(SessionCubit)`. Routes: `/splash`, `/phone`, `/setup`, `/timeline`, `/import`, `/settings`.
+
+**There is deliberately no `/otp` route.** An earlier draft of this line listed one; that was wrong. The OTP screen is reached by `Navigator.push` from `PhoneScreen` with `BlocProvider.value` handing over the live `PhoneCubit` (Task 7), because the screen's entire meaning depends on the phone number held in that cubit's memory. A URL-addressable `/otp` would render a screen with no number to verify against — broken by construction. A signed-out user who somehow reaches `#/otp` being bounced to `/phone` is therefore the correct behaviour, not a dead end to fix.
 
 - [ ] **Step 1: Write the failing test**
 
