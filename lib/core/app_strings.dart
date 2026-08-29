@@ -37,4 +37,36 @@ abstract final class AppStrings {
   static const setupHandleTaken = 'That username is already taken.';
   static const setupNoYear = 'I would rather not say the year';
   static const finish = 'Finish';
+
+  // Contacts import
+  //
+  // Deliberately no string here for ImportStatus.suppressed. A suppressed
+  // number is folded into importSkippedTemplate with every other skip and
+  // shown with no reason -- naming it would reveal to the importer that the
+  // person asked to be removed. Do not add one.
+  static const importDisclosureTitle = 'Find people you already know';
+  static const importDisclosureBody =
+      'Birthday reads the names and numbers in your contacts so you can pick '
+      'who you want to celebrate. Your contacts are never stored on our '
+      'servers and are never shared with anyone.';
+  static const importDisclosureContinue = 'Continue';
+  static const importDisclosureSkip = 'Not now';
+  static const importPermissionDenied =
+      'Birthday needs access to your contacts to find people you know. You '
+      'can turn it on in Settings.';
+  static const importPickTitle = 'Who do you celebrate?';
+  static const importOnApp = 'On Birthday';
+  static const importNoBirthday = 'No birthday';
+  static const importAddSelected = 'Add selected';
+  static const importFillTitle = 'Add their birthdays';
+  static const importFillBody =
+      'Your address book did not have a birthday for these people. You can '
+      'add them now or later.';
+  static const importSummaryTitle = 'Import complete';
+  static const importAddedTemplate = '%s added';
+  static const importSkippedTemplate = '%s skipped';
+  static const importDuplicatesTemplate = '%s already in your list';
+  static const importSelfSkipped = 'We skipped your own number.';
+  static const importCouldNotAddTemplate = 'Could not add %s';
+  static const importDone = 'Done';
 }
