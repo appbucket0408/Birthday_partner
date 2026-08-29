@@ -23,6 +23,12 @@
 - **New `public` functions executable by `authenticated` extend the R3 allowlist** in `supabase/tests/database/11_rls_coverage.test.sql`. Missing this makes the suite fail from cold. (Added 29 Aug 2026 after Task 1 hit it.)
 - **SQLSTATE is a public API decision.** PostgREST maps it to an HTTP status. Use unassigned class-45 codes for application errors; `P0002` becomes a 500.
 - Read `docs/db.md` before touching anything in `supabase/`. It carries eleven rules that each shipped a bug first.
+- **Every contract test must use the shared harness** at `test/support/contract_test_harness.dart`. Three things are required before a `flutter test` process can reach a real Supabase instance at all, and none of them are obvious (discovered in Task 5):
+  1. `HttpOverrides.global = null` — `AutomatedTestWidgetsFlutterBinding` installs an `HttpOverrides` that fakes every `dart:io` request with a 400 stub. Without this line a "contract test" silently talks to nothing, which is the worst possible failure for a suite whose entire purpose is hitting the real stack.
+  2. An in-memory `SharedPreferencesStorePlatform` — there is no platform channel under `flutter test`, so `supabase_flutter`'s session storage throws `MissingPluginException`.
+  3. An OTP send-cooldown helper — `[auth.sms] max_frequency = "5s"` rate-limits back-to-back sends to the same test number, which otherwise reads as a flaky suite.
+
+  Tasks 9, 11 and 13 import this harness. They must not re-inline any of it.
 
 ---
 
@@ -2819,7 +2825,7 @@ Spec §6.2. The most consequential repository in the phase: it owns E.164 normal
 **Files:**
 - Create: `lib/repositories/contacts_repository.dart`, `contacts_repository_impl.dart`
 - Create: `lib/models/import_outcome.dart`
-- Create: `test/repositories/contacts_repository_test.dart`
+- Create: `test/repositories/contacts_repository_test.dart` (imports `test/support/contract_test_harness.dart`)
 
 **Interfaces:**
 - Consumes: `ApiClient.instance`, `ApiEndpoints.resolveContacts`, `ApiEndpoints.addCelebrations`, `Birthday`.
@@ -3426,7 +3432,7 @@ Spec §6.3. Reads the timeline and owns the three row actions.
 
 **Files:**
 - Create: `lib/repositories/graph_repository.dart`, `graph_repository_impl.dart`
-- Create: `test/repositories/graph_repository_test.dart`
+- Create: `test/repositories/graph_repository_test.dart` (imports `test/support/contract_test_harness.dart`)
 
 **Interfaces:**
 - Consumes: `ApiClient.instance`, `ApiParams`, `ApiEndpoints.rpcUpdatePersonBirthday`, `Celebration`, `Birthday`.
@@ -3593,7 +3599,7 @@ Spec §6.4. Three actions, two of which are irreversible.
 **Files:**
 - Create: `lib/repositories/settings_repository.dart`, `settings_repository_impl.dart`
 - Create: `lib/features/settings/settings_cubit.dart`, `settings_state.dart`, `settings_screen.dart`
-- Create: `test/repositories/settings_repository_test.dart`, `test/features/settings/settings_cubit_test.dart`
+- Create: `test/repositories/settings_repository_test.dart` (imports `test/support/contract_test_harness.dart`), `test/features/settings/settings_cubit_test.dart`
 - Modify: `lib/core/app_strings.dart`, `lib/router/app_router.dart` (drop the stub)
 
 **Interfaces:**
