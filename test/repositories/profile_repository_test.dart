@@ -2,7 +2,6 @@
 library;
 
 import 'package:birthday_app/api/api_client.dart';
-import 'package:birthday_app/core/result.dart';
 import 'package:birthday_app/repositories/auth_repository.dart';
 import 'package:birthday_app/repositories/auth_repository_impl.dart';
 import 'package:birthday_app/repositories/contacts_repository.dart';
@@ -43,51 +42,27 @@ void main() {
   const primary = '+919999000009';
 
   // Assertions 4 and 5 need a second real identity that celebrates `primary`.
-  // The task-7 brief assigns this suite '...006 -- the same number
-  // graph_repository_test.dart already uses as ITS second identity, kept
-  // alive there across its whole suite (never deleted). This suite follows
-  // the same convention deliberately: `second`'s account is claimed but never
-  // deleted here either, and only the specific celebration edge this file
-  // creates is removed afterwards (via GraphRepository.stopCelebrating,
-  // signed in as `second`) so a rerun of THIS suite does not find `primary`
-  // already celebrated and fail assertion 3. Deleting `second`'s account
-  // outright is deliberately avoided -- that would scrub the very person row
-  // graph_repository_test.dart depends on staying claimed and findable.
-  const second = '+919999000006';
+  // This is this suite's OWN dedicated number, not shared with any other
+  // suite's second identity: `flutter test` runs test FILES concurrently,
+  // and OtpSendThrottle (see contract_test_harness.dart) only serialises
+  // sends WITHIN this process, so a number shared with another file's own
+  // second identity can trip GoTrue's real cross-process rate limit when
+  // both processes send to it around the same wall-clock moment --
+  // reproduced once during this task's development while this suite was
+  // still assigned '...006 (graph_repository_test.dart's own second
+  // identity), fixed by dedicating '...012 instead. See
+  // wish_repository_test.dart's own comment on '...011 for the same
+  // reasoning. `second`'s account is claimed once and left signed-out-but-
+  // not-deleted across every test in this file (never torn down by
+  // `tearDown`, which only ever runs while `primary` is the active
+  // session) -- only the specific celebration edge each test creates is
+  // removed afterwards, signed in as `second`, so a rerun of this suite
+  // does not find `primary` already celebrated.
+  const second = '+919999000012';
 
   final otpThrottle = OtpSendThrottle();
-
-  // OtpSendThrottle (see contract_test_harness.dart) only serialises sends
-  // WITHIN this process. `flutter test` runs test FILES concurrently, and
-  // `second` is deliberately shared with graph_repository_test.dart's own
-  // second identity (see above) -- so GoTrue's real cross-process rate
-  // limit on that one number can reject a send here with "you can only
-  // request this after N seconds" if that other suite happens to send to it
-  // at close to the same wall-clock moment. This was observed running the
-  // full contract suite: `graph_repository_test.dart`'s own `asSecondUsersPerson`
-  // and this file's assertion 4 raced on '+919999000006' and one of them
-  // got a 429. A bounded retry that parses GoTrue's own stated wait and
-  // sleeps that long absorbs it, rather than flaking the whole run --
-  // config.toml's rate limit itself is untouched, and this suite still
-  // sends to the literal number the brief assigns it.
-  Future<void> sendOtpWithRetry(String phone) async {
-    for (var attempt = 0; ; attempt++) {
-      try {
-        await auth.sendOtp(phone);
-        return;
-      } on AuthFailure catch (f) {
-        if (attempt >= 5) rethrow;
-        final match = RegExp(r'after (\d+) seconds?').firstMatch(f.message);
-        final wait = match != null
-            ? Duration(seconds: int.parse(match.group(1)!) + 1)
-            : const Duration(seconds: 5);
-        await Future<void>.delayed(wait);
-      }
-    }
-  }
-
   Future<void> signIn(String phone) async {
-    await otpThrottle.run(() => sendOtpWithRetry(phone));
+    await otpThrottle.run(() => auth.sendOtp(phone));
     await auth.verifyOtp(phoneE164: phone, token: '123456');
   }
 
