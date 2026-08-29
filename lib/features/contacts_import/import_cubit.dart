@@ -2,13 +2,24 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:phone_numbers_parser/phone_numbers_parser.dart';
 
 import '../../api/api_client.dart';
+import '../../core/logger.dart';
 import '../../models/birthday.dart';
 import '../../repositories/contacts_repository.dart';
 import 'import_state.dart';
 
 class ImportCubit extends Cubit<ImportState> {
-  ImportCubit(this._contactsRepo) : super(const ImportIdle());
+  /// [currentUserPhone] is injectable so tests can supply a phone string
+  /// without initialising Supabase -- it defaults to the live lookup used
+  /// in production. See [_regionIsoCode].
+  ImportCubit(this._contactsRepo, {String? Function()? currentUserPhone})
+      : _currentUserPhone = currentUserPhone ?? _liveCurrentUserPhone,
+        super(const ImportIdle());
+
   final ContactsRepository _contactsRepo;
+  final String? Function() _currentUserPhone;
+
+  static String? _liveCurrentUserPhone() =>
+      ApiClient.instance.auth.currentUser?.phone;
 
   // The picked-contacts/selection/birthdays live here, not just in
   // ImportPicking, so commit() can be re-run from the summary screen's
@@ -18,6 +29,13 @@ class ImportCubit extends Cubit<ImportState> {
   List<ResolvedContact> _resolved = const [];
   Set<String> _selected = {};
   final Map<String, Birthday> _birthdays = {};
+
+  // Guards commit(), not just recorded in state: ImportCommitting is only
+  // emitted from the repository's first onProgress callback, so relying on
+  // `state is ImportCommitting` would leave the whole window between tap
+  // and that first callback unguarded -- exactly where a fast double-tap on
+  // add_selected / fill_continue / summary_retry lands.
+  bool _committing = false;
 
   /// Must not touch any permission API until this is called -- Play requires
   /// the disclosure screen to precede the OS prompt, and this is the only
@@ -69,16 +87,22 @@ class ImportCubit extends Cubit<ImportState> {
   /// Create-on-select: sends ONLY the contacts the user picked. A person row
   /// must never be minted for a non-consenting contact just because it sat
   /// in someone's address book.
+  ///
+  /// A second call while one is already in flight (a fast double-tap on any
+  /// of the three buttons that call this) is a no-op: the cubit, not its
+  /// callers, owns what is in flight.
   Future<void> commit() async {
-    final toSend = _contacts
-        .where((c) => _selected.contains(c.phoneE164))
-        .map((c) {
-          final filled = _birthdays[c.phoneE164];
-          return filled == null ? c : c.withBirthday(filled);
-        })
-        .toList(growable: false);
-
+    if (_committing) return;
+    _committing = true;
     try {
+      final toSend = _contacts
+          .where((c) => _selected.contains(c.phoneE164))
+          .map((c) {
+            final filled = _birthdays[c.phoneE164];
+            return filled == null ? c : c.withBirthday(filled);
+          })
+          .toList(growable: false);
+
       final summary = await _contactsRepo.addCelebrations(
         toSend,
         onProgress: (done, total) => emit(ImportCommitting(done, total)),
@@ -86,6 +110,8 @@ class ImportCubit extends Cubit<ImportState> {
       emit(ImportDone(summary));
     } catch (e) {
       emit(ImportFailed('$e'));
+    } finally {
+      _committing = false;
     }
   }
 
@@ -95,17 +121,28 @@ class ImportCubit extends Cubit<ImportState> {
   /// instead from the signed-in user's own verified E.164 phone, which
   /// Supabase stores WITHOUT a leading '+'.
   ///
-  /// Wrapped defensively: under `flutter test` Supabase is never
-  /// initialised, so ApiClient.instance itself throws. That is exactly the
-  /// "absent" case the parent spec already asks to fall back on, so it is
-  /// folded into the same catch as an unparseable number rather than given
-  /// special handling.
-  static String _regionIsoCode() {
+  /// Two distinct failure modes, handled differently:
+  ///  - Reaching the phone at all can fail (no session, or -- under
+  ///    `flutter test` -- Supabase never initialised). There is no region to
+  ///    derive either way, so this falls back to 'IN' silently; it is
+  ///    expected, not a bug.
+  ///  - Parsing a phone that WAS reached can fail. That phone already
+  ///    passed PhoneNumber.parse once, in PhoneCubit.submitPhone, to get a
+  ///    verified session in the first place, so a parse failure here is
+  ///    unexpected and is logged rather than swallowed.
+  String _regionIsoCode() {
+    String? raw;
     try {
-      final raw = ApiClient.instance.auth.currentUser?.phone;
-      if (raw == null || raw.isEmpty) return 'IN';
-      return PhoneNumber.parse('+$raw').isoCode.name;
+      raw = _currentUserPhone();
     } catch (_) {
+      return 'IN';
+    }
+    if (raw == null || raw.isEmpty) return 'IN';
+
+    try {
+      return PhoneNumber.parse('+$raw').isoCode.name;
+    } catch (e) {
+      Log.error('failed to parse current user phone for import region', e);
       return 'IN';
     }
   }

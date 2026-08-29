@@ -23,6 +23,8 @@ class _FakeContacts implements ContactsRepository {
 
   int requestPermissionCalls = 0;
   int readDeviceContactsCalls = 0;
+  int addCelebrationsCalls = 0;
+  String? lastIsoCode;
   List<DeviceContact>? lastCommitted;
 
   @override
@@ -36,6 +38,7 @@ class _FakeContacts implements ContactsRepository {
     String isoCode = 'IN',
   }) async {
     readDeviceContactsCalls++;
+    lastIsoCode = isoCode;
     return contacts;
   }
 
@@ -49,6 +52,7 @@ class _FakeContacts implements ContactsRepository {
     int chunkSize = 500,
     void Function(int done, int total)? onProgress,
   }) async {
+    addCelebrationsCalls++;
     lastCommitted = contacts;
     if (reportProgress) onProgress?.call(contacts.length, contacts.length);
     return summary;
@@ -207,6 +211,24 @@ void main() {
     ],
   );
 
+  // A second commit() fired before the first resolves (a fast double-tap on
+  // add_selected / fill_continue / summary_retry) must not run two
+  // concurrent addCelebrations calls -- the cubit, not any of its three
+  // trigger buttons, is the source of truth for what is in flight. Mirrors
+  // PhoneCubit.submitCode (Task 7) and ProfileSetupCubit.submit (Task 8).
+  test('a second commit call while committing is ignored', () async {
+    final fake = _FakeContacts(contacts: const [_c1]);
+    final cubit = ImportCubit(fake);
+    await cubit.start();
+    cubit.toggle(_c1.phoneE164);
+
+    final first = cubit.commit();
+    final second = cubit.commit();
+    await Future.wait([first, second]);
+
+    expect(fake.addCelebrationsCalls, 1);
+  });
+
   // 6. setBirthday attaches a birthday to a selected contact before commit.
   test('setBirthday attaches a birthday to the committed contact', () async {
     const birthday = Birthday(month: 4, day: 15);
@@ -219,5 +241,35 @@ void main() {
 
     expect(fake.lastCommitted, hasLength(1));
     expect(fake.lastCommitted!.single.birthday, birthday);
+  });
+
+  // The region derivation: the signed-in user's own verified phone (minus
+  // its leading '+', as Supabase stores it) decides the isoCode passed to
+  // readDeviceContacts. currentUserPhone is injected so none of these
+  // touch the Supabase singleton.
+  group('region derivation from the signed-in user\'s own phone', () {
+    Future<String?> isoCodeFor(String? phone) async {
+      final fake = _FakeContacts();
+      final cubit = ImportCubit(fake, currentUserPhone: () => phone);
+      await cubit.start();
+      return fake.lastIsoCode;
+    }
+
+    test('a +91 number derives IN', () async {
+      // Supabase stores the phone without the leading '+'.
+      expect(await isoCodeFor('919999000001'), 'IN');
+    });
+
+    test('a +1 number derives US', () async {
+      expect(await isoCodeFor('12025550123'), 'US');
+    });
+
+    test('an unparseable phone falls back to IN', () async {
+      expect(await isoCodeFor('not-a-phone'), 'IN');
+    });
+
+    test('no signed-in phone falls back to IN', () async {
+      expect(await isoCodeFor(null), 'IN');
+    });
   });
 }
