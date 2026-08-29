@@ -9,8 +9,7 @@ abstract final class AppStrings {
 
   // Onboarding — phone
   static const phoneTitle = 'What is your number?';
-  static const phoneSubtitle =
-      'We use it to find the people you already know.';
+  static const phoneSubtitle = 'We use it to find the people you already know.';
   static const phoneHint = 'Phone number';
   static const phoneInvalid = 'That does not look like a valid number.';
   static const sendCode = 'Send code';
@@ -86,6 +85,19 @@ abstract final class AppStrings {
   static const timelineNoBirthdayYet = 'No birthday yet';
   static const timelineBirthdayNotEditable =
       'They are on Birthday, so only they can change their birthday.';
-  static const timelineNicknameBlocked =
-      'You can no longer edit this person.';
+  static const timelineNicknameBlocked = 'You can no longer edit this person.';
+
+  // Settings
+  static const settingsTitle = 'Settings';
+  static const settingsReminders = 'Birthday reminders';
+  static const settingsRemindersBody =
+      'Get a notification before each birthday you celebrate.';
+  static const settingsSignOut = 'Sign out';
+  static const settingsDeleteAccount = 'Delete account';
+  static const settingsDeleteTitle = 'Delete your account?';
+  static const settingsDeleteBody =
+      'Your profile, the people you celebrate, and your wishes are deleted. '
+      'People who celebrate you will keep a "Deleted user" in their list. '
+      'This cannot be undone.';
+  static const settingsDeleteConfirm = 'Delete everything';
 }

@@ -1,0 +1,300 @@
+import 'package:birthday_app/core/app_strings.dart';
+import 'package:birthday_app/core/result.dart';
+import 'package:birthday_app/features/settings/settings_cubit.dart';
+import 'package:birthday_app/features/settings/settings_state.dart';
+import 'package:birthday_app/models/birthday.dart';
+import 'package:birthday_app/models/profile.dart';
+import 'package:birthday_app/repositories/auth_repository.dart';
+import 'package:birthday_app/repositories/settings_repository.dart';
+import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+/// Real fakes, not mocks -- same pattern as
+/// test/features/timeline/timeline_cubit_test.dart's `_FakeGraph`.
+///
+/// [calls] is shared with [_FakeAuth] so the two repositories' calls can be
+/// interleaved into one ordered list -- that shared list is what lets the
+/// signOut ordering test (assertion 3) assert across a repository boundary,
+/// not just within one fake.
+class _FakeSettings implements SettingsRepository {
+  _FakeSettings({required this.calls, this.setRemindersEnabledError});
+
+  final List<String> calls;
+  Object? setRemindersEnabledError;
+
+  int setRemindersEnabledCalls = 0;
+  int deleteThisDeviceTokenCalls = 0;
+
+  @override
+  Future<void> setRemindersEnabled(bool enabled) async {
+    setRemindersEnabledCalls++;
+    if (setRemindersEnabledError != null) throw setRemindersEnabledError!;
+  }
+
+  @override
+  Future<void> deleteThisDeviceToken() async {
+    calls.add('deleteThisDeviceToken');
+    deleteThisDeviceTokenCalls++;
+  }
+}
+
+class _FakeAuth implements AuthRepository {
+  _FakeAuth({
+    required this.calls,
+    this.profile,
+    this.signOutError,
+    this.deleteAccountError,
+  });
+
+  final List<String> calls;
+  Profile? profile;
+  Object? signOutError;
+  Object? deleteAccountError;
+
+  int signOutCalls = 0;
+  int deleteAccountCalls = 0;
+
+  @override
+  String? get currentUserId => 'fake-user-id';
+
+  @override
+  Future<void> sendOtp(String phoneE164) async =>
+      throw UnimplementedError('not used by SettingsCubit');
+
+  @override
+  Future<void> verifyOtp({
+    required String phoneE164,
+    required String token,
+  }) async => throw UnimplementedError('not used by SettingsCubit');
+
+  @override
+  Future<int> claimProfile() async =>
+      throw UnimplementedError('not used by SettingsCubit');
+
+  @override
+  Future<Profile> loadProfile() async => profile!;
+
+  @override
+  Future<void> completeProfile({
+    required String handle,
+    required String displayName,
+    required String city,
+    required Birthday birthday,
+  }) async => throw UnimplementedError('not used by SettingsCubit');
+
+  @override
+  Future<void> signOut() async {
+    calls.add('signOut');
+    signOutCalls++;
+    if (signOutError != null) throw signOutError!;
+  }
+
+  @override
+  Future<void> deleteAccount() async {
+    calls.add('deleteAccount');
+    deleteAccountCalls++;
+    if (deleteAccountError != null) throw deleteAccountError!;
+  }
+}
+
+Profile _profile({bool remindersEnabled = true}) => Profile(
+  id: 'p1',
+  handle: 'handle',
+  displayName: 'Name',
+  remindersEnabled: remindersEnabled,
+);
+
+void main() {
+  // 1. toggleReminders(false) emits saving then the new value.
+  blocTest<SettingsCubit, SettingsState>(
+    'toggleReminders(false) emits saving then the new value',
+    build: () => SettingsCubit(_FakeSettings(calls: []), _FakeAuth(calls: [])),
+    seed: () => const SettingsLoaded(remindersEnabled: true),
+    act: (c) => c.toggleReminders(false),
+    expect: () => [
+      isA<SettingsLoaded>()
+          .having((s) => s.remindersEnabled, 'remindersEnabled', false)
+          .having((s) => s.savingReminders, 'savingReminders', true),
+      isA<SettingsLoaded>()
+          .having((s) => s.remindersEnabled, 'remindersEnabled', false)
+          .having((s) => s.savingReminders, 'savingReminders', false)
+          .having((s) => s.error, 'error', isNull),
+    ],
+  );
+
+  // 2. A failed toggle reverts the switch rather than leaving the UI
+  //    showing a value the server did not accept.
+  blocTest<SettingsCubit, SettingsState>(
+    'a failed toggle reverts the switch to the last-known-good value',
+    build: () => SettingsCubit(
+      _FakeSettings(
+        calls: [],
+        setRemindersEnabledError: const ServerFailure('boom'),
+      ),
+      _FakeAuth(calls: []),
+    ),
+    seed: () => const SettingsLoaded(remindersEnabled: true),
+    act: (c) => c.toggleReminders(false),
+    expect: () => [
+      isA<SettingsLoaded>()
+          .having((s) => s.remindersEnabled, 'remindersEnabled', false)
+          .having((s) => s.savingReminders, 'savingReminders', true),
+      isA<SettingsLoaded>()
+          // Reverted to `true` -- the pre-toggle value -- not left on the
+          // `false` the server rejected.
+          .having((s) => s.remindersEnabled, 'remindersEnabled', true)
+          .having((s) => s.error, 'error', AppStrings.somethingWentWrong),
+    ],
+  );
+
+  // 3. signOut() deletes the device token BEFORE clearing the session.
+  //    Assert the call order with a fake that records it: a signed-out
+  //    device that keeps its token keeps receiving someone else's
+  //    reminders, and after the session is gone the row can no longer be
+  //    deleted by this client. This is the assertion worth writing
+  //    carefully -- ordering is the whole of it.
+  test(
+    'signOut deletes the device token before clearing the session',
+    () async {
+      final calls = <String>[];
+      final settings = _FakeSettings(calls: calls);
+      final auth = _FakeAuth(calls: calls);
+      final cubit = SettingsCubit(settings, auth);
+
+      await cubit.signOut();
+
+      expect(calls, ['deleteThisDeviceToken', 'signOut']);
+      expect(cubit.state, isA<SettingsSignedOut>());
+    },
+  );
+
+  // A failed signOut still only calls deleteThisDeviceToken() once -- the
+  // session-clearing step never runs if the token delete throws, so no
+  // account is ever left half signed-out with its token gone.
+  test(
+    'a failed deleteThisDeviceToken aborts signOut before signOut() runs',
+    () async {
+      final calls = <String>[];
+      final auth = _FakeAuth(calls: calls);
+      final cubit = SettingsCubit(_FailingDeleteTokenSettings(), auth);
+
+      await cubit.signOut();
+
+      expect(calls, isEmpty);
+      expect(auth.signOutCalls, 0);
+    },
+  );
+
+  // Even though deleteThisDeviceToken() succeeds, a signOut() whose
+  // AuthRepository.signOut() call itself throws must not be reported as a
+  // success -- the loaded screen stays up with an error rather than
+  // emitting SettingsSignedOut for a sign-out that did not actually happen.
+  test(
+    'a failed AuthRepository.signOut surfaces the generic message',
+    () async {
+      final calls = <String>[];
+      final auth = _FakeAuth(
+        calls: calls,
+        signOutError: const ServerFailure('boom'),
+      );
+      final cubit = SettingsCubit(_FakeSettings(calls: calls), auth);
+      cubit.emit(const SettingsLoaded(remindersEnabled: true));
+
+      await cubit.signOut();
+
+      // The token was still deleted before the failing signOut() call --
+      // this failure happens strictly after the ordering this task cares
+      // about, not instead of it.
+      expect(calls, ['deleteThisDeviceToken', 'signOut']);
+      final state = cubit.state;
+      expect(state, isA<SettingsLoaded>());
+      expect((state as SettingsLoaded).error, AppStrings.somethingWentWrong);
+    },
+  );
+
+  // 4. deleteAccount() calls the Edge Function and then signs out. From the
+  //    cubit's side that whole two-step body lives inside
+  //    AuthRepository.deleteAccount() (Task 5) -- this cubit only delegates
+  //    to it once and reports the outcome as SettingsSignedOut, the same
+  //    terminal state signOut() reaches.
+  test(
+    'deleteAccount calls AuthRepository.deleteAccount and signs out',
+    () async {
+      final auth = _FakeAuth(calls: []);
+      final cubit = SettingsCubit(_FakeSettings(calls: []), auth);
+
+      await cubit.deleteAccount();
+
+      expect(auth.deleteAccountCalls, 1);
+      expect(cubit.state, isA<SettingsSignedOut>());
+    },
+  );
+
+  // Not one of the brief's three, but the same defensiveness pattern as
+  // TimelineCubit's failure-path tests: a failed deleteAccount must surface
+  // the generic message and stay on the loaded screen, not crash out of the
+  // cubit or silently sign the user out.
+  test(
+    'a failed deleteAccount surfaces the generic message and stays put',
+    () async {
+      final auth = _FakeAuth(
+        calls: [],
+        deleteAccountError: const ServerFailure('boom'),
+      );
+      final cubit = SettingsCubit(_FakeSettings(calls: []), auth);
+      cubit.emit(const SettingsLoaded(remindersEnabled: true));
+
+      await cubit.deleteAccount();
+
+      final state = cubit.state;
+      expect(state, isA<SettingsLoaded>());
+      expect((state as SettingsLoaded).error, AppStrings.somethingWentWrong);
+    },
+  );
+
+  // load() populates the switch from AuthRepository.loadProfile() --
+  // SettingsRepository has no read of its own, per the task-13 brief's
+  // interface split (it only ever writes reminders_enabled and the device
+  // token).
+  test('load reads remindersEnabled off the profile', () async {
+    final cubit = SettingsCubit(
+      _FakeSettings(calls: []),
+      _FakeAuth(calls: [], profile: _profile(remindersEnabled: false)),
+    );
+
+    await cubit.load();
+
+    final state = cubit.state;
+    expect(state, isA<SettingsLoaded>());
+    expect((state as SettingsLoaded).remindersEnabled, isFalse);
+  });
+
+  // Re-entrancy: mirrors TimelineCubit's per-action guard. A fast
+  // double-tap on "Sign out" must not fire two token deletes.
+  test('a second signOut call while one is in flight is ignored', () async {
+    final calls = <String>[];
+    final cubit = SettingsCubit(
+      _FakeSettings(calls: calls),
+      _FakeAuth(calls: calls),
+    );
+
+    final first = cubit.signOut();
+    final second = cubit.signOut();
+    await Future.wait([first, second]);
+
+    expect(calls.where((c) => c == 'deleteThisDeviceToken').length, 1);
+  });
+}
+
+/// A [SettingsRepository] whose [deleteThisDeviceToken] always throws,
+/// isolated from [_FakeSettings] so its error path can be tested without
+/// giving every other test an error-prone deleteThisDeviceToken.
+class _FailingDeleteTokenSettings implements SettingsRepository {
+  @override
+  Future<void> setRemindersEnabled(bool enabled) async {}
+
+  @override
+  Future<void> deleteThisDeviceToken() async {
+    throw const ServerFailure('device token delete failed');
+  }
+}

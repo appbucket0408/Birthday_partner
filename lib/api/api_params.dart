@@ -7,6 +7,9 @@ abstract final class ApiParams {
   static const celebrations = 'celebrations';
   static const deviceTokens = 'device_tokens';
 
+  // device_tokens
+  static const token = 'token';
+
   // profiles
   static const id = 'id';
   static const profileId = 'profile_id';
