@@ -58,6 +58,10 @@ class _ProfileSetupViewState extends State<_ProfileSetupView> {
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
     );
+    // The route can be popped/disposed while the dialog is open -- e.g. an
+    // external session invalidation firing the router's redirect. Without
+    // this guard the resolved future calls setState on a dead State.
+    if (!mounted) return;
     if (picked == null) return;
     setState(() {
       _birthdayDate = picked;

@@ -16,6 +16,12 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
     required String city,
     required Birthday birthday,
   }) async {
+    // A save already in flight owns this attempt. The button disables on
+    // ProfileSetupSaving, but that only takes effect a microtask after this
+    // state propagates -- the cubit, not the widget, is the source of truth
+    // for what is in flight, so the guard belongs here too.
+    if (state is ProfileSetupSaving) return;
+
     emit(const ProfileSetupSaving());
     try {
       await _auth.completeProfile(

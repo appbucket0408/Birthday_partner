@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 class _FakeAuth implements AuthRepository {
   Object? error;
   Map<String, dynamic>? saved;
+  int completeProfileCalls = 0;
 
   @override
   Future<void> completeProfile({
@@ -18,6 +19,7 @@ class _FakeAuth implements AuthRepository {
     required String city,
     required Birthday birthday,
   }) async {
+    completeProfileCalls++;
     if (error != null) throw error!;
     saved = {
       'handle': handle,
@@ -86,5 +88,29 @@ void main() {
       isA<ProfileSetupSaving>(),
       isA<ProfileSetupError>().having((s) => s.handleTaken, 'handleTaken', isFalse),
     ],
+  );
+
+  // The button disables on ProfileSetupSaving, but that only takes effect a
+  // microtask after this state propagates -- the cubit is the source of
+  // truth for what is in flight, mirroring PhoneCubit.submitCode (Task 7).
+  blocTest<ProfileSetupCubit, ProfileSetupState>(
+    'a second submit call while saving is ignored',
+    build: () => ProfileSetupCubit(auth),
+    act: (c) async {
+      final first = c.submit(
+        handle: 'sachin',
+        displayName: 'Sachin',
+        city: 'Jaipur',
+        birthday: _birthday,
+      );
+      final second = c.submit(
+        handle: 'sachin',
+        displayName: 'Sachin',
+        city: 'Jaipur',
+        birthday: _birthday,
+      );
+      await Future.wait([first, second]);
+    },
+    verify: (_) => expect(auth.completeProfileCalls, 1),
   );
 }
