@@ -1,15 +1,14 @@
 @Tags(['contract'])
 library;
 
-import 'dart:io';
-
 import 'package:birthday_app/api/api_client.dart';
 import 'package:birthday_app/core/result.dart';
 import 'package:birthday_app/models/birthday.dart';
 import 'package:birthday_app/repositories/auth_repository.dart';
 import 'package:birthday_app/repositories/auth_repository_impl.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
+
+import '../support/contract_test_harness.dart';
 
 /// Requires the local stack: `supabase start` and `supabase functions serve`.
 /// Run with:
@@ -20,19 +19,7 @@ void main() {
   late AuthRepository repo;
 
   setUpAll(() async {
-    TestWidgetsFlutterBinding.ensureInitialized();
-    // AutomatedTestWidgetsFlutterBinding installs an HttpOverrides that makes
-    // every dart:io HttpClient (including the one under supabase_flutter's
-    // gotrue/postgrest/functions clients) return a fake empty 400 with no
-    // request ever leaving the process. These are contract tests against a
-    // *real* local stack on purpose, so that override has to come back off.
-    HttpOverrides.global = null;
-    // `flutter test` also runs with no platform channels registered, so
-    // supabase_flutter's default SharedPreferences-backed session storage
-    // throws MissingPluginException. An in-memory implementation sidesteps
-    // that without touching what the test verifies against real Supabase.
-    SharedPreferencesStorePlatform.instance =
-        InMemorySharedPreferencesStore.empty();
+    setUpContractTestEnvironment();
     await ApiClient.init();
     repo = AuthRepositoryImpl(ApiClient.instance);
   });
@@ -41,25 +28,9 @@ void main() {
   const phoneA = '+919999000001';
   const phoneB = '+919999000002';
 
-  // [auth.sms] max_frequency = "5s" rate-limits repeat sends to the SAME
-  // number. Deleting an account resets its number's cooldown, but a test
-  // that never completes verification (the wrong-code test) leaves phoneA's
-  // cooldown running into the next test. Sending back-to-back through the
-  // suite would otherwise be flaky rather than a real failure, so every
-  // send waits out any cooldown left by the previous one instead.
-  DateTime? lastOtpSentAt;
-  Future<void> sendOtpRateLimited(String phoneE164) async {
-    final last = lastOtpSentAt;
-    if (last != null) {
-      const cooldown = Duration(seconds: 6);
-      final elapsed = DateTime.now().difference(last);
-      if (elapsed < cooldown) {
-        await Future<void>.delayed(cooldown - elapsed);
-      }
-    }
-    await repo.sendOtp(phoneE164);
-    lastOtpSentAt = DateTime.now();
-  }
+  final otpThrottle = OtpSendThrottle();
+  Future<void> sendOtpRateLimited(String phoneE164) =>
+      otpThrottle.run(() => repo.sendOtp(phoneE164));
 
   tearDown(() async {
     if (ApiClient.instance.auth.currentSession != null) {
@@ -93,8 +64,22 @@ void main() {
 
   // The trigger creates the row; the app never inserts one. A fresh profile is
   // therefore readable immediately and is NOT complete.
+  //
+  // This must not depend on run order: earlier tests happen to leave phoneA
+  // deleted via their own tearDown, which is what makes the sign-in below
+  // mint a genuinely new auth user (and therefore a genuinely fresh trigger
+  // row) -- but that is an accident of suite order, not something this test
+  // may assume. Running this test alone (`--plain-name`) would otherwise see
+  // whatever state phoneA was left in by a previous run. So the precondition
+  // is established explicitly: sign in, delete whatever is there (a no-op
+  // the first time this number is ever used), then sign in again to get a
+  // brand-new placeholder profile regardless of what came before.
   test('a fresh profile exists, has a placeholder handle, and is incomplete',
       () async {
+    await sendOtpRateLimited(phoneA);
+    await repo.verifyOtp(phoneE164: phoneA, token: '123456');
+    await repo.deleteAccount();
+
     await sendOtpRateLimited(phoneA);
     await repo.verifyOtp(phoneE164: phoneA, token: '123456');
 
@@ -152,7 +137,16 @@ void main() {
       throwsA(isA<ServerFailure>().having((f) => f.code, 'code', '23505')),
     );
 
-    // Clean up the first user too; tearDown only reaches the current session.
+    // NOTE: this does NOT clean up the first user. By this point the active
+    // session is the second user's (we signed out of phoneA and into phoneB
+    // above), so this deletes the second user -- which tearDown would have
+    // done anyway -- and never reaches the first. The first account (still
+    // holding 'taken_handle') is left behind: a client has no way to delete
+    // an account it isn't signed into, by design (delete_account identifies
+    // its caller from the session, never from a request body). Harmless to
+    // correctness -- phone OTP re-verification returns the SAME persistent
+    // user, so rerunning this test is idempotent -- but it does mean this
+    // test leaves one row in public.profiles per fresh `supabase db reset`.
     await repo.deleteAccount();
     expect(firstUserId, isNotNull);
   });
@@ -161,6 +155,22 @@ void main() {
     await sendOtpRateLimited(phoneA);
     await repo.verifyOtp(phoneE164: phoneA, token: '123456');
     await repo.signOut();
+    expect(repo.currentUserId, isNull);
+  });
+
+  // Covers the happy path of deleteAccount's two-step body (Edge Function
+  // call, then signOut): the local session must be gone afterward. It does
+  // NOT cover the partial-failure branch this method now handles (delete
+  // succeeds, signOut's network half throws) -- forcing that specific
+  // ordering against the real stack would need either mocking SupabaseClient
+  // or interrupting the network mid-call, and a contract suite that mocks
+  // the thing it exists to avoid mocking proves nothing. That branch is
+  // covered by code review and the gotrue_client source cited in
+  // auth_repository_impl.dart instead.
+  test('deleteAccount clears the local session', () async {
+    await sendOtpRateLimited(phoneA);
+    await repo.verifyOtp(phoneE164: phoneA, token: '123456');
+    await repo.deleteAccount();
     expect(repo.currentUserId, isNull);
   });
 }
