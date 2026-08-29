@@ -267,6 +267,18 @@ max_frequency = "5s"
 919999000001 = "123456"
 919999000002 = "123456"
 919999000003 = "123456"
+919999000004 = "123456"
+919999000005 = "123456"
+# Not one of the per-suite numbers above (those are one per contract test
+# FILE, to survive `flutter test` running files concurrently). This one is
+# used a second time INSIDE graph_repository_test.dart itself: proving the
+# 45002/45003 birthday-edit guards needs a person who has genuinely claimed
+# a profile, and claiming only ever happens for a real OTP-verified
+# account's own row. That is a second identity distinct from graph's own
+# 919999000004, used only sequentially within that one file, so it cannot
+# collide with a concurrently-running suite the way sharing a per-file
+# number would.
+919999000006 = "123456"
 
 # Configure logged in session timeouts.
 # [auth.sessions]
