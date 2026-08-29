@@ -40,7 +40,13 @@ class _PhoneViewState extends State<_PhoneView> {
   Widget build(BuildContext context) {
     return BlocConsumer<PhoneCubit, PhoneState>(
       listener: (context, state) {
-        if (state is PhoneCodeSent) {
+        // A wrong code re-emits PhoneCodeSent (PhoneVerifying ->
+        // PhoneCodeSent with an error). This route stays mounted underneath
+        // the pushed OtpScreen and keeps listening, so without the isCurrent
+        // guard that second emission pushes a duplicate OtpScreen on top of
+        // the first one -- do not remove this check.
+        final isCurrent = ModalRoute.of(context)?.isCurrent ?? false;
+        if (state is PhoneCodeSent && isCurrent) {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => BlocProvider.value(

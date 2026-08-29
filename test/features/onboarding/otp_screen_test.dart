@@ -23,11 +23,11 @@ void main() {
   });
 
   Widget wrap() => MaterialApp(
-        home: BlocProvider<PhoneCubit>.value(
-          value: cubit,
-          child: const OtpScreen(),
-        ),
-      );
+    home: BlocProvider<PhoneCubit>.value(
+      value: cubit,
+      child: const OtpScreen(),
+    ),
+  );
 
   testWidgets('a six-digit entry submits automatically', (tester) async {
     whenListen(
@@ -61,8 +61,9 @@ void main() {
 
   // The screen the user is thrown to on a wrong code is the screen they must
   // be able to retry from, with their number still on it.
-  testWidgets('a rejected code keeps the user here with the error shown',
-      (tester) async {
+  testWidgets('a rejected code keeps the user here with the error shown', (
+    tester,
+  ) async {
     whenListen(
       cubit,
       const Stream<PhoneState>.empty(),

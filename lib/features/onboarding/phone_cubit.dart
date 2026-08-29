@@ -41,6 +41,11 @@ class PhoneCubit extends Cubit<PhoneState> {
   Future<void> submitCode(String token) async {
     final phone = _phoneE164;
     if (phone == null) return;
+    // A verification already in flight owns this attempt. Without this
+    // guard, editing the field during the async gap -- a correction, or a
+    // delayed SMS autofill overwrite -- fires a second concurrent
+    // verifyOtp/claimProfile.
+    if (state is PhoneVerifying) return;
 
     emit(PhoneVerifying(phone));
     try {
