@@ -1523,9 +1523,11 @@ Spec §7.3.
 
 `celebration_list_screen.dart`: one screen serving both lists, taking a title and a list of `Person`. Reached at `/profile/celebrating` (fed by `GraphRepository.celebrations()`, mapped to their people) and `/profile/celebrates` (fed by `ProfileRepository.celebrates()`). **Both get a back affordance to `/profile`.** Rows in the Celebrating list navigate to `/person/:id`; rows in the Celebrates list do **not** — the viewer may not be able to see those people's pages, and a row that errors on tap is worse than a row that does nothing.
 
-- [ ] **Step 3b: Register `GraphRepository` in `app.dart`**
+- [ ] **Step 3b: Register `GraphRepository` in `app.dart`, and remove Task 6's fallback**
 
 `ProfileCubit` reads `GraphRepository` from context, but Phase 2b never registered it — `TimelineScreen` constructs its own with a `?? GraphRepositoryImpl(...)` fallback. Add the field and `RepositoryProvider<GraphRepository>.value(...)` alongside the Phase 3 repositories.
+
+**Then delete the identical fallback at `lib/features/person/person_screen.dart:46`.** Task 6 needed `GraphRepository` before any provider existed, so it copied `TimelineScreen`'s pattern — correct at the time, and now redundant. Replace it with `context.read<GraphRepository>()` so the person page matches the rest of Phase 3. **`TimelineScreen`'s own fallback stays untouched**: migrating Phase 2b code is out of scope, and it is the reason that screen cannot be mounted in a widget test.
 
 **This is additive, not the forbidden migration.** Leave `TimelineScreen`'s fallback exactly as it is — changing it is a Phase 2b refactor and out of scope here.
 
