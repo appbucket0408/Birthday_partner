@@ -9,8 +9,21 @@ abstract final class ApiClient {
   );
   static const anonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 
-  static Future<void> init() =>
-      Supabase.initialize(url: url, publishableKey: anonKey).then((_) {});
+  /// [anonKey] has no `defaultValue`, so a run without the dart-define
+  /// silently resolves it to `''`. `Supabase.initialize` accepts that without
+  /// complaint and every request then fails much later with an opaque 401
+  /// that looks like a credentials or RLS problem. Fail loudly here instead.
+  static Future<void> init() {
+    if (anonKey.isEmpty) {
+      throw StateError(
+        'SUPABASE_ANON_KEY is empty. Pass it with '
+        '--dart-define=SUPABASE_ANON_KEY=<key>.',
+      );
+    }
+    return Supabase.initialize(url: url, publishableKey: anonKey).then(
+      (_) {},
+    );
+  }
 
   static SupabaseClient get instance => Supabase.instance.client;
 }

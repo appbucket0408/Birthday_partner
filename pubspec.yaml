@@ -43,6 +43,10 @@ dev_dependencies:
     sdk: flutter
   bloc_test: ^9.1.7
   flutter_lints: ^5.0.0
+  # Contract tests swap in InMemorySharedPreferencesStore so supabase_flutter's
+  # session storage doesn't hit a real (unregistered under `flutter test`)
+  # platform channel. Declared directly since the test imports it.
+  shared_preferences_platform_interface: ^2.4.2
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
