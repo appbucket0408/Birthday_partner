@@ -20,6 +20,7 @@
 - **Local Supabase** is `http://127.0.0.1:54321`. Get the anon and service-role keys from `supabase status`. Colima must be running and Supabase analytics must stay disabled.
 - **A green suite is not evidence.** Every new assertion must be watched to FAIL with the implementation reverted before the task is considered done. Two assertions in Phase 2a passed with and without the fix; the implementer caught it and said so, and that is the standard here.
 - **New `private` functions extend the allowlist** in `supabase/tests/database/01_private.test.sql`. That guard caught five leaked functions during M0.
+- **New `public` functions executable by `authenticated` extend the R3 allowlist** in `supabase/tests/database/11_rls_coverage.test.sql`. Missing this makes the suite fail from cold. (Added 29 Aug 2026 after Task 1 hit it.)
 - **SQLSTATE is a public API decision.** PostgREST maps it to an HTTP status. Use unassigned class-45 codes for application errors; `P0002` becomes a 500.
 - Read `docs/db.md` before touching anything in `supabase/`. It carries eleven rules that each shipped a bug first.
 
