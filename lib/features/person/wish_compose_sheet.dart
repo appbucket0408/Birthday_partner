@@ -63,7 +63,8 @@ class _WishComposeSheetState extends State<WishComposeSheet> {
     // below may touch `context` or call `setState` until this is checked.
     if (!mounted) return;
 
-    if (cubit.state is PersonError) {
+    final result = cubit.state;
+    if (result is PersonLoaded && result.postError != null) {
       setState(() => _error = AppStrings.wishPostFailed);
       return;
     }

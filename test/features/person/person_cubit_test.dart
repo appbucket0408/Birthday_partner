@@ -3,8 +3,10 @@ import 'package:birthday_app/core/result.dart';
 import 'package:birthday_app/features/person/person_cubit.dart';
 import 'package:birthday_app/features/person/person_state.dart';
 import 'package:birthday_app/models/birthday.dart';
+import 'package:birthday_app/models/celebration.dart';
 import 'package:birthday_app/models/person.dart';
 import 'package:birthday_app/models/wish.dart';
+import 'package:birthday_app/repositories/graph_repository.dart';
 import 'package:birthday_app/repositories/person_repository.dart';
 import 'package:birthday_app/repositories/wish_repository.dart';
 import 'package:bloc_test/bloc_test.dart';
@@ -37,9 +39,10 @@ class _FakePerson implements PersonRepository {
 }
 
 class _FakeWish implements WishRepository {
-  _FakeWish({this.wishesToReturn = const []});
+  _FakeWish({this.wishesToReturn = const [], this.postError});
 
   List<Wish> wishesToReturn;
+  Object? postError;
 
   int postCalls = 0;
   int wishesForCalls = 0;
@@ -59,12 +62,48 @@ class _FakeWish implements WishRepository {
   }) async {
     postCalls++;
     lastOccasionYear = occasionYear;
+    if (postError != null) throw postError!;
   }
+}
+
+/// [celebrationsList] is the SIGNED-IN VIEWER'S OWN celebration edges --
+/// `GraphRepository.celebrations()` filters server-side on
+/// `celebrator_profile_id = auth.uid()` (see
+/// `lib/repositories/graph_repository_impl.dart`) -- so membership of this
+/// list, not the loaded [Person] itself, is what `PersonCubit.load` reads
+/// to decide `PersonLoaded.viewerCelebrates`.
+class _FakeGraph implements GraphRepository {
+  _FakeGraph({this.celebrationsList = const []});
+
+  List<Celebration> celebrationsList;
+
+  int celebrationsCalls = 0;
+
+  @override
+  Future<List<Celebration>> celebrations() async {
+    celebrationsCalls++;
+    return celebrationsList;
+  }
+
+  @override
+  Future<void> updateBirthday(int personId, Birthday birthday) async =>
+      throw UnimplementedError('not used by PersonCubit');
+
+  @override
+  Future<void> updateNickname(int celebrationId, String? nickname) async =>
+      throw UnimplementedError('not used by PersonCubit');
+
+  @override
+  Future<void> stopCelebrating(int celebrationId) async =>
+      throw UnimplementedError('not used by PersonCubit');
 }
 
 Person _person(int id, {Birthday? birthday}) =>
     Person(id: id, displayName: 'Person $id', isClaimed: false,
         birthday: birthday);
+
+Celebration _celeb(int personId) =>
+    Celebration(id: personId, person: _person(personId));
 
 Wish _wish(int id, {int occasionYear = 2025}) => Wish(
       id: id,
@@ -91,6 +130,7 @@ void main() {
             _person(1, birthday: const Birthday(month: 12, day: 20)),
       )..countToReturn = 3,
       _FakeWish(wishesToReturn: [_wish(1)]),
+      _FakeGraph(celebrationsList: [_celeb(1)]),
       now: _fixedNow,
     ),
     act: (c) => c.load(1),
@@ -111,6 +151,7 @@ void main() {
     build: () => PersonCubit(
       _FakePerson(personToReturn: _person(1))..countToReturn = 0,
       _FakeWish(),
+      _FakeGraph(),
       now: _fixedNow,
     ),
     act: (c) => c.load(1),
@@ -136,7 +177,7 @@ void main() {
       personToReturn: _person(1),
       countError: const ServerFailure('boom from the server'),
     );
-    final cubit = PersonCubit(fake, _FakeWish(), now: _fixedNow);
+    final cubit = PersonCubit(fake, _FakeWish(), _FakeGraph(), now: _fixedNow);
 
     await cubit.load(1);
 
@@ -154,13 +195,51 @@ void main() {
       personToReturn: _person(1),
       countError: StateError('unexpected'),
     );
-    final cubit = PersonCubit(fake, _FakeWish(), now: _fixedNow);
+    final cubit = PersonCubit(fake, _FakeWish(), _FakeGraph(), now: _fixedNow);
 
     await cubit.load(1);
 
     final state = cubit.state;
     expect(state, isA<PersonError>());
     expect((state as PersonError).message, AppStrings.somethingWentWrong);
+  });
+
+  // 3b (fix round 1): viewerCelebrates is true when the viewer's OWN
+  // celebration list (GraphRepository.celebrations()) contains this person.
+  test(
+      'viewerCelebrates is true when the celebration list contains this '
+      'person', () async {
+    final cubit = PersonCubit(
+      _FakePerson(personToReturn: _person(1)),
+      _FakeWish(),
+      _FakeGraph(celebrationsList: [_celeb(1)]),
+      now: _fixedNow,
+    );
+
+    await cubit.load(1);
+
+    final state = cubit.state as PersonLoaded;
+    expect(state.viewerCelebrates, isTrue);
+  });
+
+  // 3c (fix round 1): the flip side -- a person visible only via one of
+  // can_see_person's OTHER two branches (own profile, or they celebrate the
+  // viewer) does not appear in the viewer's own celebrations() list, so
+  // viewerCelebrates must be false.
+  test(
+      'viewerCelebrates is false when the celebration list does NOT contain '
+      'this person', () async {
+    final cubit = PersonCubit(
+      _FakePerson(personToReturn: _person(1)),
+      _FakeWish(),
+      _FakeGraph(celebrationsList: [_celeb(99)]), // some other person entirely
+      now: _fixedNow,
+    );
+
+    await cubit.load(1);
+
+    final state = cubit.state as PersonLoaded;
+    expect(state.viewerCelebrates, isFalse);
   });
 
   // 4. postWish() derives occasionYear from the person's birthday rather
@@ -176,7 +255,12 @@ void main() {
       personToReturn:
           _person(1, birthday: const Birthday(month: 12, day: 20)),
     );
-    final cubit = PersonCubit(person, wish, now: _fixedNow);
+    final cubit = PersonCubit(
+      person,
+      wish,
+      _FakeGraph(celebrationsList: [_celeb(1)]),
+      now: _fixedNow,
+    );
     await cubit.load(1);
 
     await cubit.postWish('Happy belated birthday!');
@@ -197,7 +281,12 @@ void main() {
       personToReturn:
           _person(1, birthday: const Birthday(month: 12, day: 20)),
     );
-    final cubit = PersonCubit(person, wish, now: _fixedNow);
+    final cubit = PersonCubit(
+      person,
+      wish,
+      _FakeGraph(celebrationsList: [_celeb(1)]),
+      now: _fixedNow,
+    );
     await cubit.load(1);
 
     // The second load (post-write) returns a longer wall -- the freshly
@@ -219,7 +308,12 @@ void main() {
       personToReturn:
           _person(1, birthday: const Birthday(month: 12, day: 20)),
     );
-    final cubit = PersonCubit(person, wish, now: _fixedNow);
+    final cubit = PersonCubit(
+      person,
+      wish,
+      _FakeGraph(celebrationsList: [_celeb(1)]),
+      now: _fixedNow,
+    );
     await cubit.load(1);
 
     final first = cubit.postWish('First');
@@ -227,5 +321,40 @@ void main() {
     await Future.wait([first, second]);
 
     expect(wish.postCalls, 1);
+  });
+
+  // 7 (fix round 1, ruling item 2). A failing postWish must NOT discard the
+  // already-rendered wall by replacing the state with PersonError -- it
+  // stays PersonLoaded, with the wishes still present and a transient
+  // postError set, the same shape TimelineLoaded.error uses for row-action
+  // failures. The message must be human-readable, never a Dart type dump.
+  test(
+      'a failing postWish() leaves PersonLoaded with the wishes still '
+      "present and postError set to the failure's own message", () async {
+    final existingWish = _wish(1);
+    final wish = _FakeWish(
+      wishesToReturn: [existingWish],
+      postError: const ServerFailure('no celebration edge to this person'),
+    );
+    final person = _FakePerson(
+      personToReturn:
+          _person(1, birthday: const Birthday(month: 12, day: 20)),
+    );
+    final cubit = PersonCubit(
+      person,
+      wish,
+      _FakeGraph(celebrationsList: [_celeb(1)]),
+      now: _fixedNow,
+    );
+    await cubit.load(1);
+
+    await cubit.postWish('Uninvited, mid-compose race');
+
+    final state = cubit.state;
+    expect(state, isA<PersonLoaded>());
+    final loaded = state as PersonLoaded;
+    expect(loaded.wishes.map((w) => w.id).toList(), [1]);
+    expect(loaded.postError, 'no celebration edge to this person');
+    expect(loaded.postError, isNot(contains('Instance of')));
   });
 }

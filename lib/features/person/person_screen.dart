@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../api/api_client.dart';
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
-import '../../models/person.dart';
+import '../../repositories/graph_repository.dart';
+import '../../repositories/graph_repository_impl.dart';
 import '../../repositories/person_repository.dart';
 import '../../repositories/wish_repository.dart';
 import 'person_cubit.dart';
@@ -18,11 +20,21 @@ import 'wish_compose_sheet.dart';
 /// registered in `app.dart`), never constructed here -- the pattern two
 /// Phase 2b screens got wrong, which is why they cannot be mounted in a
 /// widget test without a live Supabase session.
+///
+/// `GraphRepository` has no `RepositoryProvider` anywhere in this app --
+/// `TimelineScreen` constructs it directly for the same reason, and this
+/// screen follows that existing pattern rather than inventing a second one.
 class PersonScreen extends StatelessWidget {
-  const PersonScreen({super.key, required this.personId, DateTime Function()? now})
-      : _now = now;
+  const PersonScreen({
+    super.key,
+    required this.personId,
+    GraphRepository? graphRepository,
+    DateTime Function()? now,
+  })  : _graphRepository = graphRepository,
+        _now = now;
 
   final int personId;
+  final GraphRepository? _graphRepository;
   final DateTime Function()? _now;
 
   @override
@@ -31,6 +43,7 @@ class PersonScreen extends StatelessWidget {
       create: (context) => PersonCubit(
         context.read<PersonRepository>(),
         context.read<WishRepository>(),
+        _graphRepository ?? GraphRepositoryImpl(ApiClient.instance),
         now: _now,
       )..load(personId),
       child: PersonView(personId: personId),
@@ -87,15 +100,14 @@ class PersonView extends StatelessWidget {
               ),
             PersonLoaded() => _buildLoaded(context, state),
           },
-          floatingActionButton:
-              state is PersonLoaded && _canComposeFor(state.person)
-                  ? FloatingActionButton.extended(
-                      key: const Key('wish_write_button'),
-                      icon: const Icon(Icons.edit),
-                      label: const Text(AppStrings.personWriteWish),
-                      onPressed: () => showWishComposeSheet(context),
-                    )
-                  : null,
+          floatingActionButton: state is PersonLoaded && _canComposeFor(state)
+              ? FloatingActionButton.extended(
+                  key: const Key('wish_write_button'),
+                  icon: const Icon(Icons.edit),
+                  label: const Text(AppStrings.personWriteWish),
+                  onPressed: () => showWishComposeSheet(context),
+                )
+              : null,
         );
       },
     );
@@ -158,19 +170,18 @@ class PersonView extends StatelessWidget {
 }
 
 /// The compose FAB is shown only when there is something the user could
-/// actually do with it: the person has a birthday to derive an occasion
-/// year from, per [PersonCubit.postWish]. Hidden, not disabled -- there is
-/// nothing on this screen a user could do to enable it, so a disabled
-/// button would only invite hunting for a reason that isn't shown anywhere.
+/// actually do with it, and only when the write would not be pointlessly
+/// refused: the person has a birthday to derive an occasion year from
+/// ([PersonCubit.postWish]), AND [PersonLoaded.viewerCelebrates] -- the
+/// signal that the viewer's own `celebrations()` list contains this person,
+/// which is the only client-visible stand-in for `wishes_insert_own`'s RLS
+/// requirement (`private.can_see_person`'s three branches are otherwise
+/// indistinguishable from here). Hidden, not disabled -- there is nothing on
+/// this screen a user could do to enable it, so a disabled button would only
+/// invite hunting for a reason that isn't shown anywhere.
 ///
-/// The other half of spec §7.2's condition -- "the viewer celebrates them"
-/// -- cannot be determined from here: `PersonRepository`/`WishRepository`
-/// expose no signal that distinguishes *why* a person is visible
-/// (`private.can_see_person`'s three branches are "my own person",
-/// "someone I celebrate" and "someone who celebrates me", and nothing
-/// client-visible says which one applied). `WishRepository.post` still
-/// enforces it server-side regardless, and `PersonCubit.postWish` surfaces
-/// that rejection as a normal `PersonError` if it is ever reached -- the
-/// same race spec §7.2 already accounts for ("the viewer un-celebrates
-/// mid-compose"). See task-6-report.md for the full note.
-bool _canComposeFor(Person person) => person.birthday != null;
+/// The write is still enforced server-side regardless of this check, for
+/// the race where the viewer un-celebrates mid-compose -- see
+/// [PersonCubit.postWish]'s `postError` handling.
+bool _canComposeFor(PersonLoaded state) =>
+    state.person.birthday != null && state.viewerCelebrates;

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/app_strings.dart';
 import '../../core/reentrancy_guard.dart';
 import '../../core/result.dart';
+import '../../repositories/graph_repository.dart';
 import '../../repositories/person_repository.dart';
 import '../../repositories/wish_repository.dart';
 import 'person_state.dart';
@@ -19,12 +20,26 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
   /// [now] is injectable for the same reason `TimelineCubit` takes it: a
   /// test that derives an occasion year off the real clock passes today and
   /// fails on the next run past a birthday.
-  PersonCubit(this._people, this._wishes, {DateTime Function()? now})
-      : _now = now ?? DateTime.now,
+  ///
+  /// [_graph] is consumed for exactly one thing: `celebrations()` returns
+  /// the signed-in user's own celebration edges (filtered server-side on
+  /// `celebrator_profile_id = auth.uid()`), and membership of that list is
+  /// the only client-visible way to know the viewer celebrates the loaded
+  /// person, as opposed to merely being visible to them via one of
+  /// `private.can_see_person`'s other two branches. `GraphRepository` is
+  /// already registered in `app.dart`, so this is not a new dependency on
+  /// this screen, only a new consumer of an existing one.
+  PersonCubit(
+    this._people,
+    this._wishes,
+    this._graph, {
+    DateTime Function()? now,
+  })  : _now = now ?? DateTime.now,
         super(const PersonLoading());
 
   final PersonRepository _people;
   final WishRepository _wishes;
+  final GraphRepository _graph;
   final DateTime Function() _now;
 
   Future<void> load(int personId) => guard('load', () async {
@@ -33,11 +48,15 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
           final person = await _people.person(personId);
           final count = await _people.celebratorCount(personId);
           final wishes = await _wishes.wishesFor(personId);
+          final celebrations = await _graph.celebrations();
+          final viewerCelebrates =
+              celebrations.any((c) => c.person.id == personId);
           emit(
             PersonLoaded(
               person: person,
               celebratorCount: count,
               wishes: wishes,
+              viewerCelebrates: viewerCelebrates,
             ),
           );
         } on AppFailure catch (f) {
@@ -55,16 +74,30 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
   /// off the current year -- so a December birthday wished in January
   /// attaches to last December, not next. The user is never asked.
   ///
-  /// A person with no birthday cannot reach this method through the screen
-  /// -- the compose FAB is hidden whenever `person.birthday` is null -- so
-  /// the branch below is defensive, not a real path. It emits the generic
-  /// failure rather than inventing a year nobody has.
+  /// A person with no birthday, or a viewer who does not celebrate them,
+  /// cannot reach this method through the screen -- the compose FAB is
+  /// hidden in both cases -- so the branch below is defensive, not a real
+  /// path. `wishes_insert_own` still enforces the celebration edge
+  /// server-side regardless (the race where the viewer un-celebrates
+  /// mid-compose), so a rejection here is a real, reachable outcome even
+  /// though the FAB itself is gated; either way, a failure here must not
+  /// discard the already-rendered wall -- it surfaces transiently via
+  /// [PersonLoaded.postError], the same shape `TimelineLoaded.error` uses,
+  /// not by replacing the state with [PersonError].
   Future<void> postWish(String body) => guard('post', () async {
         final current = state;
         if (current is! PersonLoaded) return;
         final birthday = current.person.birthday;
         if (birthday == null) {
-          emit(const PersonError(AppStrings.somethingWentWrong));
+          emit(
+            PersonLoaded(
+              person: current.person,
+              celebratorCount: current.celebratorCount,
+              wishes: current.wishes,
+              viewerCelebrates: current.viewerCelebrates,
+              postError: AppStrings.somethingWentWrong,
+            ),
+          );
           return;
         }
         emit(
@@ -72,6 +105,7 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
             person: current.person,
             celebratorCount: current.celebratorCount,
             wishes: current.wishes,
+            viewerCelebrates: current.viewerCelebrates,
             posting: true,
           ),
         );
@@ -88,12 +122,29 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
               person: current.person,
               celebratorCount: current.celebratorCount,
               wishes: wishes,
+              viewerCelebrates: current.viewerCelebrates,
             ),
           );
         } on AppFailure catch (f) {
-          emit(PersonError(f.message));
+          emit(
+            PersonLoaded(
+              person: current.person,
+              celebratorCount: current.celebratorCount,
+              wishes: current.wishes,
+              viewerCelebrates: current.viewerCelebrates,
+              postError: f.message,
+            ),
+          );
         } catch (_) {
-          emit(const PersonError(AppStrings.somethingWentWrong));
+          emit(
+            PersonLoaded(
+              person: current.person,
+              celebratorCount: current.celebratorCount,
+              wishes: current.wishes,
+              viewerCelebrates: current.viewerCelebrates,
+              postError: AppStrings.somethingWentWrong,
+            ),
+          );
         }
       });
 }

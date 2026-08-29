@@ -70,6 +70,7 @@ void main() {
         person: _person(1, birthday: const Birthday(month: 4, day: 15)),
         celebratorCount: 2,
         wishes: [_wish(1, authorName: null)],
+        viewerCelebrates: true,
       ),
     );
 
@@ -90,6 +91,7 @@ void main() {
         person: _person(1, birthday: const Birthday(month: 4, day: 15)),
         celebratorCount: 1,
         wishes: const [],
+        viewerCelebrates: true,
       ),
     );
 
@@ -113,6 +115,7 @@ void main() {
         person: _person(1, birthday: const Birthday(month: 4, day: 15)),
         celebratorCount: 4,
         wishes: const [],
+        viewerCelebrates: true,
       ),
     );
 
@@ -135,6 +138,7 @@ void main() {
         person: _person(1),
         celebratorCount: 3,
         wishes: const [],
+        viewerCelebrates: true,
       ),
     );
 
@@ -153,10 +157,35 @@ void main() {
         person: _person(1, birthday: const Birthday(month: 4, day: 15)),
         celebratorCount: 3,
         wishes: const [],
+        viewerCelebrates: true,
       ),
     );
 
     expect(find.byKey(const Key('wish_write_button')), findsOneWidget);
+  });
+
+  // 3c (fix round 1): the FAB is absent when viewerCelebrates is false, even
+  // though the person DOES have a birthday -- the literal text of the
+  // brief's condition ("the person has a birthday AND the viewer celebrates
+  // them"), and the one case nothing previously proved. Without this, the
+  // app would show "Write a wish" to someone whose insert
+  // wishes_insert_own will refuse -- they write a message, tap post, and
+  // get an error they can do nothing about.
+  testWidgets(
+      'the compose FAB is absent when the viewer does not celebrate this '
+      'person, even with a birthday present', (tester) async {
+    await _pump(
+      tester,
+      cubit,
+      PersonLoaded(
+        person: _person(1, birthday: const Birthday(month: 4, day: 15)),
+        celebratorCount: 3,
+        wishes: const [],
+        viewerCelebrates: false,
+      ),
+    );
+
+    expect(find.byKey(const Key('wish_write_button')), findsNothing);
   });
 
   // 4. The back affordance is present and enabled.
@@ -168,6 +197,7 @@ void main() {
         person: _person(1, birthday: const Birthday(month: 4, day: 15)),
         celebratorCount: 1,
         wishes: const [],
+        viewerCelebrates: true,
       ),
     );
 
