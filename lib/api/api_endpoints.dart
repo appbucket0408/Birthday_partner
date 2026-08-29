@@ -1,0 +1,9 @@
+/// Edge Function names and RPC names. No caller spells these inline.
+abstract final class ApiEndpoints {
+  static const claimProfile = 'claim_profile';
+  static const resolveContacts = 'resolve_contacts';
+  static const addCelebrations = 'add_celebrations';
+  static const deleteAccount = 'delete_account';
+
+  static const rpcUpdatePersonBirthday = 'rpc_update_person_birthday';
+}
