@@ -2310,7 +2310,16 @@ class _PhoneViewState extends State<_PhoneView> {
           ));
         }
       },
-      listenWhen: (prev, next) => prev is! PhoneCodeSent && next is PhoneCodeSent,
+      // The `isCurrent` check is load-bearing, not defensive noise. On a wrong
+      // code the cubit emits PhoneVerifying -> PhoneCodeSent, so a listenWhen
+      // testing only the state types fires AGAIN -- and PhoneScreen is still
+      // mounted beneath the pushed route (maintainState defaults true, and
+      // BlocListener gates only on `mounted`), so it pushes a SECOND OtpScreen
+      // on top of the first. Every wrong attempt stacked another one.
+      // `isCurrent` is self-resetting: no push while OtpScreen is on top, and a
+      // genuine re-submit works again once the user pops back.
+      listenWhen: (prev, next) =>
+          prev is! PhoneCodeSent && next is PhoneCodeSent,
       builder: (context, state) {
         return Scaffold(
           body: SafeArea(
