@@ -1126,8 +1126,12 @@ Spec §7.1, §7.2. The screen a timeline row finally leads to.
 - Modify: `lib/router/app_router.dart`, `lib/features/timeline/timeline_screen.dart`, `lib/core/app_strings.dart`
 
 **Interfaces:**
-- Consumes: `PersonRepository` (Task 4), `WishRepository` (Task 5), `ReentrancyGuard` (Task 3), `Birthday.occasionYear` (Task 3).
-- Produces: `PersonCubit(PersonRepository, WishRepository)` with `load(int personId)` and `postWish(String body)`; `PersonState` = `PersonLoading | PersonLoaded(person, celebratorCount, wishes, posting) | PersonError(message)`.
+- Consumes: `PersonRepository` (Task 4), `WishRepository` (Task 5), **`GraphRepository`** (Phase 2b, already registered in `app.dart`), `ReentrancyGuard` (Task 3), `Birthday.occasionYear` (Task 3).
+- Produces: `PersonCubit(PersonRepository, WishRepository, GraphRepository)` with `load(int personId)` and `postWish(String body)`; `PersonState` = `PersonLoading | PersonLoaded(person, celebratorCount, wishes, viewerCelebrates, posting, postError) | PersonError(message)`.
+
+**`viewerCelebrates` comes from `GraphRepository.celebrations()`**, which returns exactly the viewer's own edges (filtered on `celebrator_profile_id`). Neither `PersonRepository` nor `WishRepository` can supply it, and `can_see_person`'s three branches are indistinguishable from the client — so membership of that list is the only available signal. It gates the compose affordance together with the birthday check: without it the app offers "Write a wish" to someone whose insert RLS will refuse, and the user hits an error they can do nothing about.
+
+**A failing `postWish` must NOT replace the screen with `PersonError`.** That would discard the rendered wall because one post failed. Keep `PersonLoaded` and surface the failure in `postError`, cleared on the next attempt. `load` keeps `PersonError` — a load failure genuinely has nothing to render.
 
 - [ ] **Step 1: Add the strings**
 
@@ -1225,7 +1229,7 @@ In `lib/router/app_router.dart`:
       ),
 ```
 
-Add `/person/:personId` to the `signedIn` set alongside `/timeline`, `/import` and `/settings`, or the guard will redirect away from it.
+The guard must also let `/person/:personId` through — but **not by adding the template to the `signedIn` set.** `matchedLocation` is the *substituted* path (`/person/42`), so the template string would never match and the guard would bounce every visit straight back to `/timeline`: a route that compiles, analyzes clean, and is simply unreachable. Check it by prefix instead (`at.startsWith('/person/')`) and say why in a comment. (Found in Task 6; the original instruction was wrong.)
 
 In `lib/features/timeline/timeline_screen.dart`, give each row an `onTap` navigating to `/person/${celebration.person.id}`. Rows currently have only an overflow menu, so tapping one does nothing.
 
