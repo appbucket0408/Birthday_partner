@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/onboarding/phone_screen.dart';
 import 'session_cubit.dart';
 import 'session_state.dart';
 
@@ -27,6 +28,13 @@ GoRouter buildRouter(SessionCubit session) {
     routes: [
       GoRoute(path: '/splash', builder: (_, __) => const _Splash()),
       GoRoute(path: '/phone', builder: (_, __) => const PhoneScreen()),
+      // Deliberately no '/otp' route: OtpScreen is reached only via
+      // Navigator.push from PhoneScreen, handed the live PhoneCubit through
+      // BlocProvider.value. The screen has no meaning on its own -- it
+      // renders the phone number held in that cubit's memory, and a
+      // URL-addressable '/otp' would have nothing to verify against. A
+      // signed-out user landing on '#/otp' being redirected back to '/phone'
+      // by the guard below is correct, not a missing route.
       GoRoute(path: '/setup', builder: (_, __) => const ProfileSetupScreen()),
       GoRoute(path: '/timeline', builder: (_, __) => const TimelineScreen()),
       GoRoute(
@@ -68,15 +76,10 @@ class _Splash extends StatelessWidget {
 
 // Placeholders so this task compiles on its own. Each later screen task
 // DELETES its placeholder here and adds the real import at the top of the
-// file: Task 7 -> PhoneScreen, Task 8 -> ProfileSetupScreen, Task 10 ->
-// ImportDisclosureScreen, Task 12 -> TimelineScreen, Task 13 ->
-// SettingsScreen. Leaving one behind shadows the real screen silently.
-class PhoneScreen extends StatelessWidget {
-  const PhoneScreen({super.key});
-  @override
-  Widget build(BuildContext context) => const Scaffold();
-}
-
+// file: Task 8 -> ProfileSetupScreen, Task 10 -> ImportDisclosureScreen,
+// Task 12 -> TimelineScreen, Task 13 -> SettingsScreen. Leaving one behind
+// shadows the real screen silently. (Task 7's PhoneScreen placeholder is
+// gone -- the real one is imported above.)
 class ProfileSetupScreen extends StatelessWidget {
   const ProfileSetupScreen({super.key});
   @override

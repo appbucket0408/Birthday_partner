@@ -42,6 +42,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   bloc_test: ^9.1.7
+  mocktail: ^1.0.4
   flutter_lints: ^5.0.0
   # Contract tests swap in InMemorySharedPreferencesStore so supabase_flutter's
   # session storage doesn't hit a real (unregistered under `flutter test`)
