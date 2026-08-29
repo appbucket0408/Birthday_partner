@@ -103,4 +103,17 @@ abstract final class AppStrings {
       'People who celebrate you will keep a "Deleted user" in their list. '
       'This cannot be undone.';
   static const settingsDeleteConfirm = 'Delete everything';
+
+  // Person page
+  static const personCelebratorCountTemplate = '%s people celebrate them';
+  static const personCelebratorCountOne = '1 person celebrates them';
+  static const personNoBirthday = 'No birthday recorded yet';
+  static const personWallEmpty = 'No wishes yet. Be the first.';
+  static const personWriteWish = 'Write a wish';
+  static const wishAuthorUnknown = 'Someone who celebrates them';
+  static const wishHint = 'Say something nice';
+  static const wishPost = 'Post';
+  static const wishTooLong = 'A wish can be at most 500 characters.';
+  static const wishEmpty = 'Write something first.';
+  static const wishPostFailed = 'That wish could not be posted.';
 }

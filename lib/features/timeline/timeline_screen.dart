@@ -158,6 +158,8 @@ class _TimelineView extends StatelessWidget {
                   return ListTile(
                     key: Key('celebration_${celebration.id}'),
                     title: Text(celebration.label),
+                    onTap: () =>
+                        context.go('/person/${celebration.person.id}'),
                     trailing: PopupMenuButton<VoidCallback>(
                       key: Key('menu_${celebration.id}'),
                       onSelected: (action) => action(),

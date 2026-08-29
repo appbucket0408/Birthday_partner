@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../features/contacts_import/import_disclosure_screen.dart';
 import '../features/onboarding/phone_screen.dart';
 import '../features/onboarding/profile_setup_screen.dart';
+import '../features/person/person_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/timeline/timeline_screen.dart';
 import 'session_cubit.dart';
@@ -46,6 +47,12 @@ GoRouter buildRouter(SessionCubit session) {
         builder: (_, __) => const ImportDisclosureScreen(),
       ),
       GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
+      GoRoute(
+        path: '/person/:personId',
+        builder: (_, state) => PersonScreen(
+          personId: int.parse(state.pathParameters['personId']!),
+        ),
+      ),
     ],
     redirect: (context, state) {
       final s = session.state;
@@ -62,8 +69,18 @@ GoRouter buildRouter(SessionCubit session) {
       };
 
       // Once ready, the user moves freely between the signed-in screens.
+      //
+      // '/person/:personId' cannot go in the set as a literal string: unlike
+      // every other entry here, it carries a path parameter, so `matchedLocation`
+      // is the substituted location (e.g. '/person/42'), never the bare
+      // '/person' the route is declared with. A literal-set membership check
+      // would never match it and the guard would bounce every visit straight
+      // back to '/timeline' -- checked separately, by prefix, for that reason.
       const signedIn = {'/timeline', '/import', '/settings'};
-      if (s is SessionReady && signedIn.contains(at)) return null;
+      final onPersonPage = at.startsWith('/person/');
+      if (s is SessionReady && (signedIn.contains(at) || onPersonPage)) {
+        return null;
+      }
 
       return at == target ? null : target;
     },
