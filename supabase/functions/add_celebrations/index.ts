@@ -186,8 +186,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
       continue;
     }
 
+    // A suppressed number is reported with the same opaque status as any other
+    // non-actionable skip, NOT as "suppressed". Returning the labelled status
+    // made this endpoint an oracle: it accepts 500 arbitrary numbers per
+    // request with no rate limit and no requirement that the caller holds them
+    // in an address book, so a labelled response let anyone enumerate who had
+    // asked to be forgotten. The aggregate `skipped` count is unchanged, so the
+    // count inference accepted in Phase 2b remains -- but the per-phone oracle
+    // is gone.
     if (data === null) {
-      record({ person_id: null, status: "suppressed" });
+      record({ person_id: null, status: "skipped" });
       skipped++;
       continue;
     }

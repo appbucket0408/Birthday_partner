@@ -183,7 +183,7 @@ Deno.test("a birthday supplied with the contact is stored", async () => {
   assertEquals(data, { birth_month: 4, birth_day: 15 });
 });
 
-Deno.test("a suppressed number is reported as a bare skip, never named as a failure", async () => {
+Deno.test("a suppressed number is reported as an opaque skip, never labelled", async () => {
   // private.suppress_person has no Edge Function caller anywhere in this
   // project (grepped all five), so the only way to create a suppression for
   // this test is a direct Postgres connection, seeding
@@ -218,10 +218,14 @@ Deno.test("a suppressed number is reported as a bare skip, never named as a fail
   // `skipped` is otherwise unobservable from the HTTP contract -- nothing
   // else in this file increments it -- so asserting the counter, not just
   // the per-result status string, is the only way to pin that a regression
-  // from `status: "suppressed"` to `status: "failed"` (which the import
+  // from `status: "skipped"` to `status: "failed"` (which the import
   // screen would render as naming the contact, the exact leak the spec
   // forbids) shows up as a test failure.
   assertEquals(body.skipped, 1);
-  assertEquals(body.results[0].status, "suppressed");
+  assertEquals(body.results[0].status, "skipped");
   assertEquals(body.results[0].person_id, null);
+
+  // The oracle guard: no response field anywhere may carry the word
+  // "suppressed", or the endpoint is enumerable again.
+  assertEquals(JSON.stringify(body).includes("suppressed"), false);
 });

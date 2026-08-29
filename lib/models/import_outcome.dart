@@ -5,7 +5,7 @@
 enum ImportStatus {
   added,
   duplicate,
-  suppressed,
+  skipped,
   invalidPhone,
   invalidName,
   self,
@@ -14,7 +14,7 @@ enum ImportStatus {
   static ImportStatus fromWire(String value) => switch (value) {
         'added' => ImportStatus.added,
         'duplicate' => ImportStatus.duplicate,
-        'suppressed' => ImportStatus.suppressed,
+        'skipped' => ImportStatus.skipped,
         'invalid_phone' => ImportStatus.invalidPhone,
         'invalid_name' => ImportStatus.invalidName,
         'self' => ImportStatus.self,

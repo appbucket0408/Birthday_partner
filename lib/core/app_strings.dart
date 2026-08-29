@@ -39,10 +39,13 @@ abstract final class AppStrings {
 
   // Contacts import
   //
-  // Deliberately no string here for ImportStatus.suppressed. A suppressed
-  // number is folded into importSkippedTemplate with every other skip and
-  // shown with no reason -- naming it would reveal to the importer that the
-  // person asked to be removed. Do not add one.
+  // Deliberately no string here that names a suppressed contact. The API
+  // itself never labels one either (Task 2: add_celebrations reports it as
+  // the same opaque ImportStatus.skipped as any other non-actionable skip,
+  // because a labelled status made the endpoint an oracle for who had asked
+  // to be forgotten). It is folded into importSkippedTemplate with every
+  // other skip and shown with no reason -- naming it would reveal to the
+  // importer that the person asked to be removed. Do not add one.
   static const importDisclosureTitle = 'Find people you already know';
   static const importDisclosureBody =
       'Birthday reads the names and numbers in your contacts so you can pick '

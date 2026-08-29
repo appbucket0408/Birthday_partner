@@ -169,3 +169,19 @@ These cost real debugging or real security holes. Each one shipped a bug first.
   an edge to it. Since `people.id` is a sequential bigint, a free `person_id`
   let any signed-in user enumerate every user's real name and full date of
   birth. The RPC takes a PHONE NUMBER, not a person id, which is what closes it.
+
+## Rules M1 Phase 3 paid for
+
+- **`private.can_see_person` returns NULL, not false, for an unclaimed caller
+  — a bare `if not` never branches on that.** Its first clause is
+  `p_person_id = private.my_person_id()`; for a caller who has not claimed a
+  person row, `my_person_id()` is NULL, so that comparison is NULL, and
+  `NULL or false or false` is NULL. plpgsql's `if not <NULL> then` takes the
+  false branch, so `if not can_see_person(...)` silently lets an unclaimed,
+  unconnected caller straight through — exactly the outsider case the check
+  exists to reject. Every RLS `using` clause built on this function is safe
+  regardless: Postgres treats a NULL `using` result as "exclude the row", so
+  the gap never shows up there. It only bites imperative code that calls the
+  function directly — `if not coalesce(private.can_see_person(p_id), false)`
+  is the required form. `public.person_celebrator_count` was caught using the
+  bare form while it was still being proven, before it ever reached a commit.

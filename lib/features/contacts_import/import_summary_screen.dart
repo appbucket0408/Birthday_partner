@@ -10,10 +10,12 @@ import 'import_state.dart';
 
 /// Reads the final ImportSummary.
 ///
-/// `suppressed` carries no string of its own anywhere in this screen -- it
-/// is counted into [ImportSummary.skipped] alongside every other skip
-/// reason before this screen ever sees it, so there is nothing here that
-/// could distinguish it even if someone tried.
+/// A suppressed contact carries no string of its own anywhere in this
+/// screen -- the API layer already reports it under the same opaque
+/// `ImportStatus.skipped` as every other non-actionable skip (Task 2 closed
+/// the wire-level "suppressed" label as a bulk oracle), and it is counted
+/// into [ImportSummary.skipped] before this screen ever sees it, so there
+/// is nothing here that could distinguish it even if someone tried.
 class ImportSummaryScreen extends StatelessWidget {
   const ImportSummaryScreen({super.key});
 
@@ -63,8 +65,10 @@ class ImportSummaryScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xs),
-                  // No reason is ever shown here -- suppressed and every
-                  // other skip are indistinguishable on this line.
+                  // No reason is ever shown here -- a suppressed contact and
+                  // every other skip are indistinguishable on this line, and
+                  // indistinguishable already in the wire status the API
+                  // sends (ImportStatus.skipped).
                   Text(
                     AppStrings.importSkippedTemplate.replaceFirst(
                       '%s',
