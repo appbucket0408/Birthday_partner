@@ -85,4 +85,50 @@ void main() {
       expect(b.year, isNull);
     });
   });
+
+  group('occasionYear', () {
+    test('on the birthday itself, it is this year', () {
+      const b = Birthday(month: 4, day: 15);
+      expect(b.occasionYear(DateTime(2026, 4, 15)), 2026);
+    });
+
+    test('a few days after, it is still this year', () {
+      const b = Birthday(month: 4, day: 15);
+      expect(b.occasionYear(DateTime(2026, 4, 20)), 2026);
+    });
+
+    test('a few days before, it is this year too', () {
+      const b = Birthday(month: 4, day: 15);
+      expect(b.occasionYear(DateTime(2026, 4, 10)), 2026);
+    });
+
+    // The case the rule exists for: a December birthday wished in January is
+    // a belated wish for LAST December, not an early one for next.
+    test('a December birthday wished in January belongs to last December', () {
+      const b = Birthday(month: 12, day: 25);
+      expect(b.occasionYear(DateTime(2027, 1, 5)), 2026);
+    });
+
+    test('the same birthday wished in December belongs to this December', () {
+      const b = Birthday(month: 12, day: 25);
+      expect(b.occasionYear(DateTime(2026, 12, 20)), 2026);
+    });
+
+    // Exactly halfway is a tie, and ties go to the past -- a wish is far more
+    // often belated than six months early. 2028 is a leap year, so a Jan 1
+    // birthday splits it into two equal 183-day halves: Jul 2 2028 is exactly
+    // 183 days after Jan 1 2028 and exactly 183 days before Jan 1 2029. (A
+    // non-leap year has an odd length, so no date ever ties exactly.)
+    test('a tie resolves to the past', () {
+      const b = Birthday(month: 1, day: 1);
+      expect(b.occasionYear(DateTime(2028, 7, 2)), 2028);
+    });
+
+    // The Feb 29 rule already in this class applies unchanged, so the client
+    // and the reminder fan-out continue to agree.
+    test('a Feb 29 birthday resolves through Feb 28 in a non-leap year', () {
+      const b = Birthday(month: 2, day: 29);
+      expect(b.occasionYear(DateTime(2027, 3, 1)), 2027);
+    });
+  });
 }

@@ -34,4 +34,13 @@ abstract final class ApiParams {
   static const pBirthMonth = 'p_birth_month';
   static const pBirthDay = 'p_birth_day';
   static const pBirthYear = 'p_birth_year';
+
+  // wishes
+  static const wishes = 'wishes';
+  static const authorProfileId = 'author_profile_id';
+  static const subjectPersonId = 'subject_person_id';
+  static const body = 'body';
+  static const kind = 'kind';
+  static const occasionYear = 'occasion_year';
+  static const createdAt = 'created_at';
 }

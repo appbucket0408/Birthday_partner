@@ -47,6 +47,31 @@ class Birthday {
     return DateTime(year, month, day);
   }
 
+  /// The year of the birthday occurrence this wish is *for*.
+  ///
+  /// The occurrence nearest to [from], with a tie going to the past. A
+  /// December birthday wished on 5 January attaches to last December; wished
+  /// on 20 December it attaches to this December. Belated and early wishes
+  /// both land on the occasion the user meant, and nobody is asked a question
+  /// they would not understand.
+  ///
+  /// Ties resolve backwards because a wish is far more often belated than six
+  /// months early. [_inYear]'s Feb 29 rule applies unchanged, so this agrees
+  /// with the reminder fan-out.
+  int occasionYear(DateTime from) {
+    final today = DateTime(from.year, from.month, from.day);
+    final next = nextOccurrence(from);
+
+    final thisYear = _inYear(today.year);
+    final previous =
+        thisYear.isAfter(today) ? _inYear(today.year - 1) : thisYear;
+
+    final daysToNext = next.difference(today).inDays;
+    final daysSincePrevious = today.difference(previous).inDays;
+
+    return daysSincePrevious <= daysToNext ? previous.year : next.year;
+  }
+
   TimelineGroup groupFrom(DateTime from) {
     final today = DateTime(from.year, from.month, from.day);
     final days = nextOccurrence(from).difference(today).inDays;
