@@ -527,3 +527,92 @@ Reasoning is preserved verbatim in substance, not just the headline.
 27 pgTAP files / 261 assertions · 6 Deno tests · 72 non-contract + 24
 contract Flutter tests (96 total) · `flutter analyze` clean · all cold from
 `supabase db reset`, verified in this session on `56446e0`.
+
+---
+
+## Addendum: final whole-branch review and fix wave
+
+Written after the ledger's first commit (`48253dc`), which predates the final review.
+
+### The final review's verdict: do not merge as-is
+
+Five Blocking, four Important. **Every blocker was invisible to the thirteen
+task-scoped reviews**, because each lived *between* files rather than inside any
+one task's diff. Three were siblings of the iOS App Transport Security defect,
+sitting in the same two platform files.
+
+| # | Finding | Why no review caught it |
+|---|---|---|
+| B1 | Settings entirely unreachable — nothing navigated to `/settings` | The route registration referenced the class, so the analyzer stayed clean |
+| B2 | iOS lacked `NSContactsUsageDescription` → SIGABRT on import | No Dart-VM test can invoke `CNContactStore` |
+| B3 | Android declared **no permissions at all**: no `READ_CONTACTS`, `INTERNET` only in debug/profile manifests, no cleartext exception | Same — platform manifests are invisible to the VM |
+| B4 | Timeline and settings could render `Instance of 'ServerFailure'` to the user | Both failure paths had **no test at all** |
+| B5 | `PhoneCubit.submitPhone` threw uncaught on `+09876543210` and four other inputs | The throwing path was untested; the parse-but-invalid path was not |
+
+Fixed in `4e79373`, follow-up in `3cb0954`. Final: 84 non-contract + 24 contract
+Flutter tests, 27 pgTAP files / 261 assertions, 6 Deno tests, analyzer clean.
+
+### Two rulings the final review overturned
+
+**1. The `suppressed` leak is an API oracle, not a UI inference.** The Task 10
+ruling assessed it as "`N skipped` is numerically identical to `N suppressed`".
+That framing was wrong. `add_celebrations` returns the literal string
+`"suppressed"` **per phone number** in its `results` array, and the endpoint
+accepts 500 arbitrary numbers per request — the caller need not have any of them
+in an address book — with no rate limit configured. Any authenticated user with a
+proxy can enumerate suppression status across the phone-number space in bulk.
+The client's careful refusal to render it is cosmetic; the HTTP response names it.
+
+**This must be closed before any hosted deployment.** Cheap partial fix: stop
+returning the labelled status and fold `suppressed` into one opaque skip shared
+with other non-actionable skips. That leaves only the count inference, which was
+already accepted, and removes the oracle.
+
+Adjacent, pre-existing, same shape: `resolve_contacts` returns `display_name` for
+up to 500 arbitrary numbers per request — a name-enumeration oracle. Phase 2a's,
+but it belongs in the same conversation.
+
+**2. `config.toml`'s safety comment named the wrong mechanism.** It claimed the
+test OTP numbers were safe because `supabase db push` does not apply config —
+true, and irrelevant, because **`supabase config push` does exactly that**. One
+`supabase link && supabase config push` would have shipped six real-format numbers
+whose OTP is `123456` to hosted GoTrue, on an auth surface that has already
+produced two account-takeover bugs. Corrected in `4e79373`.
+
+Separately: `[auth.sms] enable_confirmations = true` is a load-bearing security
+control guarded by nothing but a hand-check at each phase close, and
+`supabase init` or a CLI upgrade rewrites that file. It deserves an automated
+assertion in CI.
+
+### The fix wave introduced one new defect, and it was caught
+
+B1's fix made `/settings` reachable — with no way out. `context.go` replaces the
+page stack, so `canPop()` is false and no back arrow renders; the only exits were
+Sign out and Delete account. The same defect class the same commit fixed for
+`/import`. Closed in `3cb0954`.
+
+Process note worth keeping: this is the second time on this branch that fixing a
+navigation entry point created a navigation trap. Any future `context.go` to a
+top-level route needs a deliberate way back.
+
+### Still not verified
+
+No end-to-end run of the app was ever completed. A human ran the simulator once and
+found the ATS defect; the sign-in flow was then deferred by decision. Contacts
+import remains unexercised — simulators carry no address book. **Phase 2c should
+begin with a physical-device run**, not with new features.
+
+Concrete candidates a device run would catch that no VM test can, from the final
+review:
+
+1. Session restore across a cold launch — every contract suite installs an
+   in-memory `SharedPreferences`, so supabase_flutter's real persistence path has
+   never executed.
+2. The imperative `Navigator.push` stack versus go_router's redirect, when
+   `onSignedIn()` flips the target while a pageless route sits on top.
+3. A real-sized address book — `readDeviceContacts` parses every number on the UI
+   isolate; the fakes return three.
+4. iOS 18 limited-contacts access: `requestAccess` returns granted while
+   `getContacts` returns only a user-selected subset, silently.
+5. Keyboard-inset overflow — `PhoneScreen` and `ImportDisclosureScreen` are plain
+   `Column`s with no scroll view; VM widget tests run at 800×600 with no keyboard.
