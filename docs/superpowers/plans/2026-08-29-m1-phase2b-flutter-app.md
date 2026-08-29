@@ -3537,7 +3537,9 @@ Spec §6.3. The payoff screen: the first thing that makes the app useful to some
 
 **Interfaces:**
 - Consumes: `GraphRepository`, `Birthday.groupFrom`, `TimelineGroup`.
-- Produces: `TimelineCubit(GraphRepository, {DateTime Function() now})` with `load()`, `editBirthday(int personId, Birthday)`, `editNickname(int celebrationId, String?)`, `stopCelebrating(int celebrationId)`; `TimelineState` = `TimelineLoading | TimelineLoaded(Map<TimelineGroup, List<Celebration>>) | TimelineEmpty | TimelineError(message)`.
+- Produces: `TimelineCubit(GraphRepository, {DateTime Function() now})` with `load()`, `editBirthday(int personId, Birthday)`, `editNickname(int celebrationId, String?)`, `stopCelebrating(int celebrationId)`; `TimelineState` = `TimelineLoading | TimelineLoaded(Map<TimelineGroup?, List<Celebration>>) | TimelineEmpty | TimelineError(message)`
+
+**The map key is nullable, and that is deliberate.** An earlier draft typed it `Map<TimelineGroup, ...>` while also requiring that celebrations with no birthday appear in their own bucket — impossible, since `TimelineGroup` has exactly four members and none means "no birthday". A `null` key carries that bucket. A fifth enum member was rejected: `Birthday.groupFrom` returns non-nullable, so the member could never be produced, and every present and future consumer of `TimelineGroup` would carry an unreachable case. Dart 3's exhaustive switch already forces a `null =>` arm wherever the key is consumed, so nothing is lost..
 
 The injected `now` is not optional — a grouping test that depends on the real clock passes in April and fails in October.
 
