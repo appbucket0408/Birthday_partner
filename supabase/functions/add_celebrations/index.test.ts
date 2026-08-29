@@ -1,6 +1,13 @@
 // Integration test. Requires the local stack:
 //   supabase start
-//   supabase functions serve --no-verify-jwt=false
+//   supabase functions serve --no-verify-jwt
+//
+// --no-verify-jwt is required, not optional: with the platform's default
+// gateway-level JWT check on, an unauthenticated request never reaches the
+// handler at all -- Kong intercepts it and returns its own
+// {"msg": "Error: ..."} body instead of the function's
+// {"error": "missing authorization"}, which fails the first test below for a
+// reason that has nothing to do with the function under test.
 //
 // Run with:
 //   deno test --allow-net --allow-env supabase/functions/add_celebrations/index.test.ts
@@ -8,12 +15,20 @@
 // It talks HTTP to the served function rather than importing the handler,
 // because the contract Phase 2b's import screen depends on is the HTTP one:
 // the status vocabulary, the count invariant, and the positional results array.
+//
+// One test seeds a suppression directly over Postgres (SUPABASE_DB_URL)
+// rather than through the API: private.suppress_person has no Edge Function
+// caller anywhere in this project, so there is no HTTP-reachable way to
+// create the row that exercises the `suppressed` status.
 import { assertEquals } from "jsr:@std/assert@1";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { Client as PgClient } from "jsr:@db/postgres@0.19.5";
 
 const URL = Deno.env.get("SUPABASE_URL") ?? "http://127.0.0.1:54321";
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const DB_URL = Deno.env.get("SUPABASE_DB_URL") ??
+  "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
 const FN = `${URL}/functions/v1/add_celebrations`;
 
 const TEST_PHONES = ["+919999000001", "+919999000002", "+919999000003"];
@@ -32,8 +47,10 @@ async function deleteUserByPhone(admin: any, phone: string): Promise<void> {
 // unique celebration edge and read as "duplicate" when they mean "added".
 async function signedInUser(): Promise<{ jwt: string; phone: string }> {
   // Only the three numbers in [auth.sms.test_otp] receive code 123456, so the
-  // pool is fixed rather than random. Each test deletes its user in a finally
-  // block so the next test can reuse the number.
+  // pool is fixed rather than random. Cleanup is lazy, not eager: nothing
+  // deletes a phone's user when its test finishes, so deleteUserByPhone runs
+  // here, at the START of the next signedInUser() call for that same slot,
+  // before the number is reused.
   const admin = createClient(URL, SERVICE);
   const phone = TEST_PHONES[cursor++ % TEST_PHONES.length];
   await deleteUserByPhone(admin, phone);
@@ -164,4 +181,47 @@ Deno.test("a birthday supplied with the contact is stored", async () => {
     .eq("id", body.results[0].person_id)
     .single();
   assertEquals(data, { birth_month: 4, birth_day: 15 });
+});
+
+Deno.test("a suppressed number is reported as a bare skip, never named as a failure", async () => {
+  // private.suppress_person has no Edge Function caller anywhere in this
+  // project (grepped all five), so the only way to create a suppression for
+  // this test is a direct Postgres connection, seeding
+  // private.suppressions the same way the RPC would. private.phone_hash is
+  // called server-side so the pepper is applied by Postgres, never computed
+  // here.
+  //
+  // +919999555xxx is used only by this test, distinct from the
+  // +919999222xxx range (count invariant / repeat / birthday tests above)
+  // and the +91999<7 digits> range the MAX_BATCH test generates.
+  const phone = "+919999555001";
+
+  const pg = new PgClient(DB_URL);
+  await pg.connect();
+  try {
+    await pg.queryArray(
+      `insert into private.suppressions (phone_e164_hash)
+       values (private.phone_hash($1))
+       on conflict do nothing`,
+      [phone],
+    );
+  } finally {
+    await pg.end();
+  }
+
+  const { jwt } = await signedInUser();
+  const body = await (await post(
+    { contacts: [{ phone, name: "Suppressed Person" }] },
+    jwt,
+  )).json();
+
+  // `skipped` is otherwise unobservable from the HTTP contract -- nothing
+  // else in this file increments it -- so asserting the counter, not just
+  // the per-result status string, is the only way to pin that a regression
+  // from `status: "suppressed"` to `status: "failed"` (which the import
+  // screen would render as naming the contact, the exact leak the spec
+  // forbids) shows up as a test failure.
+  assertEquals(body.skipped, 1);
+  assertEquals(body.results[0].status, "suppressed");
+  assertEquals(body.results[0].person_id, null);
 });
