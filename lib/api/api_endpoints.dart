@@ -6,4 +6,5 @@ abstract final class ApiEndpoints {
   static const deleteAccount = 'delete_account';
 
   static const rpcUpdatePersonBirthday = 'rpc_update_person_birthday';
+  static const rpcPersonCelebratorCount = 'person_celebrator_count';
 }

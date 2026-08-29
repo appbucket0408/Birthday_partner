@@ -6,6 +6,8 @@ import 'core/app_colors.dart';
 import 'core/app_strings.dart';
 import 'repositories/auth_repository.dart';
 import 'repositories/auth_repository_impl.dart';
+import 'repositories/person_repository.dart';
+import 'repositories/person_repository_impl.dart';
 import 'router/app_router.dart';
 import 'router/session_cubit.dart';
 
@@ -18,13 +20,18 @@ class BirthdayApp extends StatefulWidget {
 
 class _BirthdayAppState extends State<BirthdayApp> {
   late final AuthRepository _auth = AuthRepositoryImpl(ApiClient.instance);
+  late final PersonRepository _person =
+      PersonRepositoryImpl(ApiClient.instance);
   late final SessionCubit _session = SessionCubit(_auth)..load();
   late final _router = buildRouter(_session);
 
   @override
   Widget build(BuildContext context) {
     return MultiRepositoryProvider(
-      providers: [RepositoryProvider<AuthRepository>.value(value: _auth)],
+      providers: [
+        RepositoryProvider<AuthRepository>.value(value: _auth),
+        RepositoryProvider<PersonRepository>.value(value: _person),
+      ],
       child: BlocProvider.value(
         value: _session,
         child: MaterialApp.router(
