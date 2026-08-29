@@ -130,9 +130,31 @@ that the caller holds them in an address book. That is a bulk oracle for "did th
 person ask to be forgotten" over the phone-number space. The client's refusal to
 render the label is cosmetic; the HTTP response names it.
 
-The fix folds `suppressed` into a shared opaque skip status alongside other
-non-actionable skips. The aggregate `skipped` count is unchanged, so the count
-inference already accepted in Phase 2b remains — but the per-phone oracle goes.
+The fix relabels `suppressed` to `skipped`. The aggregate count is unchanged, so
+the count inference already accepted in Phase 2b remains.
+
+**This REDUCES the oracle; it does not close it, and the finding must not be
+marked closed.** The original wording above assumed `skipped` would be a shared
+bucket. It is not: this endpoint emits seven statuses and each has exactly one
+cause, so `"skipped"` is still a 1:1 fingerprint for suppression. Anyone who
+learns that mapping — by any means — regains the same bulk per-phone enumeration.
+What the change removes is the self-explanatory word, which is worth having and
+costs nothing, not the capability.
+
+**The capability is dormant, not removed.** `private.suppress_person` has no Edge
+Function caller anywhere in this project, so no suppression can be created through
+the API and there is nothing yet to enumerate. `delete_account`'s own comment
+records suppression as a distinct, planned future request type — so this reopens
+in full the moment any client-reachable path to create one ships.
+
+**The genuine fix belongs in that same change**, and there is no cheap version of
+it now: every other status in the vocabulary is actionable and deliberately so
+(`invalid_phone` and `invalid_name` name the contact precisely so the user can go
+fix it), so there is no honest bucket to merge into. Closing it properly means
+rate-limiting the endpoint, requiring the submitted numbers to plausibly come from
+the caller's own address book, or not returning per-phone outcomes for skips at
+all — and that last one collides with the `results.length == contacts.length`
+contract the import screen zips against.
 
 **Task 2's Deno test currently asserts the leaking string**, so it changes in the
 same commit. The client's `ImportStatus.suppressed` enum member and the summary
