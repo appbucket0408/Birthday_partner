@@ -45,5 +45,17 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- The app talks to a local Supabase stack (http://127.0.0.1:54321) during
+	     development, and ATS blocks cleartext HTTP by default. This exception
+	     permits cleartext ONLY to local-network destinations -- it does not
+	     disable ATS globally (that would be NSAllowsArbitraryLoads, which this
+	     deliberately avoids) and a hosted deployment reached over HTTPS never
+	     exercises it. Safe to leave in for production; it only ever relaxes
+	     local-network traffic. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>
