@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/onboarding/phone_screen.dart';
+import '../features/onboarding/profile_setup_screen.dart';
 import 'session_cubit.dart';
 import 'session_state.dart';
 
@@ -76,16 +77,10 @@ class _Splash extends StatelessWidget {
 
 // Placeholders so this task compiles on its own. Each later screen task
 // DELETES its placeholder here and adds the real import at the top of the
-// file: Task 8 -> ProfileSetupScreen, Task 10 -> ImportDisclosureScreen,
-// Task 12 -> TimelineScreen, Task 13 -> SettingsScreen. Leaving one behind
-// shadows the real screen silently. (Task 7's PhoneScreen placeholder is
-// gone -- the real one is imported above.)
-class ProfileSetupScreen extends StatelessWidget {
-  const ProfileSetupScreen({super.key});
-  @override
-  Widget build(BuildContext context) => const Scaffold();
-}
-
+// file: Task 10 -> ImportDisclosureScreen, Task 12 -> TimelineScreen,
+// Task 13 -> SettingsScreen. Leaving one behind shadows the real screen
+// silently. (Task 7's PhoneScreen and Task 8's ProfileSetupScreen
+// placeholders are gone -- the real ones are imported above.)
 class TimelineScreen extends StatelessWidget {
   const TimelineScreen({super.key});
   @override

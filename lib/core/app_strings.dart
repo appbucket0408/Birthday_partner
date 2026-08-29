@@ -23,4 +23,18 @@ abstract final class AppStrings {
   static const resendCooldownTemplate = 'Resend in %ss';
   static const claimConflict =
       'This account is already linked to a different phone number.';
+
+  // Onboarding — profile setup
+  static const setupTitle = 'Tell us about you';
+  static const setupName = 'Your name';
+  static const setupHandle = 'Username';
+  static const setupCity = 'City';
+  static const setupBirthday = 'Your birthday';
+  static const setupBirthdayHelp = 'The year is optional.';
+  static const setupNameRequired = 'Please enter your name.';
+  static const setupHandleRequired = 'Please pick a username.';
+  static const setupBirthdayRequired = 'Please pick your birthday.';
+  static const setupHandleTaken = 'That username is already taken.';
+  static const setupNoYear = 'I would rather not say the year';
+  static const finish = 'Finish';
 }
