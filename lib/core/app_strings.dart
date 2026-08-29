@@ -69,4 +69,23 @@ abstract final class AppStrings {
   static const importSelfSkipped = 'We skipped your own number.';
   static const importCouldNotAddTemplate = 'Could not add %s';
   static const importDone = 'Done';
+
+  // Timeline
+  static const timelineTitle = 'Celebrating';
+  static const timelineToday = 'Today';
+  static const timelineThisWeek = 'This week';
+  static const timelineThisMonth = 'This month';
+  static const timelineLater = 'Later';
+  static const timelineEmptyTitle = 'Nobody yet';
+  static const timelineEmptyBody =
+      'Import your contacts to start celebrating the people you know.';
+  static const timelineImportCta = 'Import contacts';
+  static const timelineEditBirthday = 'Edit birthday';
+  static const timelineEditNickname = 'Edit nickname';
+  static const timelineStopCelebrating = 'Stop celebrating';
+  static const timelineNoBirthdayYet = 'No birthday yet';
+  static const timelineBirthdayNotEditable =
+      'They are on Birthday, so only they can change their birthday.';
+  static const timelineNicknameBlocked =
+      'You can no longer edit this person.';
 }

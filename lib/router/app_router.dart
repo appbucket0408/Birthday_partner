@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../features/contacts_import/import_disclosure_screen.dart';
 import '../features/onboarding/phone_screen.dart';
 import '../features/onboarding/profile_setup_screen.dart';
+import '../features/timeline/timeline_screen.dart';
 import 'session_cubit.dart';
 import 'session_state.dart';
 
@@ -76,18 +77,12 @@ class _Splash extends StatelessWidget {
       const Scaffold(body: Center(child: CircularProgressIndicator()));
 }
 
-// Placeholders so this task compiles on its own. Each later screen task
-// DELETES its placeholder here and adds the real import at the top of the
-// file: Task 12 -> TimelineScreen, Task 13 -> SettingsScreen. Leaving one
-// behind shadows the real screen silently. (Task 7's PhoneScreen, Task 8's
-// ProfileSetupScreen and Task 10's ImportDisclosureScreen placeholders are
-// gone -- the real ones are imported above.)
-class TimelineScreen extends StatelessWidget {
-  const TimelineScreen({super.key});
-  @override
-  Widget build(BuildContext context) => const Scaffold();
-}
-
+// Placeholder so this task compiles on its own. The next screen task
+// (Task 13 -> SettingsScreen) DELETES it and adds the real import at the top
+// of the file. Leaving it behind would shadow the real screen silently.
+// (Task 7's PhoneScreen, Task 8's ProfileSetupScreen, Task 10's
+// ImportDisclosureScreen and Task 12's TimelineScreen placeholders are gone
+// -- the real ones are imported above.)
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
   @override
