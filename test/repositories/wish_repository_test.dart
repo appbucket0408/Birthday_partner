@@ -37,9 +37,14 @@ void main() {
   // Assertion 5 (the privacy assertion this task exists for) needs a second
   // real identity distinct from `primary`, so it can celebrate and wish a
   // person `primary` also celebrates, without `primary` and `second` ever
-  // being connected to each other. '...006 already exists in
-  // [auth.sms.test_otp] and is used the same way by graph_repository_test.
-  const second = '+919999000006';
+  // being connected to each other. This is its own dedicated number, not
+  // '...006 (graph_repository_test.dart's second identity): `flutter test`
+  // runs test FILES concurrently, and each file's OtpSendThrottle only
+  // serialises sends within its own process -- sharing a number across
+  // files lets GoTrue's real cross-process 5s rate limit trip a suite that
+  // never touched the file racing it. '...011 is added to
+  // [auth.sms.test_otp] specifically so this suite owns it alone.
+  const second = '+919999000011';
 
   final otpThrottle = OtpSendThrottle();
   Future<void> signIn(String phone) async {
@@ -164,9 +169,14 @@ void main() {
       'a wish by an author the caller is not connected to has a null '
       'authorName, and the wish itself still appears -- THE PRIVACY '
       'ASSERTION', () async {
-    // This scenario needs four OTP sign-ins (second, primary, second again
-    // for cleanup, primary again) and the shared throttle waits out a real
-    // cooldown between them -- comfortably past the 30s default.
+    // This scenario needs four OTP sign-ins beyond setUp's own (second,
+    // primary, second again for cleanup, primary again), all through this
+    // FILE's own OtpSendThrottle instance. Giving `second` its own number
+    // (see above) removes the cross-file collision risk but does nothing
+    // for this: the throttle's cooldown is paid once per send regardless of
+    // which number is being sent to. Measured standalone at both ~26s and
+    // ~31s across separate runs -- genuinely straddling the 30s default,
+    // not "just in case".
     const subjectPhone = '+919999444605';
     final summary = await contacts.addCelebrations([
       const DeviceContact(name: 'Shared Wall Subject', phoneE164: subjectPhone),
