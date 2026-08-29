@@ -365,7 +365,20 @@ async function signedInUser(): Promise<{ jwt: string; phone: string }> {
     type: "sms",
   });
   if (vErr) throw vErr;
-  return { jwt: verified.session!.access_token, phone };
+  const jwt = verified.session!.access_token;
+
+  // Claiming is REQUIRED for the `self` status to be reachable.
+  // private.add_celebration's self-guard fires only when the person row is
+  // already claimed by the celebrator, or carries their phone hash. A user who
+  // has signed in but not claimed gets `added` for their own number, and
+  // claim_person deletes the self-edge retroactively instead.
+  const claim = await fetch(`${URL}/functions/v1/claim_profile`, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${jwt}` },
+  });
+  if (!claim.ok) throw new Error(`claim_profile failed: ${claim.status}`);
+
+  return { jwt, phone };
 }
 
 function post(body: unknown, jwt?: string) {
@@ -757,6 +770,7 @@ abstract final class ApiParams {
 
   // profiles
   static const id = 'id';
+  static const profileId = 'profile_id';
   static const handle = 'handle';
   static const displayName = 'display_name';
   static const city = 'city';
@@ -1130,7 +1144,7 @@ class Person {
   factory Person.fromRow(Map<String, dynamic> row) => Person(
         id: row[ApiParams.id] as int,
         displayName: row[ApiParams.displayName] as String,
-        isClaimed: row['profile_id'] != null,
+        isClaimed: row[ApiParams.profileId] != null,
         birthday: Birthday.fromRow(row),
       );
 }
@@ -1856,6 +1870,41 @@ class _Splash extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       const Scaffold(body: Center(child: CircularProgressIndicator()));
+}
+
+// Placeholders so this task compiles on its own. Each later screen task
+// DELETES its placeholder here and adds the real import at the top of the
+// file: Task 7 -> PhoneScreen, Task 8 -> ProfileSetupScreen, Task 10 ->
+// ImportDisclosureScreen, Task 12 -> TimelineScreen, Task 13 ->
+// SettingsScreen. Leaving one behind shadows the real screen silently.
+class PhoneScreen extends StatelessWidget {
+  const PhoneScreen({super.key});
+  @override
+  Widget build(BuildContext context) => const Scaffold();
+}
+
+class ProfileSetupScreen extends StatelessWidget {
+  const ProfileSetupScreen({super.key});
+  @override
+  Widget build(BuildContext context) => const Scaffold();
+}
+
+class TimelineScreen extends StatelessWidget {
+  const TimelineScreen({super.key});
+  @override
+  Widget build(BuildContext context) => const Scaffold();
+}
+
+class ImportDisclosureScreen extends StatelessWidget {
+  const ImportDisclosureScreen({super.key});
+  @override
+  Widget build(BuildContext context) => const Scaffold();
+}
+
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({super.key});
+  @override
+  Widget build(BuildContext context) => const Scaffold();
 }
 ```
 
