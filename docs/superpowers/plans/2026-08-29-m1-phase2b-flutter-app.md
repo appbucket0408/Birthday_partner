@@ -312,7 +312,16 @@ Create `supabase/functions/add_celebrations/index.test.ts`:
 ```typescript
 // Integration test. Requires the local stack:
 //   supabase start
-//   supabase functions serve --no-verify-jwt=false
+//   supabase functions serve --no-verify-jwt
+//
+// --no-verify-jwt is REQUIRED for the 401 test. config.toml has no
+// [functions] block, so every function runs at verify_jwt = true and the
+// gateway rejects an unauthenticated request BEFORE the handler sees it --
+// the function's own `if (!auth)` branch is then unreachable and the test
+// fails against the wrong response body. Serving without gateway verification
+// is what lets this suite test the handler's own guard. The gateway's 401 in
+// the default config is a separate, additive layer; parent carry-forward #3
+// is the open decision about whether it stays on.
 //
 // Run with:
 //   deno test --allow-net --allow-env supabase/functions/add_celebrations/index.test.ts
@@ -483,8 +492,10 @@ Deno.test("a birthday supplied with the contact is stored", async () => {
 
 ```bash
 cd ~/Desktop/Projects/birthday_app
+# Deno is a prerequisite and is not bundled with the Supabase CLI:
+#   brew install deno
 supabase start
-supabase functions serve &
+supabase functions serve --no-verify-jwt &
 export SUPABASE_ANON_KEY=$(supabase status -o json | python3 -c 'import sys,json;print(json.load(sys.stdin)["ANON_KEY"])')
 export SUPABASE_SERVICE_ROLE_KEY=$(supabase status -o json | python3 -c 'import sys,json;print(json.load(sys.stdin)["SERVICE_ROLE_KEY"])')
 deno test --allow-net --allow-env supabase/functions/add_celebrations/index.test.ts
@@ -496,7 +507,7 @@ Expected: the file does not exist yet on the first run of this step; after creat
 
 Because the implementation already exists, a passing suite proves nothing on its own. For each of the three behavioural tests, break the function and confirm the matching test fails:
 
-1. In `index.ts`, change `status: "duplicate"` to `status: "added"` → the count-invariant test and the repeat-occurrence test must fail.
+1. In `index.ts`, change `status: "duplicate"` to `status: "added"` → the count-invariant test must fail. (Only that one: the repeat-occurrence test asserts on the counters and `person_id`, not on the status string, so it stays green. Expecting both to fail is wrong.)
 2. Change `MAX_BATCH` to `5000` → the 413 test must fail.
 3. Remove the `if (!auth)` block → the 401 test must fail.
 
