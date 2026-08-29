@@ -98,6 +98,20 @@ void main() {
     );
   });
 
+  // B1: Settings is otherwise unreachable -- nothing in lib/ navigates to
+  // '/settings' except this button. It must exist on every TimelineState,
+  // not just the loaded one, so it is asserted here against the empty
+  // state, which every fresh sign-in hits first.
+  testWidgets('an AppBar settings button is always present', (tester) async {
+    await pump(tester, []);
+
+    final button = tester.widget<IconButton>(
+      find.byKey(const Key('settings_button')),
+    );
+    expect(button.onPressed, isNotNull);
+    expect(button.tooltip, AppStrings.settingsTitle);
+  });
+
   // 4. The overflow menu offers exactly the three actions.
   testWidgets('the overflow menu offers exactly the three actions', (
     tester,

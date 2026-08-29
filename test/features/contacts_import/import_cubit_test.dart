@@ -13,6 +13,7 @@ class _FakeContacts implements ContactsRepository {
     this.resolved = const [],
     this.summary = ImportSummary.empty,
     this.reportProgress = true,
+    this.readDeviceContactsError,
   });
 
   final bool permissionGranted;
@@ -20,6 +21,7 @@ class _FakeContacts implements ContactsRepository {
   final List<ResolvedContact> resolved;
   final ImportSummary summary;
   final bool reportProgress;
+  final Object? readDeviceContactsError;
 
   int requestPermissionCalls = 0;
   int readDeviceContactsCalls = 0;
@@ -39,6 +41,7 @@ class _FakeContacts implements ContactsRepository {
   }) async {
     readDeviceContactsCalls++;
     lastIsoCode = isoCode;
+    if (readDeviceContactsError != null) throw readDeviceContactsError!;
     return contacts;
   }
 
@@ -105,6 +108,24 @@ void main() {
           .having((s) => s.contacts, 'contacts', [_c1, _c2])
           .having((s) => s.resolved, 'resolved', [resolvedAnn])
           .having((s) => s.selected, 'selected', isEmpty),
+    ],
+  );
+
+  // I1: start() had no error handling at all -- a failure of
+  // readDeviceContacts (or requestPermission/resolve) left the cubit stuck
+  // in ImportLoadingContacts forever, which the disclosure screen renders
+  // as a permanently-disabled spinner with no error and no retry. It must
+  // instead land on ImportFailed, same as commit()'s existing catch-all.
+  blocTest<ImportCubit, ImportState>(
+    'a throwing readDeviceContacts lands on ImportFailed, not stuck loading',
+    build: () => ImportCubit(
+      _FakeContacts(readDeviceContactsError: Exception('device error')),
+    ),
+    act: (c) => c.start(),
+    expect: () => [
+      isA<ImportRequestingPermission>(),
+      isA<ImportLoadingContacts>(),
+      isA<ImportFailed>(),
     ],
   );
 

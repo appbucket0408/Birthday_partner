@@ -2,7 +2,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:phone_numbers_parser/phone_numbers_parser.dart';
 
 import '../../api/api_client.dart';
+import '../../core/app_strings.dart';
 import '../../core/logger.dart';
+import '../../core/result.dart';
 import '../../models/birthday.dart';
 import '../../repositories/contacts_repository.dart';
 import 'import_state.dart';
@@ -42,23 +44,35 @@ class ImportCubit extends Cubit<ImportState> {
   /// entry point that reaches [ContactsRepository.requestPermission].
   Future<void> start() async {
     emit(const ImportRequestingPermission());
-    final granted = await _contactsRepo.requestPermission();
-    if (!granted) {
-      emit(const ImportPermissionDenied());
-      return;
-    }
+    try {
+      final granted = await _contactsRepo.requestPermission();
+      if (!granted) {
+        emit(const ImportPermissionDenied());
+        return;
+      }
 
-    emit(const ImportLoadingContacts());
-    _contacts = await _contactsRepo.readDeviceContacts(
-      isoCode: _regionIsoCode(),
-    );
-    _resolved = await _contactsRepo.resolve(
-      _contacts.map((c) => c.phoneE164).toList(),
-    );
-    // Opt in, never opt out, for a screen that mints rows: nothing is
-    // selected until the user picks it.
-    _selected = {};
-    _emitPicking();
+      emit(const ImportLoadingContacts());
+      _contacts = await _contactsRepo.readDeviceContacts(
+        isoCode: _regionIsoCode(),
+      );
+      _resolved = await _contactsRepo.resolve(
+        _contacts.map((c) => c.phoneE164).toList(),
+      );
+      // Opt in, never opt out, for a screen that mints rows: nothing is
+      // selected until the user picks it.
+      _selected = {};
+      _emitPicking();
+    } on AppFailure catch (f) {
+      emit(ImportFailed(f.message));
+    } catch (_) {
+      // Neither requestPermission(), readDeviceContacts() nor resolve() was
+      // caught here before -- a failure of any of the three left the cubit
+      // stuck in ImportLoadingContacts, which the disclosure screen renders
+      // as a permanently-disabled spinner: no error, no retry, no way off
+      // the screen. commit() already has this same catch-all twelve lines
+      // below; start() needs it just as much.
+      emit(const ImportFailed(AppStrings.somethingWentWrong));
+    }
   }
 
   void toggle(String phoneE164) {
@@ -108,8 +122,10 @@ class ImportCubit extends Cubit<ImportState> {
         onProgress: (done, total) => emit(ImportCommitting(done, total)),
       );
       emit(ImportDone(summary));
-    } catch (e) {
-      emit(ImportFailed('$e'));
+    } on AppFailure catch (f) {
+      emit(ImportFailed(f.message));
+    } catch (_) {
+      emit(const ImportFailed(AppStrings.somethingWentWrong));
     } finally {
       _committing = false;
     }

@@ -261,8 +261,14 @@ max_frequency = "5s"
 
 # Local test numbers. No SMS provider is configured, and the M1 spec's decision
 # is to build the full OTP flow against these and swap in a real provider at
-# first real-device test. These are LOCAL ONLY — config.toml is not applied to a
-# hosted project by `supabase db push`.
+# first real-device test. These are LOCAL ONLY.
+#
+# `supabase db push` does not touch this file, but `supabase config push`
+# DOES apply config.toml (this [auth.sms] block included) to a hosted
+# project. NEVER run `supabase link && supabase config push` while this
+# block exists -- it would ship six real-format phone numbers whose OTP is
+# a hardcoded "123456" to hosted GoTrue: full account takeover on an auth
+# surface that has already produced two takeover bugs.
 [auth.sms.test_otp]
 919999000001 = "123456"
 919999000002 = "123456"

@@ -16,12 +16,14 @@ import 'package:flutter_test/flutter_test.dart';
 class _FakeGraph implements GraphRepository {
   _FakeGraph({
     this.celebrationsList = const [],
+    this.celebrationsError,
     this.updateBirthdayError,
     this.updateNicknameError,
     this.stopCelebratingError,
   });
 
   List<Celebration> celebrationsList;
+  Object? celebrationsError;
   Object? updateBirthdayError;
   Object? updateNicknameError;
   Object? stopCelebratingError;
@@ -34,6 +36,7 @@ class _FakeGraph implements GraphRepository {
   @override
   Future<List<Celebration>> celebrations() async {
     celebrationsCalls++;
+    if (celebrationsError != null) throw celebrationsError!;
     return celebrationsList;
   }
 
@@ -284,6 +287,43 @@ void main() {
     // celebrations() was called exactly once -- by load(). Removing a row
     // is a local list edit, not a re-fetch.
     expect(fake.celebrationsCalls, 1);
+  });
+
+  // B4: a failure of celebrations() must never reach the screen as
+  // Object.toString()'s default "Instance of 'ServerFailure'" -- this is the
+  // home screen, so any failure here puts that Dart type dump in front of
+  // every user, not just one who tripped a row action. AppFailure carries a
+  // human [message]; the cubit must read it rather than stringify the
+  // exception with '$e'.
+  test('load surfaces a ServerFailure\'s own message, never "Instance of"',
+      () async {
+    final fake = _FakeGraph(
+      celebrationsError: const ServerFailure('boom from the server'),
+    );
+    final cubit = TimelineCubit(fake, now: _fixedNow);
+
+    await cubit.load();
+
+    final state = cubit.state;
+    expect(state, isA<TimelineError>());
+    final message = (state as TimelineError).message;
+    expect(message, 'boom from the server');
+    expect(message, isNot(contains('Instance of')));
+  });
+
+  // The flip side: something that is NOT a modelled AppFailure (a plugin
+  // exception, a null-check, whatever) must fall back to the generic
+  // message, not leak an arbitrary exception's toString to the user.
+  test('load falls back to the generic message for a non-AppFailure error',
+      () async {
+    final fake = _FakeGraph(celebrationsError: StateError('unexpected'));
+    final cubit = TimelineCubit(fake, now: _fixedNow);
+
+    await cubit.load();
+
+    final state = cubit.state;
+    expect(state, isA<TimelineError>());
+    expect((state as TimelineError).message, AppStrings.somethingWentWrong);
   });
 
   // Re-entrancy: the cubit, not the widget, is the source of truth for what

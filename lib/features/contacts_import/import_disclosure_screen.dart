@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../api/api_client.dart';
 import '../../core/app_spacing.dart';
@@ -72,6 +73,22 @@ class _ImportDisclosureView extends StatelessWidget {
                       ),
                     ),
                   ],
+                  // I1: start() previously had no error handling at all, so
+                  // a failure of requestPermission/readDeviceContacts/
+                  // resolve left the cubit stuck in ImportLoadingContacts --
+                  // which this screen rendered as a permanently-disabled
+                  // spinner behind Continue, with no error and no retry.
+                  // ImportFailed now carries a human-readable message and
+                  // the button below is what lets the user try again.
+                  if (state is ImportFailed) ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    Text(
+                      state.message,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.lg),
                   FilledButton(
                     key: const Key('import_continue'),
@@ -88,7 +105,14 @@ class _ImportDisclosureView extends StatelessWidget {
                   const SizedBox(height: AppSpacing.sm),
                   TextButton(
                     key: const Key('import_skip'),
-                    onPressed: () => Navigator.of(context).pop(),
+                    // I2: '/import' is entered via context.go, which
+                    // *replaces* the location -- this disclosure screen is
+                    // the Navigator's only entry, so Navigator.pop() here
+                    // had nothing left to pop back to. There is no AppBar
+                    // or back button on this screen, so this and the
+                    // summary screen's Done button are the only two ways
+                    // out of the whole import flow.
+                    onPressed: () => context.go('/timeline'),
                     child: const Text(AppStrings.importDisclosureSkip),
                   ),
                 ],

@@ -42,12 +42,14 @@ class _FakeAuth implements AuthRepository {
   _FakeAuth({
     required this.calls,
     this.profile,
+    this.loadProfileError,
     this.signOutError,
     this.deleteAccountError,
   });
 
   final List<String> calls;
   Profile? profile;
+  Object? loadProfileError;
   Object? signOutError;
   Object? deleteAccountError;
 
@@ -72,7 +74,10 @@ class _FakeAuth implements AuthRepository {
       throw UnimplementedError('not used by SettingsCubit');
 
   @override
-  Future<Profile> loadProfile() async => profile!;
+  Future<Profile> loadProfile() async {
+    if (loadProfileError != null) throw loadProfileError!;
+    return profile!;
+  }
 
   @override
   Future<void> completeProfile({
@@ -267,6 +272,49 @@ void main() {
     final state = cubit.state;
     expect(state, isA<SettingsLoaded>());
     expect((state as SettingsLoaded).remindersEnabled, isFalse);
+  });
+
+  // B4: this is the same trap as TimelineCubit.load -- a failed load() must
+  // never surface Object.toString()'s default "Instance of 'ServerFailure'"
+  // to the user. AppFailure carries a human [message]; the cubit must read
+  // it, not stringify the exception with '$e'.
+  test('load surfaces a ServerFailure\'s own message, never "Instance of"',
+      () async {
+    final cubit = SettingsCubit(
+      _FakeSettings(calls: []),
+      _FakeAuth(
+        calls: [],
+        loadProfileError: const ServerFailure('boom from the server'),
+      ),
+    );
+
+    await cubit.load();
+
+    final state = cubit.state;
+    expect(state, isA<SettingsLoadError>());
+    final message = (state as SettingsLoadError).message;
+    expect(message, 'boom from the server');
+    expect(message, isNot(contains('Instance of')));
+  });
+
+  // The flip side: something that is NOT a modelled AppFailure must fall
+  // back to the generic message rather than leaking an arbitrary
+  // exception's toString to the user.
+  test('load falls back to the generic message for a non-AppFailure error',
+      () async {
+    final cubit = SettingsCubit(
+      _FakeSettings(calls: []),
+      _FakeAuth(calls: [], loadProfileError: StateError('unexpected')),
+    );
+
+    await cubit.load();
+
+    final state = cubit.state;
+    expect(state, isA<SettingsLoadError>());
+    expect(
+      (state as SettingsLoadError).message,
+      AppStrings.somethingWentWrong,
+    );
   });
 
   // Re-entrancy: mirrors TimelineCubit's per-action guard. A fast

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
@@ -105,8 +106,14 @@ class ImportSummaryScreen extends StatelessWidget {
                   const Spacer(),
                   FilledButton(
                     key: const Key('summary_done'),
-                    onPressed: () =>
-                        Navigator.of(context).popUntil((r) => r.isFirst),
+                    // I2: '/import' replaced the location, so this screen's
+                    // Navigator only ever contains the disclosure screen
+                    // (pushed) and this one (pushed on top of it) --
+                    // popUntil((r) => r.isFirst) landed back on the
+                    // disclosure screen, not the timeline, with no sign the
+                    // import actually worked. go('/timeline') is the only
+                    // way back to a screen that shows the result.
+                    onPressed: () => context.go('/timeline'),
                     child: const Text(AppStrings.importDone),
                   ),
                 ],

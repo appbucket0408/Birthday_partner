@@ -1,8 +1,21 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Flutter's own generated defaults only put this in the debug and
+         profile manifests (for the tooling's hot-reload channel) -- a
+         --release build merges no debug/profile manifest and would ship
+         with no network permission at all. The app talks to Supabase over
+         HTTP, so this is required for every build type, not just dev. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- flutter_contacts ships an empty plugin manifest (it means for the
+         host app to declare this itself) -- without it,
+         ContactsRepository.requestPermission() returns false with no
+         system prompt at all, and the user cannot even grant it from
+         Settings afterwards. Import would dead-end permanently. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS"/>
     <application
         android:label="birthday_app"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:networkSecurityConfig="@xml/network_security_config">
         <activity
             android:name=".MainActivity"
             android:exported="true"

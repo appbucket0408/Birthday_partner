@@ -18,10 +18,22 @@ class PhoneCubit extends Cubit<PhoneState> {
   /// so three spellings of one number are three rows and three separate
   /// social graphs. docs/db.md records this as a rule the backend paid for.
   Future<void> submitPhone(String raw, {String isoCode = 'IN'}) async {
-    final parsed = PhoneNumber.parse(
-      raw,
-      callerCountry: IsoCode.values.byName(isoCode),
-    );
+    // PhoneNumber.parse itself throws PhoneNumberException on some inputs
+    // rather than returning an invalid-but-parsed number -- '+09876543210'
+    // (an Indian number typed with the trunk '0' after the '+') is an
+    // ordinary typo, not garbage input. Wrapped the same way as the other
+    // two call sites of this same library method: contacts_repository_impl
+    // .dart's _toE164 and ImportCubit._regionIsoCode.
+    final PhoneNumber parsed;
+    try {
+      parsed = PhoneNumber.parse(
+        raw,
+        callerCountry: IsoCode.values.byName(isoCode),
+      );
+    } catch (_) {
+      emit(const PhoneError(AppStrings.phoneInvalid));
+      return;
+    }
     if (!parsed.isValid()) {
       emit(const PhoneError(AppStrings.phoneInvalid));
       return;

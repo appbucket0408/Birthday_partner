@@ -1,3 +1,4 @@
+import 'package:birthday_app/core/app_strings.dart';
 import 'package:birthday_app/core/result.dart';
 import 'package:birthday_app/features/onboarding/phone_cubit.dart';
 import 'package:birthday_app/features/onboarding/phone_state.dart';
@@ -129,4 +130,31 @@ void main() {
       expect(auth.lastPhone, '+919999000001');
     },
   );
+
+  // B5: PhoneNumber.parse itself throws PhoneNumberException on some inputs
+  // rather than returning an invalid-but-parsed number -- '+09876543210' in
+  // particular is an ordinary typo (an Indian number typed with the trunk
+  // '0' after the '+'), not a garbage string. Without a try/catch around
+  // the parse call, submitPhone throws uncaught, no state is emitted, and
+  // "Send code" does nothing forever. Every input below must land on
+  // PhoneError(AppStrings.phoneInvalid) and never reach the repository --
+  // mirrors the wrapping already done at contacts_repository_impl.dart:54-62
+  // and import_cubit.dart:142-147.
+  group('inputs that throw out of PhoneNumber.parse itself', () {
+    for (final raw in ['+09876543210', '+', '+0', '00', '+999999999']) {
+      blocTest<PhoneCubit, PhoneState>(
+        '"$raw" emits PhoneError without calling the repository',
+        build: () => PhoneCubit(auth),
+        act: (c) => c.submitPhone(raw),
+        expect: () => [
+          isA<PhoneError>().having(
+            (s) => s.message,
+            'message',
+            AppStrings.phoneInvalid,
+          ),
+        ],
+        verify: (_) => expect(auth.sendCalls, 0),
+      );
+    }
+  });
 }

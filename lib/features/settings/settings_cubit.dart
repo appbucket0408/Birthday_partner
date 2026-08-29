@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/app_strings.dart';
+import '../../core/result.dart';
 import '../../repositories/auth_repository.dart';
 import '../../repositories/settings_repository.dart';
 import 'settings_state.dart';
@@ -33,8 +34,10 @@ class SettingsCubit extends Cubit<SettingsState> {
     try {
       final profile = await _auth.loadProfile();
       emit(SettingsLoaded(remindersEnabled: profile.remindersEnabled));
-    } catch (e) {
-      emit(SettingsLoadError('$e'));
+    } on AppFailure catch (f) {
+      emit(SettingsLoadError(f.message));
+    } catch (_) {
+      emit(const SettingsLoadError(AppStrings.somethingWentWrong));
     } finally {
       _inFlight.remove('load');
     }

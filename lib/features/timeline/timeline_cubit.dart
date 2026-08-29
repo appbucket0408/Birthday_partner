@@ -43,8 +43,10 @@ class TimelineCubit extends Cubit<TimelineState> {
     try {
       _celebrations = await _repo.celebrations();
       _emitGrouped();
-    } catch (e) {
-      emit(TimelineError('$e'));
+    } on AppFailure catch (f) {
+      emit(TimelineError(f.message));
+    } catch (_) {
+      emit(const TimelineError(AppStrings.somethingWentWrong));
     } finally {
       _inFlight.remove('load');
     }

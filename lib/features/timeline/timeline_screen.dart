@@ -76,7 +76,17 @@ class _TimelineView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.timelineTitle)),
+      appBar: AppBar(
+        title: const Text(AppStrings.timelineTitle),
+        actions: [
+          IconButton(
+            key: const Key('settings_button'),
+            icon: const Icon(Icons.settings),
+            tooltip: AppStrings.settingsTitle,
+            onPressed: () => context.go('/settings'),
+          ),
+        ],
+      ),
       body: BlocConsumer<TimelineCubit, TimelineState>(
         listenWhen: (previous, next) =>
             next is TimelineLoaded && next.error != null,

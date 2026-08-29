@@ -57,5 +57,14 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<!-- Without this key, iOS terminates the process with SIGABRT the moment
+	     ImportCubit.start() calls FlutterContacts.requestPermission(), which
+	     reaches CNContactStore().requestAccess -- the literal twin of the
+	     ATS defect fixed above, in this same file. Copy matches the app's
+	     own disclosure text (AppStrings.importDisclosureBody): the app reads
+	     contacts so the user can pick who to celebrate, and never stores
+	     them on a server. -->
+	<key>NSContactsUsageDescription</key>
+	<string>Birthday reads the names and numbers in your contacts so you can pick who you want to celebrate. Your contacts are never stored on our servers and are never shared with anyone.</string>
 </dict>
 </plist>

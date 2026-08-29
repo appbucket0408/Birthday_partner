@@ -3,6 +3,15 @@
 sealed class AppFailure implements Exception {
   const AppFailure(this.message);
   final String message;
+
+  // Defence in depth: `implements Exception` alone does not give a class a
+  // human-readable toString -- without this, `'$e'` on any AppFailure prints
+  // Object's default "Instance of 'ServerFailure'" straight to the user.
+  // Every catch site is expected to read [message] directly rather than
+  // rely on this, but a call site that slips back to `'$e'` still degrades
+  // to something readable instead of a Dart type dump.
+  @override
+  String toString() => message;
 }
 
 /// No usable network connection, detected before the request was made.
