@@ -43,4 +43,13 @@ abstract final class ApiParams {
   static const kind = 'kind';
   static const occasionYear = 'occasion_year';
   static const createdAt = 'created_at';
+
+  // my_birthday_stats
+  static const statYear = 'stat_year';
+  static const wishesSent = 'wishes_sent';
+  static const wishesReceived = 'wishes_received';
+  static const birthdaysCelebrated = 'birthdays_celebrated';
+
+  // my_celebrates
+  static const celebratorPersonId = 'celebrator_person_id';
 }

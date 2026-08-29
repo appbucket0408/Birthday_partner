@@ -8,6 +8,8 @@ import 'repositories/auth_repository.dart';
 import 'repositories/auth_repository_impl.dart';
 import 'repositories/person_repository.dart';
 import 'repositories/person_repository_impl.dart';
+import 'repositories/profile_repository.dart';
+import 'repositories/profile_repository_impl.dart';
 import 'repositories/wish_repository.dart';
 import 'repositories/wish_repository_impl.dart';
 import 'router/app_router.dart';
@@ -25,6 +27,8 @@ class _BirthdayAppState extends State<BirthdayApp> {
   late final PersonRepository _person =
       PersonRepositoryImpl(ApiClient.instance);
   late final WishRepository _wish = WishRepositoryImpl(ApiClient.instance);
+  late final ProfileRepository _profile =
+      ProfileRepositoryImpl(ApiClient.instance);
   late final SessionCubit _session = SessionCubit(_auth)..load();
   late final _router = buildRouter(_session);
 
@@ -35,6 +39,7 @@ class _BirthdayAppState extends State<BirthdayApp> {
         RepositoryProvider<AuthRepository>.value(value: _auth),
         RepositoryProvider<PersonRepository>.value(value: _person),
         RepositoryProvider<WishRepository>.value(value: _wish),
+        RepositoryProvider<ProfileRepository>.value(value: _profile),
       ],
       child: BlocProvider.value(
         value: _session,
