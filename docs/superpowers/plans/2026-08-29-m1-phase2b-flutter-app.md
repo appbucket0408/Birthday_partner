@@ -24,6 +24,16 @@
 - **New `public` functions executable by `authenticated` extend the R3 allowlist** in `supabase/tests/database/11_rls_coverage.test.sql`. Missing this makes the suite fail from cold. (Added 29 Aug 2026 after Task 1 hit it.)
 - **SQLSTATE is a public API decision.** PostgREST maps it to an HTTP status. Use unassigned class-45 codes for application errors; `P0002` becomes a 500.
 - Read `docs/db.md` before touching anything in `supabase/`. It carries eleven rules that each shipped a bug first.
+- **Each contract-test suite owns its own phone number.** `flutter test` runs test FILES concurrently by default, so two suites signing in as the same number race the same OTP identity — Task 9 hit this and it surfaced as five failures in a suite it had not touched. The assignment, which is not negotiable because the pool is finite:
+
+  | Suite | Number |
+  |---|---|
+  | `auth_repository_test.dart` | `+919999000001` **and** `+919999000002` (its taken-handle test needs two) |
+  | `contacts_repository_test.dart` | `+919999000003` |
+  | `graph_repository_test.dart` (Task 11) | `+919999000004` |
+  | `settings_repository_test.dart` (Task 13) | `+919999000005` |
+
+  Numbers 004 and 005 do not exist in `[auth.sms.test_otp]` yet. **Task 11 adds both** (`919999000004 = "123456"`, `919999000005 = "123456"`) so Task 13 finds 005 already there. This is the one sanctioned edit to `config.toml` in this phase, and the task making it must re-verify `[auth.sms] enable_confirmations = true` survives before committing.
 - **Every contract test must use the shared harness** at `test/support/contract_test_harness.dart`. Three things are required before a `flutter test` process can reach a real Supabase instance at all, and none of them are obvious (discovered in Task 5):
   1. `HttpOverrides.global = null` — `AutomatedTestWidgetsFlutterBinding` installs an `HttpOverrides` that fakes every `dart:io` request with a 400 stub. Without this line a "contract test" silently talks to nothing, which is the worst possible failure for a suite whose entire purpose is hitting the real stack.
   2. An in-memory `SharedPreferencesStorePlatform` — there is no platform channel under `flutter test`, so `supabase_flutter`'s session storage throws `MissingPluginException`.
