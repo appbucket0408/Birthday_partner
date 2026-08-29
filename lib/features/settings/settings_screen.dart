@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../api/api_client.dart';
 import '../../core/app_spacing.dart';
@@ -46,7 +47,23 @@ class _SettingsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.settingsTitle)),
+      appBar: AppBar(
+        title: const Text(AppStrings.settingsTitle),
+        // '/settings' is a top-level GoRoute, a sibling of '/timeline' --
+        // context.go('/settings') replaces the page stack with a single
+        // page, so Navigator.canPop() is false and automaticallyImplyLeading
+        // finds nothing to pop. Without an explicit leading control this
+        // screen was a reachable dead-end: no back arrow, no other
+        // navigation anywhere in the settings feature, and on Android
+        // hardware back would pop an empty stack and exit the app. Fixed
+        // exactly as I2 fixed the import screens' exits.
+        leading: IconButton(
+          key: const Key('settings_back_button'),
+          icon: const Icon(Icons.arrow_back),
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+          onPressed: () => context.go('/timeline'),
+        ),
+      ),
       body: BlocConsumer<SettingsCubit, SettingsState>(
         listener: (context, state) {
           if (state is SettingsSignedOut) {

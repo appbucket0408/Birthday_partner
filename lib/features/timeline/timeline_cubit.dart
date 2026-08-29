@@ -88,10 +88,15 @@ class TimelineCubit extends Cubit<TimelineState> {
       _emitGrouped();
     } on ServerFailure catch (f) {
       if (f.code == '45002') {
+        // AppFailure.toString() now returns just the human message, so
+        // passing `f` alone as the `error` arg would print that message and
+        // drop the concrete type and the SQLSTATE code -- which is the
+        // whole reason this log exists. Both are spelled out in the message
+        // string itself so they survive regardless of how `f` stringifies.
         Log.error(
           'editBirthday got 45002 (no edge to this person) from the '
           'timeline -- every personId here should come from this user\'s '
-          'own celebrations() list',
+          'own celebrations() list (${f.runtimeType} code=${f.code})',
           f,
         );
       }

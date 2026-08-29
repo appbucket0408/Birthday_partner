@@ -24,12 +24,16 @@ class PhoneCubit extends Cubit<PhoneState> {
     // ordinary typo, not garbage input. Wrapped the same way as the other
     // two call sites of this same library method: contacts_repository_impl
     // .dart's _toE164 and ImportCubit._regionIsoCode.
+    // Hoisted out of the try below: IsoCode.values.byName(isoCode) throws on
+    // an isoCode this app never issues -- a programming error, not a user
+    // typo -- and must not be swallowed into "that phone number doesn't
+    // look right". The only caller today passes the 'IN' default, so this
+    // is latent, but the try block below exists solely to catch failures in
+    // parsing the user's own input.
+    final callerCountry = IsoCode.values.byName(isoCode);
     final PhoneNumber parsed;
     try {
-      parsed = PhoneNumber.parse(
-        raw,
-        callerCountry: IsoCode.values.byName(isoCode),
-      );
+      parsed = PhoneNumber.parse(raw, callerCountry: callerCountry);
     } catch (_) {
       emit(const PhoneError(AppStrings.phoneInvalid));
       return;
