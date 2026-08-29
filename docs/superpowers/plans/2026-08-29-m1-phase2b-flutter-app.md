@@ -3395,7 +3395,9 @@ Write each as a `blocTest`, following the shape used in Tasks 6–8. Assertion 4
 
 `ImportCubit` holds the loaded `List<DeviceContact>`, a `Set<String>` of selected phones, and a `Map<String, Birthday>` of birthdays filled in on the fill screen. `commit()` builds the list by filtering the loaded contacts to the selected set and applying `withBirthday`, then calls `addCelebrations(..., onProgress: ...)` emitting `ImportCommitting(done, total)`.
 
-`start()` sequence: `emit(ImportRequestingPermission)` → `requestPermission()` → on false `emit(ImportPermissionDenied)` and return → `emit(ImportLoadingContacts)` → `readDeviceContacts()` → `resolve(phones)` to badge existing users → `emit(ImportPicking(contacts, resolved, selected: {}))`.
+`start()` sequence: `emit(ImportRequestingPermission)` → `requestPermission()` → on false `emit(ImportPermissionDenied)` and return → `emit(ImportLoadingContacts)` → `readDeviceContacts(isoCode: <see below>)` → `resolve(phones)` to badge existing users → `emit(ImportPicking(contacts, resolved, selected: {}))`.
+
+**The E.164 region comes from the user's own verified number, not from stored onboarding data.** The spec says "against the country captured at onboarding", but onboarding captures *city* and never a country — `PhoneCubit.submitPhone` merely defaults `isoCode` to `'IN'`, so there is nothing stored to read. Derive it instead by parsing the signed-in user's own E.164 phone (`ApiClient.instance.auth.currentUser?.phone`, which needs a leading `+` restored before parsing) and taking its `isoCode`, falling back to `'IN'` when absent or unparseable. Someone who verified a `+91` number overwhelmingly holds Indian contacts, and this needs no new column, screen, or migration.
 
 - [ ] **Step 4: Write the four screens**
 
