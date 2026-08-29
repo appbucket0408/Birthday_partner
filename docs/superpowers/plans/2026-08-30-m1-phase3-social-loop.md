@@ -460,6 +460,12 @@ class _Subject with ReentrancyGuard {
         await _completers[key]!.future;
       });
 
+  /// `guard` is @protected, so a test must not call it directly — the analyzer
+  /// raises invalid_use_of_protected_member and `flutter analyze` must stay
+  /// clean. Drive the mixin through this class's own methods instead.
+  Future<void> runThrowing(String key) =>
+      guard(key, () async => throw StateError('boom'));
+
   void finish(String key) => _completers[key]?.complete();
 }
 
@@ -488,10 +494,7 @@ void main() {
 
   test('the key is released when the body throws', () async {
     final s = _Subject();
-    await expectLater(
-      s.guard('a', () async => throw StateError('boom')),
-      throwsStateError,
-    );
+    await expectLater(s.runThrowing('a'), throwsStateError);
     expect(s.isInFlight('a'), isFalse);
   });
 
@@ -715,7 +718,9 @@ class Wish {
   final DateTime createdAt;
   final String? authorName;
 
-  bool get isMine => authorName == null && false; // set by the repository
+  // Deliberately no `isMine` getter. Authorship is decided by comparing
+  // [authorProfileId] to the signed-in user id, which this model does not have
+  // and must not guess. The screen reads it from the session.
 
   Wish withAuthorName(String? name) => Wish(
         id: id,
@@ -737,8 +742,6 @@ class Wish {
       );
 }
 ```
-
-**Delete the `isMine` line above before committing** — it is wrong as written and there is no caller for it. Authorship is decided by the repository comparing `authorProfileId` to the signed-in user, and Task 6's screen reads that. It appears here only as a warning: do not add a getter that guesses.
 
 - [ ] **Step 10: Verify and commit**
 
@@ -1515,6 +1518,12 @@ Spec §7.3.
 **An explicit back affordance** on this screen's AppBar navigating to `/timeline` — `context.go` replaces the stack, so no arrow renders by default.
 
 `celebration_list_screen.dart`: one screen serving both lists, taking a title and a list of `Person`. Reached at `/profile/celebrating` (fed by `GraphRepository.celebrations()`, mapped to their people) and `/profile/celebrates` (fed by `ProfileRepository.celebrates()`). **Both get a back affordance to `/profile`.** Rows in the Celebrating list navigate to `/person/:id`; rows in the Celebrates list do **not** — the viewer may not be able to see those people's pages, and a row that errors on tap is worse than a row that does nothing.
+
+- [ ] **Step 3b: Register `GraphRepository` in `app.dart`**
+
+`ProfileCubit` reads `GraphRepository` from context, but Phase 2b never registered it — `TimelineScreen` constructs its own with a `?? GraphRepositoryImpl(...)` fallback. Add the field and `RepositoryProvider<GraphRepository>.value(...)` alongside the Phase 3 repositories.
+
+**This is additive, not the forbidden migration.** Leave `TimelineScreen`'s fallback exactly as it is — changing it is a Phase 2b refactor and out of scope here.
 
 - [ ] **Step 4: Wire the routes and the AppBar entry**
 
