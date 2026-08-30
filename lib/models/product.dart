@@ -19,8 +19,8 @@ class Product {
   final int id;
   final int serviceAreaId;
   final String name;
-  final String flavour;
-  final String size;
+  final String? flavour;
+  final String? size;
   final int priceMinor;
   final String? imageUrl;
 
@@ -28,8 +28,8 @@ class Product {
         id: row[ApiParams.id] as int,
         serviceAreaId: row[ApiParams.serviceAreaId] as int,
         name: row[ApiParams.name] as String,
-        flavour: row[ApiParams.flavour] as String,
-        size: row[ApiParams.size] as String,
+        flavour: row[ApiParams.flavour] as String?,
+        size: row[ApiParams.size] as String?,
         priceMinor: row[ApiParams.priceMinor] as int,
         imageUrl: row[ApiParams.imageUrl] as String?,
       );
