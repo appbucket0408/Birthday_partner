@@ -1069,7 +1069,9 @@ Create `test/features/gifting/catalog_cubit_test.dart` with a fake `GiftReposito
 
 **An explicit `leading` back affordance** to `/person/:personId` — `context.go` replaces the stack, so no arrow renders by default. This has shipped as a trap three times.
 
-Tapping a product goes to `/gift/slots` carrying the chosen product.
+Tapping a product **pushes** the slot picker with `Navigator.push`, carrying the chosen product forward.
+
+**Only `/gift/new/:personId` is a route.** The slot picker and the draft screen are not, and must not be added to the router. Both are parameterless and neither can carry the selection accumulating across the three screens — the person and their birthday from the person page, the product from here, the slot from the picker. A URL-addressable `/gift/draft` would render with no product and no slot. This is the precedent set for `OtpScreen` in M1 Phase 2b, which is pushed rather than routed for exactly the same reason. (`/gifts` in Task 8 *is* a route: parameterless and genuinely addressable, since it only loads the signed-in user's own gifts.)
 
 - [ ] **Step 4: Wire the route and the entry point**
 
@@ -1095,11 +1097,11 @@ Spec §7. Slots for the chosen area, each showing what is left.
 **Files:**
 - Create: `lib/features/gifting/slot_picker_screen.dart`
 - Create: `test/features/gifting/slot_picker_screen_test.dart`
-- Modify: `lib/core/app_strings.dart`, `lib/router/app_router.dart`
+- Modify: `lib/core/app_strings.dart`
 
 **Interfaces:**
 - Consumes: `GiftRepository.slotsIn`, `DeliverySlot.remaining`, `DeliverySlot.isBookable`.
-- Produces: route `/gift/slots`. Selecting a slot goes to `/gift/draft`.
+- Produces: no route. Pushed from the catalog with `Navigator.push`, carrying the product. Selecting a slot pushes the draft screen, carrying product + slot.
 
 - [ ] **Step 1: Add the strings**
 
@@ -1130,7 +1132,7 @@ Assertion 2 is the point of the screen. If any assertion counts screens, pass `s
 
 A `ListView` of slots grouped by `slotDate`, each row keyed `Key('slot_${slot.id}')`, showing `windowStart`–`windowEnd` and either `giftSlotRemainingTemplate` or `giftSlotFull`. A full slot's `onTap` is `null`, and it renders visibly de-emphasised.
 
-**An explicit `leading` back affordance** to `/gift/new/:personId`.
+**A back affordance.** This screen is *pushed*, so `Navigator.pop` works and the default arrow renders — unlike the `context.go` routes elsewhere in this app, which need an explicit `leading`. Do not add one here; let the framework supply it.
 
 - [ ] **Step 4: Prove the disable is load-bearing**
 
@@ -1157,7 +1159,7 @@ Spec §7. Recipient, product, slot, an optional message, then create — and an 
 **Files:**
 - Create: `lib/features/gifting/draft_cubit.dart`, `draft_state.dart`, `draft_screen.dart`
 - Create: `test/features/gifting/draft_cubit_test.dart`
-- Modify: `lib/core/app_strings.dart`, `lib/router/app_router.dart`
+- Modify: `lib/core/app_strings.dart`
 
 **Interfaces:**
 - Consumes: `GiftRepository.createDraft`, `ReentrancyGuard`, `Birthday.nextOccurrence`.
