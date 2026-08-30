@@ -69,7 +69,7 @@ GoRouter buildRouter(SessionCubit session) {
           fetchPeople: () async {
             final celebrations =
                 await context.read<GraphRepository>().celebrations();
-            return celebrations.map((c) => c.person).toList();
+            return CelebrationListScreen.peopleFromCelebrations(celebrations);
           },
         ),
       ),

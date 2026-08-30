@@ -1,0 +1,120 @@
+import 'package:birthday_app/features/profile/celebration_list_screen.dart';
+import 'package:birthday_app/models/celebration.dart';
+import 'package:birthday_app/models/person.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+Person _person(int id, {String? displayName}) => Person(
+      id: id,
+      displayName: displayName ?? 'Person $id',
+      isClaimed: false,
+    );
+
+/// [navigable] is deliberately nullable and, when omitted, NOT passed to
+/// the widget at all -- so the omitting test exercises the constructor's
+/// own default, exactly as `/profile/celebrates` does in app_router.dart
+/// (it never passes `navigable`). Defaulting the parameter here to `false`
+/// would make the "default" test pass no matter what the widget's real
+/// default is, defeating the point of pinning it.
+Future<void> _pump(
+  WidgetTester tester, {
+  required List<Person> people,
+  bool? navigable,
+}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      home: navigable == null
+          ? CelebrationListScreen(
+              title: 'Title',
+              emptyMessage: 'Empty',
+              fetchPeople: () async => people,
+            )
+          : CelebrationListScreen(
+              title: 'Title',
+              emptyMessage: 'Empty',
+              fetchPeople: () async => people,
+              navigable: navigable,
+            ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+void main() {
+  // Requirement 4 (spec §7.3) is a PRIVACY boundary, not styling:
+  // `private.can_see_person` grants sight of someone you celebrate, or
+  // someone who celebrates you -- a Celebrates row is the latter, which
+  // does NOT imply the former. A Celebrates row that navigated could route
+  // the viewer to a person page they have no right to see.
+  //
+  // Today that guarantee reduces to one untested boolean default
+  // (`navigable` defaults false) plus one untested call site passing
+  // `true` (`/profile/celebrating` in app_router.dart). These two tests
+  // pin both sides so a refactor merging the routes, or flipping the
+  // default while adding a third caller, fails loudly instead of shipping
+  // silently.
+  testWidgets(
+    'a row is NOT navigable by default (the Celebrates call site '
+    'never passes navigable)',
+    (tester) async {
+      await _pump(tester, people: [_person(1)]);
+
+      final tile = tester.widget<ListTile>(
+        find.byKey(const Key('celebration_list_person_1')),
+      );
+      expect(tile.onTap, isNull);
+    },
+  );
+
+  testWidgets(
+    'a row IS navigable when navigable is true (Celebrating)',
+    (tester) async {
+      await _pump(tester, people: [_person(1)], navigable: true);
+
+      final tile = tester.widget<ListTile>(
+        find.byKey(const Key('celebration_list_person_1')),
+      );
+      expect(tile.onTap, isNotNull);
+    },
+  );
+
+  // §7.3 defect fix: TimelineScreen renders `Celebration.label` (nickname
+  // if set, else the address-book name) for an edge. The Celebrating list
+  // renders the SAME edges and must agree, or a nicknamed person reads
+  // differently on the two screens. `peopleFromCelebrations` is the small
+  // mapping `/profile/celebrating` uses instead of handing this screen a
+  // second repository shape (see the class doc).
+  test('peopleFromCelebrations shows a nickname when one exists', () {
+    final celebrations = [
+      Celebration(id: 1, person: _person(1, displayName: 'Robert Smith'),
+          nickname: 'Bobby'),
+      Celebration(id: 2, person: _person(2, displayName: 'Jane Doe')),
+    ];
+
+    final people = CelebrationListScreen.peopleFromCelebrations(celebrations);
+
+    expect(people[0].displayName, 'Bobby');
+    expect(people[1].displayName, 'Jane Doe');
+  });
+
+  testWidgets('the Celebrating list renders a nickname, not the raw name', (
+    tester,
+  ) async {
+    final celebrations = [
+      Celebration(
+        id: 1,
+        person: _person(1, displayName: 'Robert Smith'),
+        nickname: 'Bobby',
+      ),
+    ];
+
+    await _pump(
+      tester,
+      people: CelebrationListScreen.peopleFromCelebrations(celebrations),
+      navigable: true,
+    );
+
+    expect(find.text('Bobby'), findsOneWidget);
+    expect(find.text('Robert Smith'), findsNothing);
+  });
+}
