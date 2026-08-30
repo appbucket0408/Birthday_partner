@@ -41,18 +41,23 @@ Future<void> _pump(
 }
 
 void main() {
-  // Requirement 4 (spec §7.3) is a PRIVACY boundary, not styling:
+  // Requirement 4 (spec §7.3) is a PRODUCT choice, not a privacy boundary:
   // `private.can_see_person` grants sight of someone you celebrate, or
-  // someone who celebrates you -- a Celebrates row is the latter, which
-  // does NOT imply the former. A Celebrates row that navigated could route
-  // the viewer to a person page they have no right to see.
+  // someone who celebrates you -- a Celebrates row is the latter, and that
+  // branch alone already grants the viewer sight of it. A Celebrates row
+  // that navigated would NOT error and would NOT show a page the viewer has
+  // no right to see; it is withheld because a Celebrates row is a different
+  // relationship (someone who added you) from the one this list is about,
+  // not because RLS would refuse it. See `celebration_list_screen.dart`'s
+  // class doc.
   //
-  // Today that guarantee reduces to one untested boolean default
-  // (`navigable` defaults false) plus one untested call site passing
-  // `true` (`/profile/celebrating` in app_router.dart). These two tests
-  // pin both sides so a refactor merging the routes, or flipping the
-  // default while adding a third caller, fails loudly instead of shipping
-  // silently.
+  // Today that choice reduces to one boolean default (`navigable` defaults
+  // false) plus one call site passing `true`
+  // (`/profile/celebrating` in app_router.dart). These two tests pin the
+  // widget's own default and that passing `true` works; they do NOT pin
+  // that `/profile/celebrates` omits `navigable` -- that route-level gap is
+  // covered by test/router/app_router_test.dart instead, since it requires
+  // building the route, not just the widget.
   testWidgets(
     'a row is NOT navigable by default (the Celebrates call site '
     'never passes navigable)',

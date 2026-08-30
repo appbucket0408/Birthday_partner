@@ -15,12 +15,17 @@ import '../../models/person.dart';
 /// [navigable] decides whether a row navigates to `/person/:id`. Celebrating
 /// rows do -- the viewer celebrates those people by definition, so
 /// `private.can_see_person`'s "I celebrate them" branch always grants sight.
-/// Celebrates rows do NOT: a celebrator being visible to the viewer via the
-/// "they celebrate me" branch does not imply the reverse also holds, so a
-/// row that assumed it could navigate would sometimes error on tap. A row
-/// that does nothing is the safe default; there is no per-row signal here
-/// that would let this screen tell the two cases apart within the list, so
-/// it is fixed for the whole screen by the route that built it.
+///
+/// Celebrates rows COULD too: a Celebrates row is someone who celebrates
+/// *you*, and `private.can_see_person`'s "they celebrate me" branch grants
+/// the viewer sight of every one of them, so every row here would load its
+/// person page successfully. Navigation is withheld anyway -- this is a
+/// product choice, not a privacy boundary. A Celebrates row is a different
+/// relationship from a Celebrating row (someone who added you, not someone
+/// you added), and this list is about who celebrates you, not a launchpad
+/// to their page. There is no per-row signal here that would let this
+/// screen vary that choice within the list, so it is fixed for the whole
+/// screen by the route that built it.
 ///
 /// [fetchPeople] is not read off context: `GraphRepository` and
 /// `ProfileRepository` return different shapes (`celebrations()` embeds a

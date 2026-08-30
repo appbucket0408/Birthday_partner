@@ -414,16 +414,31 @@ so `skipped` remains a 1:1 reproducible fingerprint for "this number is
 suppressed." Anyone who learns the mapping regains identical bulk
 per-phone enumeration to what `"suppressed"` gave them directly.
 
+**A later fix that folds the per-item `"skipped"` status into a broader,
+genuinely ambiguous bucket would still not close this**, because
+`body.skipped` — the aggregate count returned at the top level of every
+response, unchanged by Task 2 — is an independent oracle on its own. A
+one-contact request makes it a perfect single-number oracle (`skipped: 1`
+means that number is suppressed, `skipped: 0` means it is not), and the
+endpoint's existing 500-contact ceiling with no rate limiting turns that
+into a binary search: a specific number among 500 is identified in
+roughly nine requests (`log2(500) ≈ 9`), each request needing only
+contacts the caller does not have to hold in their own address book.
+Task 2 raised the attacker's cost by roughly an order of magnitude over
+the direct, single-request label read it replaced — real, and worth
+having — but that is a cost increase, not a category change: a future
+reader must not come away believing this is closed to within a factor of
+about nine.
+
 It is dormant only because there is no client-reachable path to create a
 suppression: `grep -rn suppress_person supabase/functions/` returns only
 comments (`delete_account`'s comment names suppression as a planned future
 request type), never a caller. **It reopens in full the moment any
 client-reachable path to create a suppression ships** — at that point,
-`skipped` must either be folded into a broader bucket that also has other
-genuine contributors, or the per-phone status vocabulary must otherwise
-stop being a perfect proxy for "this specific number is suppressed." This
-is unchanged from Task 2's own assessment; Task 9 re-verified the grep
-result above and found nothing has changed.
+neither the per-item status vocabulary nor the aggregate `skipped` count
+may keep behaving as a proxy, however indirect, for "this specific number
+is suppressed." This is unchanged from Task 2's own assessment; Task 9
+re-verified the grep result above and found nothing has changed.
 
 ---
 
