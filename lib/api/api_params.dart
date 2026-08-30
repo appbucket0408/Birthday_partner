@@ -52,4 +52,41 @@ abstract final class ApiParams {
 
   // my_celebrates
   static const celebratorPersonId = 'celebrator_person_id';
+
+  // catalog
+  static const serviceAreas = 'service_areas';
+  static const products = 'products';
+  static const deliverySlots = 'delivery_slots';
+  static const gifts = 'gifts';
+  static const serviceAreaId = 'service_area_id';
+  static const name = 'name';
+  static const flavour = 'flavour';
+  static const size = 'size';
+  static const priceMinor = 'price_minor';
+  static const imageUrl = 'image_url';
+  static const isActive = 'is_active';
+  static const slotDate = 'slot_date';
+  static const windowStart = 'window_start';
+  static const windowEnd = 'window_end';
+  static const capacity = 'capacity';
+  static const reserved = 'reserved';
+
+  // gifts
+  static const senderProfileId = 'sender_profile_id';
+  static const recipientPersonId = 'recipient_person_id';
+  static const productId = 'product_id';
+  static const slotId = 'slot_id';
+  static const occasionDate = 'occasion_date';
+  static const amountMinor = 'amount_minor';
+  static const status = 'status';
+  static const message = 'message';
+  static const deliveryCity = 'delivery_city';
+  static const slotHoldExpiresAt = 'slot_hold_expires_at';
+
+  // rpc_create_gift
+  static const pRecipientPersonId = 'p_recipient_person_id';
+  static const pProductId = 'p_product_id';
+  static const pSlotId = 'p_slot_id';
+  static const pOccasionDate = 'p_occasion_date';
+  static const pMessage = 'p_message';
 }
