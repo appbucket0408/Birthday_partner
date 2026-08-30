@@ -187,13 +187,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     // A suppressed number is reported with the same opaque status as any other
-    // non-actionable skip, NOT as "suppressed". Returning the labelled status
-    // made this endpoint an oracle: it accepts 500 arbitrary numbers per
-    // request with no rate limit and no requirement that the caller holds them
-    // in an address book, so a labelled response let anyone enumerate who had
-    // asked to be forgotten. The aggregate `skipped` count is unchanged, so the
-    // count inference accepted in Phase 2b remains -- but the per-phone oracle
-    // is gone.
+    // non-actionable skip, NOT as "suppressed". The labelled string is gone,
+    // which raises the attacker's cost roughly tenfold over reading it
+    // directly off this response -- real, and worth having -- but it does
+    // NOT close the oracle: `body.skipped`, the aggregate count below, is
+    // returned on every response and is an oracle by itself. A one-contact
+    // request makes it a perfect per-number oracle (skipped: 1 means this
+    // number is suppressed), and this endpoint's 500-contact ceiling with no
+    // rate limit turns that into a binary search -- one specific number
+    // among 500 identified in roughly nine requests. This is dormant only
+    // because there is no client-reachable path to create a suppression
+    // (`grep -rn suppress_person supabase/functions/` finds no caller); it
+    // reopens in full the moment one ships.
     if (data === null) {
       record({ person_id: null, status: "skipped" });
       skipped++;
