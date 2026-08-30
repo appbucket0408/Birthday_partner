@@ -134,11 +134,27 @@ Widget _appWith(GoRouter router) => MultiRepositoryProvider(
 /// against [location], not '/splash' -- '/timeline' is never touched unless
 /// the redirect guard itself sends this router there, which is exactly the
 /// thing under test.
-GoRouter _routerAt(String location) {
+///
+/// Returns both the router AND the session that backs it: `buildRouter`'s
+/// `refreshListenable` subscribes to `session.stream` internally, so a
+/// caller that only kept the router has no way to end that subscription --
+/// closing the session (which ends its stream) is what lets it wind down.
+({SessionCubit session, GoRouter router}) _routerAt(String location) {
   final session = _StubSessionCubit(SessionReady(_readyProfile()));
   final router = buildRouter(session);
   router.go(location);
-  return router;
+  return (session: session, router: router);
+}
+
+/// Disposes a fixture from [_routerAt] in the order that matters: the
+/// router first, so it unhooks its listener from the session's stream
+/// before that stream ends, then the session itself, which closes its
+/// stream and lets the internal `_CubitRefresh` subscription (private to
+/// app_router.dart, unreachable from this file) wind down rather than
+/// leak for the rest of the test run.
+Future<void> _disposeFixture(({SessionCubit session, GoRouter router}) fixture) async {
+  fixture.router.dispose();
+  await fixture.session.close();
 }
 
 /// The current resolved location, read off the router directly rather than
@@ -159,16 +175,27 @@ void main() {
     testWidgets(
       '/person/1 is reachable and is not bounced back to /timeline',
       (tester) async {
-        final router = _routerAt('/person/1');
+        final fixture = _routerAt('/person/1');
+        addTearDown(() => _disposeFixture(fixture));
+        final router = fixture.router;
 
         await tester.pumpWidget(_appWith(router));
-        // Consumed, not asserted on: a broken guard sends this router to
-        // '/timeline', which builds the real TimelineScreen and throws
-        // (see _routerAt's doc) before this test's own assertion runs. That
-        // crash is itself proof of the same bug the location check below
-        // catches -- swallowing it here keeps the failure signal on the one
-        // assertion this test is actually about, instead of a stack trace.
-        tester.takeException();
+        // A broken guard sends this router to '/timeline', which builds the
+        // real TimelineScreen and throws (see _routerAt's doc) before this
+        // test's own assertion runs. That crash is itself proof of the same
+        // bug the location check below catches, so it is consumed here
+        // rather than asserted on -- but only that ONE exception: anything
+        // else escaping this pump is a real, unrelated failure and must
+        // fail this test, not be swallowed alongside it.
+        final err = tester.takeException();
+        if (err != null) {
+          expect(
+            err.toString(),
+            contains('You must initialize the supabase instance'),
+            reason: 'unexpected exception during pump (not the '
+                'expected TimelineScreen/Supabase crash): $err',
+          );
+        }
 
         expect(
           _locationOf(router),
@@ -195,7 +222,9 @@ void main() {
     testWidgets(
       "'/profile/celebrates' yields navigable: false",
       (tester) async {
-        final router = _routerAt('/profile/celebrates');
+        final fixture = _routerAt('/profile/celebrates');
+        addTearDown(() => _disposeFixture(fixture));
+        final router = fixture.router;
         await tester.pumpWidget(_appWith(router));
         await tester.pumpAndSettle();
 
@@ -209,7 +238,9 @@ void main() {
     testWidgets(
       "'/profile/celebrating' yields navigable: true",
       (tester) async {
-        final router = _routerAt('/profile/celebrating');
+        final fixture = _routerAt('/profile/celebrating');
+        addTearDown(() => _disposeFixture(fixture));
+        final router = fixture.router;
         await tester.pumpWidget(_appWith(router));
         await tester.pumpAndSettle();
 

@@ -225,7 +225,13 @@ Deno.test("a suppressed number is reported as an opaque skip, never labelled", a
   assertEquals(body.results[0].status, "skipped");
   assertEquals(body.results[0].person_id, null);
 
-  // The oracle guard: no response field anywhere may carry the word
-  // "suppressed", or the endpoint is enumerable again.
+  // This guards the LABEL, not the oracle: "suppressed" must never appear
+  // anywhere in the response, because a self-documenting word is strictly
+  // worse than an opaque one. It does NOT mean the endpoint is
+  // non-enumerable -- `body.results[0].status == "skipped"` and
+  // `body.skipped` (both asserted above) are each still an exact,
+  // unambiguous per-suppression signal on their own; removing the word
+  // "suppressed" removed the label, not either signal. See index.ts's
+  // comment on this branch for the residual.
   assertEquals(JSON.stringify(body).includes("suppressed"), false);
 });

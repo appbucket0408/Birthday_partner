@@ -186,19 +186,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
       continue;
     }
 
-    // A suppressed number is reported with the same opaque status as any other
-    // non-actionable skip, NOT as "suppressed". The labelled string is gone,
-    // which raises the attacker's cost roughly tenfold over reading it
-    // directly off this response -- real, and worth having -- but it does
-    // NOT close the oracle: `body.skipped`, the aggregate count below, is
-    // returned on every response and is an oracle by itself. A one-contact
-    // request makes it a perfect per-number oracle (skipped: 1 means this
-    // number is suppressed), and this endpoint's 500-contact ceiling with no
-    // rate limit turns that into a binary search -- one specific number
-    // among 500 identified in roughly nine requests. This is dormant only
-    // because there is no client-reachable path to create a suppression
-    // (`grep -rn suppress_person supabase/functions/` finds no caller); it
-    // reopens in full the moment one ships.
+    // A suppressed number is reported as "skipped", NOT as "suppressed" --
+    // but "skipped" is NOT an opaque status shared with other non-actionable
+    // outcomes: this is the only branch that sets it. Every other outcome
+    // uses "duplicate", "invalid_name", "invalid_phone", "self", or
+    // "failed". So results[].status == "skipped" is still an exact, 1:1
+    // per-phone fingerprint, and because this endpoint accepts up to 500
+    // arbitrary numbers per request with no rate limit and no requirement
+    // that the caller holds them in an address book, ONE request classifies
+    // up to 500 numbers this way -- no search needed. `body.skipped`, the
+    // aggregate count below, is a second, independent channel with the same
+    // property (a one-contact request makes it a perfect single-number
+    // oracle by itself). Removing the literal word "suppressed" removed a
+    // self-documenting label, not the capability: an attacker who already
+    // knows the mapping pays essentially nothing more than before. This is
+    // dormant only because there is no client-reachable path to create a
+    // suppression (`grep -rn suppress_person supabase/functions/` finds no
+    // caller); it reopens in full the moment one ships.
     if (data === null) {
       record({ person_id: null, status: "skipped" });
       skipped++;

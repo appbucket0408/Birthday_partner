@@ -405,30 +405,28 @@ verbatim, as recorded, with a note added rather than being silently dropped.
 ## 6. The suppression oracle: reduced, not closed
 
 Task 2 removed the literal string `"suppressed"` from `add_celebrations`'
-HTTP response, replacing it with the same generic `"skipped"` status used
-for other non-actionable outcomes. This is a real improvement — the
-self-explanatory label is gone — but it does **not** close the underlying
-oracle, and this phase's own review said so at the time (see Task 2's entry
-above): the endpoint emits seven statuses and each has exactly one cause,
-so `skipped` remains a 1:1 reproducible fingerprint for "this number is
-suppressed." Anyone who learns the mapping regains identical bulk
-per-phone enumeration to what `"suppressed"` gave them directly.
+HTTP response, replacing it with `"skipped"`. This is a real improvement —
+the self-documenting label is gone — but it removed a *name*, not a
+*capability*, and this phase's own review said so at the time (see Task 2's
+entry above): `results[].status == "skipped"` is set on exactly one branch
+(the suppression branch; every other outcome uses `"duplicate"`,
+`"invalid_name"`, `"invalid_phone"`, `"self"`, `"failed"`, or `"added"`), so
+it remains an exact, 1:1 per-phone fingerprint. Because this endpoint
+accepts up to 500 arbitrary numbers per request with no rate limit and no
+requirement that the caller holds them in an address book, **one request
+classifies up to 500 numbers this way, with no search needed at all**.
+Anyone who already knows the mapping regains identical bulk per-phone
+enumeration to what `"suppressed"` gave them directly, at essentially the
+same cost as before — renaming the label did not meaningfully raise it.
 
-**A later fix that folds the per-item `"skipped"` status into a broader,
-genuinely ambiguous bucket would still not close this**, because
 `body.skipped` — the aggregate count returned at the top level of every
-response, unchanged by Task 2 — is an independent oracle on its own. A
-one-contact request makes it a perfect single-number oracle (`skipped: 1`
-means that number is suppressed, `skipped: 0` means it is not), and the
-endpoint's existing 500-contact ceiling with no rate limiting turns that
-into a binary search: a specific number among 500 is identified in
-roughly nine requests (`log2(500) ≈ 9`), each request needing only
-contacts the caller does not have to hold in their own address book.
-Task 2 raised the attacker's cost by roughly an order of magnitude over
-the direct, single-request label read it replaced — real, and worth
-having — but that is a cost increase, not a category change: a future
-reader must not come away believing this is closed to within a factor of
-about nine.
+response, also unchanged by Task 2 — is a second, independent channel with
+the same property: a one-contact request makes it a perfect single-number
+oracle by itself (`skipped: 1` means that number is suppressed). It matters
+mainly as a reason not to trust a narrower future fix: folding the per-item
+`"skipped"` status alone into a broader, genuinely ambiguous bucket would
+still leave this aggregate standing on its own. On today's code it adds
+nothing an attacker cannot already read directly off `results[]`.
 
 It is dormant only because there is no client-reachable path to create a
 suppression: `grep -rn suppress_person supabase/functions/` returns only
