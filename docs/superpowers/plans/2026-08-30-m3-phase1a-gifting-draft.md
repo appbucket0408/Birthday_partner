@@ -810,7 +810,9 @@ class Gift {
 
 **A trap worth naming:** `ApiParams.body` is `'body'` — the **wishes** column, added in a previous phase. `gifts.message` is a different column, so `Gift.fromRow` uses `ApiParams.message`, added above. Reusing `body` here compiles, analyzes clean, and silently returns null for every gift message.
 
-`lib/models/service_area.dart` and `lib/models/product.dart` are plain field mappings in the same shape — `fromRow` reading through `ApiParams`, all fields `final`, `const` constructor. `Product.priceMinor` stays an `int` of minor units; do not add currency formatting to the model.
+`lib/models/service_area.dart` and `lib/models/product.dart` are plain field mappings in the same shape.
+
+**Check each column's nullability against `supabase/migrations/20260822000006_catalog_slots.sql` rather than inferring it.** `service_areas.name` is `not null`. In `products`, `name` and `price_minor` are `not null`, but **`flavour`, `size` and `image_url` are all nullable** — type those `String?` and cast them `as String?`. Getting this wrong is not a type nit: `Product.fromRow` throws a `TypeError`, the repository's `catch (e) => mapError(e)` flattens it into a code-less `ServerFailure`, and because `productsIn()` maps a list, one product missing a flavour takes down the whole service area's catalog. The only product fixture in `seed.sql` fills every column, so no test in this plan would catch it. (Found in Task 3; an earlier draft described these two models in prose and left nullability to inference.) — `fromRow` reading through `ApiParams`, all fields `final`, `const` constructor. `Product.priceMinor` stays an `int` of minor units; do not add currency formatting to the model.
 
 - [ ] **Step 4: Run to verify they pass**
 
