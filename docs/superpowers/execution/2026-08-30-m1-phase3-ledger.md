@@ -448,3 +448,113 @@ from `supabase db reset`, verified in this session at HEAD `89b1d84`.
 
 Per Step 5 of this task's brief: **this branch is not merged.** That
 decision belongs to the human.
+
+---
+
+## 7. Addendum: the final whole-branch review
+
+Written after this ledger's first commit, which predates the review.
+
+**Verdict: merge.** No blocking defects. The review called the phase's security work
+its strongest part, and verified rather than accepted it: it grepped every
+`private.can_see_person` call site in the tree and confirmed
+`20260830000001_person_celebrator_count.sql:41` is the **only imperative one** —
+every other is an RLS `using` clause, where NULL correctly excludes. It confirmed the
+wish wall leaks no name RLS meant to hide, and found no committed secrets.
+
+### It corrected three errors in this project's own record
+
+**1. The Celebrates-list rationale was factually wrong.** The code claimed those rows
+must not navigate because tapping "would sometimes error" — presented as a privacy
+boundary. It is not one. `private.can_see_person`'s third branch
+(`20260822000004_people_graph.sql:86-93`) grants sight of person P to viewer V
+whenever P's owner celebrates V, which is exactly the Celebrates population. **Every
+such row would load its person page successfully.** Not navigating is a sound product
+decision — a Celebrates row is someone who celebrates *you*, a different relationship
+from the one that list represents — but it was dressed as a security control with a
+rationale any maintainer could disprove in thirty seconds and then "correct" by
+enabling navigation. Corrected in `celebration_list_screen.dart` and its test.
+
+**2. §6 of this ledger understated the residual suppression oracle — twice.** The
+first correction claimed the fix removed the per-phone channel, leaving only count
+inference. The second claimed the residual was `body.skipped`, costing an attacker
+"roughly tenfold" more effort, or about nine requests per number by binary search.
+
+**Both were wrong, and the truth is worse.** `results` is returned in the response
+body (`add_celebrations/index.ts:213`), each entry is `{ phone, person_id, status }`
+(`:97-99`), and `status: "skipped"` is emitted on **exactly one branch** (`:203`) —
+every other outcome uses a different string. So a **single** 500-contact request
+classifies 500 arbitrary numbers with a 1:1 per-phone fingerprint, with no search at
+all. `index.test.ts:225` pins that value.
+
+For an attacker who knows the mapping, removing the literal word `"suppressed"` cost
+approximately **nothing**. It removed a self-documenting label, not a capability.
+`body.skipped` is a second, independent aggregate channel.
+
+The endpoint's own comment claimed the same thing and was corrected in the same pass.
+Anyone reading `index.ts` alone would otherwise have under-priced the residual by
+orders of magnitude — worse than the original overstatement, because a carefully
+worded wrong claim reads as considered.
+
+**The ruling stands regardless: this is dormant, not closed.** `private.suppress_person`
+has no Edge Function caller, so no suppression can be created through the API and
+there is nothing to enumerate. The review checked further than the original grep did —
+it examined `resolve_contacts` as a possible second oracle and found it returns only
+matches, so absence is ambiguous between suppressed and never-imported. Not a second
+oracle. **It reopens in full the moment any client-reachable suppression path ships,
+and that change must close it first.**
+
+**3. Enforceability, not the reduction, is the real gap.** The coupling — "whoever
+ships a suppression path must close this first" — lives entirely in prose. That is
+structurally identical to the `enable_confirmations` guard this ledger already
+criticises as protected by no test and no CI. Recommended for the next phase: extend
+`11_rls_coverage.test.sql`'s privilege allowlist with an assertion that
+`private.suppress_person` has no grantee beyond `service_role`, commented to name
+`add_celebrations`' status vocabulary as the thing that must change first. That turns
+"we grepped it" into "the build tells you."
+
+### What the review found that nobody had logged
+
+- **`ProfileLoaded.profile` is fetched and never rendered.** `ProfileCubit` calls
+  `_auth.loadProfile()`, the state requires the field, and no production code reads
+  it — only test fixtures. Two costs: a wasted round trip on every profile open, and
+  a transient failure of a call whose data is never shown blanks the whole screen
+  into `ProfileError`. Either render it (the header has no name today) or drop the
+  field and the `AuthRepository` dependency with it.
+- **`ProfileCubit.load()` makes four sequential round trips**, one of them the wasted
+  one above. Invisible on a localhost VM test; a visibly long blank spinner on a
+  phone on mobile data.
+- **The router was the only file on the branch with zero tests**, on a project that
+  has never run on a device. Closed before merge — `test/router/app_router_test.dart`
+  now pins that `/person/1` is not bounced by the redirect guard and that
+  `/profile/celebrates` yields `navigable == false` while `/profile/celebrating`
+  yields `true`. That second assertion closed a real hole: adding `navigable: true`
+  to the celebrates route previously left every test green.
+
+### Device-run candidates specific to Phase 3
+
+Ranked by likelihood of being hit on a first simulator boot. This list exists because
+no end-to-end run has ever been performed for this project, and an iOS App Transport
+Security defect once survived 96 passing tests and died only when a human ran a
+simulator.
+
+1. **`RepositoryProviderNotFoundException` on both profile list routes.** They are the
+   only place in the app that reads a repository from a **route builder's** context
+   rather than a screen's, inside a closure invoked later from `initState`. Every
+   widget test constructs the screen directly with a stub, so nothing has ever proved
+   it resolves.
+2. **The three hand-rolled back arrows.** Tests assert `onPressed != null` on a bare
+   `MaterialApp`; they cannot prove the arrow renders under a real `GoRouter`, nor
+   that Android hardware back does anything sane from `/person/42` — there is no
+   `PopScope`, so it likely exits the app.
+3. **The compose sheet with a keyboard up.** Overlap, `isScrollControlled` height with
+   a 4-line field plus the 500-char counter, and dismissal mid-post are all invisible
+   to `pumpAndSettle`.
+4. **The four-round-trip profile open** — a long blank spinner, and a real timeout
+   risk on a slow link that a localhost test never reproduces.
+5. **`_StatTile` overflow.** Three `Expanded` tiles with untruncated labels; at a
+   large text scale or on a narrow device, "Wishes received" is a RenderFlex overflow.
+   Widget tests run at 800×600 with `textScaleFactor: 1.0`.
+6. **`/person/abc` crashes.** `int.parse` in the route builder with no `errorBuilder`,
+   and the prefix guard admits any suffix. Latent until a push notification routes to
+   a person page — and `register_device_token` already exists.
