@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../api/api_client.dart';
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
 import '../../repositories/graph_repository.dart';
-import '../../repositories/graph_repository_impl.dart';
 import '../../repositories/person_repository.dart';
 import '../../repositories/wish_repository.dart';
 import 'person_cubit.dart';
@@ -16,25 +14,20 @@ import 'wish_compose_sheet.dart';
 /// The person page (spec §7.1): name, birthday, celebrator count and the
 /// wish wall, reached by tapping a timeline row.
 ///
-/// [PersonRepository] and [WishRepository] are read off context (both are
-/// registered in `app.dart`), never constructed here -- the pattern two
-/// Phase 2b screens got wrong, which is why they cannot be mounted in a
-/// widget test without a live Supabase session.
-///
-/// `GraphRepository` has no `RepositoryProvider` anywhere in this app --
-/// `TimelineScreen` constructs it directly for the same reason, and this
-/// screen follows that existing pattern rather than inventing a second one.
+/// [PersonRepository], [WishRepository] and [GraphRepository] are all read
+/// off context -- all three are registered in `app.dart` -- never
+/// constructed here. `TimelineScreen`'s own `?? GraphRepositoryImpl(...)`
+/// fallback predates `GraphRepository`'s `RepositoryProvider` (added in
+/// Task 8's Step 3b) and is left as-is; migrating it is a Phase 2b refactor,
+/// out of scope here.
 class PersonScreen extends StatelessWidget {
   const PersonScreen({
     super.key,
     required this.personId,
-    GraphRepository? graphRepository,
     DateTime Function()? now,
-  })  : _graphRepository = graphRepository,
-        _now = now;
+  }) : _now = now;
 
   final int personId;
-  final GraphRepository? _graphRepository;
   final DateTime Function()? _now;
 
   @override
@@ -43,7 +36,7 @@ class PersonScreen extends StatelessWidget {
       create: (context) => PersonCubit(
         context.read<PersonRepository>(),
         context.read<WishRepository>(),
-        _graphRepository ?? GraphRepositoryImpl(ApiClient.instance),
+        context.read<GraphRepository>(),
         now: _now,
       )..load(personId),
       child: PersonView(personId: personId),

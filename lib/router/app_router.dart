@@ -1,14 +1,20 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/app_strings.dart';
 import '../features/contacts_import/import_disclosure_screen.dart';
 import '../features/onboarding/phone_screen.dart';
 import '../features/onboarding/profile_setup_screen.dart';
 import '../features/person/person_screen.dart';
+import '../features/profile/celebration_list_screen.dart';
+import '../features/profile/profile_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/timeline/timeline_screen.dart';
+import '../repositories/graph_repository.dart';
+import '../repositories/profile_repository.dart';
 import 'session_cubit.dart';
 import 'session_state.dart';
 
@@ -53,6 +59,28 @@ GoRouter buildRouter(SessionCubit session) {
           personId: int.parse(state.pathParameters['personId']!),
         ),
       ),
+      GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+      GoRoute(
+        path: '/profile/celebrating',
+        builder: (context, __) => CelebrationListScreen(
+          title: AppStrings.profileCelebrating,
+          emptyMessage: AppStrings.profileCelebratingEmpty,
+          navigable: true,
+          fetchPeople: () async {
+            final celebrations =
+                await context.read<GraphRepository>().celebrations();
+            return celebrations.map((c) => c.person).toList();
+          },
+        ),
+      ),
+      GoRoute(
+        path: '/profile/celebrates',
+        builder: (context, __) => CelebrationListScreen(
+          title: AppStrings.profileCelebrates,
+          emptyMessage: AppStrings.profileCelebratesEmpty,
+          fetchPeople: () => context.read<ProfileRepository>().celebrates(),
+        ),
+      ),
     ],
     redirect: (context, state) {
       final s = session.state;
@@ -76,7 +104,14 @@ GoRouter buildRouter(SessionCubit session) {
       // '/person' the route is declared with. A literal-set membership check
       // would never match it and the guard would bounce every visit straight
       // back to '/timeline' -- checked separately, by prefix, for that reason.
-      const signedIn = {'/timeline', '/import', '/settings'};
+      const signedIn = {
+        '/timeline',
+        '/import',
+        '/settings',
+        '/profile',
+        '/profile/celebrating',
+        '/profile/celebrates',
+      };
       final onPersonPage = at.startsWith('/person/');
       if (s is SessionReady && (signedIn.contains(at) || onPersonPage)) {
         return null;

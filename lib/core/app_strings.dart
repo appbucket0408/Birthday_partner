@@ -116,4 +116,18 @@ abstract final class AppStrings {
   static const wishTooLong = 'A wish can be at most 500 characters.';
   static const wishEmpty = 'Write something first.';
   static const wishPostFailed = 'That wish could not be posted.';
+
+  // Profile
+  static const profileTitle = 'You';
+  static const profileCelebrating = 'Celebrating';
+  static const profileCelebrates = 'Celebrates';
+  static const profileWishesReceived = 'Wishes received';
+  static const profileTrackRecord = 'Track record';
+  static const profileTrackRecordEmpty =
+      'Your track record starts with your first wish.';
+  static const profileStatSent = 'sent';
+  static const profileStatReceived = 'received';
+  static const profileStatCelebrated = 'birthdays';
+  static const profileCelebratingEmpty = 'You are not celebrating anyone yet.';
+  static const profileCelebratesEmpty = 'Nobody celebrates you yet.';
 }

@@ -80,6 +80,12 @@ class _TimelineView extends StatelessWidget {
         title: const Text(AppStrings.timelineTitle),
         actions: [
           IconButton(
+            key: const Key('profile_button'),
+            icon: const Icon(Icons.person),
+            tooltip: AppStrings.profileTitle,
+            onPressed: () => context.go('/profile'),
+          ),
+          IconButton(
             key: const Key('settings_button'),
             icon: const Icon(Icons.settings),
             tooltip: AppStrings.settingsTitle,
