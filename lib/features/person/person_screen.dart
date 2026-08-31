@@ -129,6 +129,19 @@ class PersonView extends StatelessWidget {
                   ),
           ),
         ),
+        if (_canComposeFor(state))
+          // Shown under the SAME condition as the compose FAB -- reusing
+          // _canComposeFor rather than restating it, per task-5-brief.md.
+          // The RPC (rpc_create_gift, via 45005) refuses without a
+          // celebration edge to the recipient, so offering this action when
+          // the viewer does not celebrate them would lead to an error the
+          // user cannot act on.
+          ListTile(
+            key: const Key('gift_send_cake_button'),
+            leading: const Icon(Icons.cake_outlined),
+            title: const Text(AppStrings.giftSendCake),
+            onTap: () => context.go('/gift/new/${person.id}'),
+          ),
         const Divider(height: 1),
         if (state.wishes.isEmpty)
           Padding(

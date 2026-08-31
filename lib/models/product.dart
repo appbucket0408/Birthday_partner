@@ -2,9 +2,9 @@ import '../api/api_params.dart';
 
 /// A row in public.products — a cake catalog item scoped to a service area.
 ///
-/// [priceMinor] stays an int of minor units (e.g. paise); no currency
-/// formatting belongs on this model — that is a later `priceLabel` helper's
-/// job, not this one's.
+/// [priceMinor] stays an int of minor units (paise); [priceLabel] is the
+/// only place that converts it for display, so the rule sits with the value
+/// object rather than being re-derived (and re-broken) in the screen.
 class Product {
   const Product({
     required this.id,
@@ -23,6 +23,20 @@ class Product {
   final String? size;
   final int priceMinor;
   final String? imageUrl;
+
+  /// `priceMinor` in rupees and paise, integer arithmetic only -- no `intl`
+  /// dependency for one helper, and no thousands separator (Indian grouping
+  /// is lakh/crore, not the three-digit grouping a naive formatter would
+  /// produce, and a wrong separator reads worse than plain digits). A zero
+  /// paise remainder renders with no decimals; otherwise exactly two,
+  /// zero-padded -- `84905` (₹849 and 5 paise) must read '₹849.05', not the
+  /// '₹849.5' a bare string interpolation of the remainder would produce.
+  String get priceLabel {
+    final rupees = priceMinor ~/ 100;
+    final paise = priceMinor % 100;
+    if (paise == 0) return '₹$rupees';
+    return '₹$rupees.${paise.toString().padLeft(2, '0')}';
+  }
 
   factory Product.fromRow(Map<String, dynamic> row) => Product(
         id: row[ApiParams.id] as int,

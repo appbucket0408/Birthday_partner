@@ -1,12 +1,18 @@
+import 'package:birthday_app/features/gifting/catalog_screen.dart';
 import 'package:birthday_app/features/person/person_screen.dart';
 import 'package:birthday_app/features/profile/celebration_list_screen.dart';
 import 'package:birthday_app/models/birthday.dart';
 import 'package:birthday_app/models/birthday_stat.dart';
 import 'package:birthday_app/models/celebration.dart';
+import 'package:birthday_app/models/delivery_slot.dart';
+import 'package:birthday_app/models/gift.dart';
 import 'package:birthday_app/models/person.dart';
+import 'package:birthday_app/models/product.dart';
 import 'package:birthday_app/models/profile.dart';
+import 'package:birthday_app/models/service_area.dart';
 import 'package:birthday_app/models/wish.dart';
 import 'package:birthday_app/repositories/auth_repository.dart';
+import 'package:birthday_app/repositories/gift_repository.dart';
 import 'package:birthday_app/repositories/graph_repository.dart';
 import 'package:birthday_app/repositories/person_repository.dart';
 import 'package:birthday_app/repositories/profile_repository.dart';
@@ -78,6 +84,34 @@ class _FakePersonRepository implements PersonRepository {
   Future<int> celebratorCount(int personId) async => 0;
 }
 
+class _FakeGiftRepository implements GiftRepository {
+  @override
+  Future<List<ServiceArea>> serviceAreas() async => [];
+
+  @override
+  Future<List<Product>> productsIn(int serviceAreaId) async => [];
+
+  @override
+  Future<List<DeliverySlot>> slotsIn(
+    int serviceAreaId, {
+    required DateTime onOrAfter,
+  }) async =>
+      [];
+
+  @override
+  Future<Gift> createDraft({
+    required int recipientPersonId,
+    required int productId,
+    required int slotId,
+    required DateTime occasionDate,
+    String? message,
+  }) async =>
+      throw UnimplementedError('not exercised by these route tests');
+
+  @override
+  Future<List<Gift>> myGifts() async => [];
+}
+
 class _FakeWishRepository implements WishRepository {
   @override
   Future<List<Wish>> wishesFor(int personId) async => [];
@@ -100,8 +134,9 @@ Profile _readyProfile() => const Profile(
 
 /// Every repository a route builder in app_router.dart reads off context:
 /// GraphRepository ('/profile/celebrating'), ProfileRepository
-/// ('/profile/celebrates'), and PersonRepository/WishRepository/
-/// GraphRepository again (PersonScreen, via PersonCubit). Registered here
+/// ('/profile/celebrates'), PersonRepository/WishRepository/GraphRepository
+/// again (PersonScreen, via PersonCubit), and now GiftRepository/
+/// PersonRepository again (CatalogScreen, via CatalogCubit). Registered here
 /// exactly as app.dart registers them in production, via
 /// MultiRepositoryProvider above MaterialApp.router -- never read by the
 /// router itself, only by the screens the router builds.
@@ -115,6 +150,7 @@ Widget _appWith(GoRouter router) => MultiRepositoryProvider(
           value: _FakePersonRepository(),
         ),
         RepositoryProvider<WishRepository>.value(value: _FakeWishRepository()),
+        RepositoryProvider<GiftRepository>.value(value: _FakeGiftRepository()),
       ],
       child: MaterialApp.router(routerConfig: router),
     );
@@ -208,6 +244,42 @@ void main() {
         // above and the page actually renders.
         await tester.pumpAndSettle();
         expect(find.byType(PersonView), findsOneWidget);
+      },
+    );
+
+    // Task 5's own version of the exact same bug: '/gift/new/:personId' is
+    // the one other signed-in route with a path parameter, so it needs the
+    // identical prefix check (`onGiftCatalogPage` in app_router.dart) rather
+    // than a literal `signedIn` entry. This route had no test until now,
+    // same as '/person/:personId' before Task 8 caught it.
+    testWidgets(
+      '/gift/new/1 is reachable and is not bounced back to /timeline',
+      (tester) async {
+        final fixture = _routerAt('/gift/new/1');
+        addTearDown(() => _disposeFixture(fixture));
+        final router = fixture.router;
+
+        await tester.pumpWidget(_appWith(router));
+        // See the '/person/1' test above for why only this one exception is
+        // swallowed rather than asserted on.
+        final err = tester.takeException();
+        if (err != null) {
+          expect(
+            err.toString(),
+            contains('You must initialize the supabase instance'),
+            reason: 'unexpected exception during pump (not the '
+                'expected CatalogScreen/Supabase crash): $err',
+          );
+        }
+
+        expect(
+          _locationOf(router),
+          '/gift/new/1',
+          reason: 'the redirect guard sent /gift/new/1 elsewhere',
+        );
+
+        await tester.pumpAndSettle();
+        expect(find.byType(CatalogView), findsOneWidget);
       },
     );
   });

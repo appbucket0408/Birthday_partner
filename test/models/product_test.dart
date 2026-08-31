@@ -39,4 +39,35 @@ void main() {
       expect(product.size, isNull);
     });
   });
+
+  // price_minor is paise, `bigint not null check (price_minor > 0)` per
+  // supabase/migrations/20260822000006_catalog_slots.sql -- no negative or
+  // zero cases exist, so priceLabel need not handle either.
+  group('Product.priceLabel', () {
+    Product withPrice(int minor) => Product(
+          id: 1,
+          serviceAreaId: 1,
+          name: 'Test Cake',
+          flavour: null,
+          size: null,
+          priceMinor: minor,
+          imageUrl: null,
+        );
+
+    test('a whole-rupee amount renders with no decimals', () {
+      expect(withPrice(84900).priceLabel, '₹849');
+    });
+
+    test('a half-rupee amount renders with two decimals', () {
+      expect(withPrice(84950).priceLabel, '₹849.50');
+    });
+
+    // The discriminating case: a naive '₹$rupees.$paise' implementation
+    // renders '₹849.5', dropping the trailing zero. No thousands separator
+    // either -- Indian grouping is lakh/crore, not the three-digit grouping
+    // a naive formatter would produce, so plain digits are correct here.
+    test('a single-digit paise remainder is zero-padded to two digits', () {
+      expect(withPrice(84905).priceLabel, '₹849.05');
+    });
+  });
 }

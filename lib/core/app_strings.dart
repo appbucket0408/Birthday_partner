@@ -130,4 +130,21 @@ abstract final class AppStrings {
   static const profileStatCelebrated = 'birthdays';
   static const profileCelebratingEmpty = 'You are not celebrating anyone yet.';
   static const profileCelebratesEmpty = 'Nobody celebrates you yet.';
+
+  // Gifting
+  static const giftSendCake = 'Send a cake';
+  static const giftCatalogTitle = 'Choose a cake';
+  static const giftAreaLabel = 'Delivering to';
+  static const giftNoAreas = 'No delivery areas are available yet.';
+  static const giftNoProducts = 'Nothing available in this area yet.';
+  static const giftPriceTemplate = '₹%s';
+
+  // A person reached cold via a deep link (or any context.go straight to
+  // '/gift/new/:personId') bypasses the person page's own gate entirely, so
+  // CatalogCubit.load must refuse a null birthday itself rather than trust
+  // the caller already checked. Task 7 derives the occasion date from
+  // Birthday.nextOccurrence, so a missing birthday cannot be worked around
+  // further down the flow either -- there is no date to fall back to.
+  static const giftNeedsBirthday =
+      'Add their birthday first — a cake needs a date to arrive on.';
 }

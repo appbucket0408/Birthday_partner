@@ -188,6 +188,63 @@ void main() {
     expect(find.byKey(const Key('wish_write_button')), findsNothing);
   });
 
+  // 3d (task 5). "Send a cake" is shown under the SAME condition as the
+  // compose FAB (_canComposeFor) -- absent when the person has no birthday.
+  testWidgets(
+      '"Send a cake" is absent when the person has no birthday',
+      (tester) async {
+    await _pump(
+      tester,
+      cubit,
+      PersonLoaded(
+        person: _person(1),
+        celebratorCount: 3,
+        wishes: const [],
+        viewerCelebrates: true,
+      ),
+    );
+
+    expect(find.byKey(const Key('gift_send_cake_button')), findsNothing);
+  });
+
+  // 3e: present when both conditions hold, so 3d is proving an absence, not
+  // a row that never renders.
+  testWidgets(
+      '"Send a cake" is present when the person has a birthday and the '
+      'viewer celebrates them', (tester) async {
+    await _pump(
+      tester,
+      cubit,
+      PersonLoaded(
+        person: _person(1, birthday: const Birthday(month: 4, day: 15)),
+        celebratorCount: 3,
+        wishes: const [],
+        viewerCelebrates: true,
+      ),
+    );
+
+    expect(find.byKey(const Key('gift_send_cake_button')), findsOneWidget);
+  });
+
+  // 3f: absent when viewerCelebrates is false, even with a birthday present
+  // -- offering it otherwise leads to a 45005 the user cannot act on.
+  testWidgets(
+      '"Send a cake" is absent when the viewer does not celebrate this '
+      'person, even with a birthday present', (tester) async {
+    await _pump(
+      tester,
+      cubit,
+      PersonLoaded(
+        person: _person(1, birthday: const Birthday(month: 4, day: 15)),
+        celebratorCount: 3,
+        wishes: const [],
+        viewerCelebrates: false,
+      ),
+    );
+
+    expect(find.byKey(const Key('gift_send_cake_button')), findsNothing);
+  });
+
   // 4. The back affordance is present and enabled.
   testWidgets('the back affordance is present and enabled', (tester) async {
     await _pump(

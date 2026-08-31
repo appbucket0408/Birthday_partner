@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/app_strings.dart';
 import '../features/contacts_import/import_disclosure_screen.dart';
+import '../features/gifting/catalog_screen.dart';
 import '../features/onboarding/phone_screen.dart';
 import '../features/onboarding/profile_setup_screen.dart';
 import '../features/person/person_screen.dart';
@@ -56,6 +57,19 @@ GoRouter buildRouter(SessionCubit session) {
       GoRoute(
         path: '/person/:personId',
         builder: (_, state) => PersonScreen(
+          personId: int.parse(state.pathParameters['personId']!),
+        ),
+      ),
+      // Carries a path parameter, so -- like '/person/:personId' -- it is
+      // matched by prefix below, not added to the literal `signedIn` set.
+      // Only this one route is real: the slot picker and the draft screen
+      // that follow it are parameterless and cannot carry the selection
+      // (person, birthday, product, slot) accumulating across the three
+      // screens, so both are pushed rather than routed (see
+      // task-5-brief.md and CatalogScreen's doc).
+      GoRoute(
+        path: '/gift/new/:personId',
+        builder: (_, state) => CatalogScreen(
           personId: int.parse(state.pathParameters['personId']!),
         ),
       ),
@@ -113,7 +127,14 @@ GoRouter buildRouter(SessionCubit session) {
         '/profile/celebrates',
       };
       final onPersonPage = at.startsWith('/person/');
-      if (s is SessionReady && (signedIn.contains(at) || onPersonPage)) {
+      // '/gift/new/:personId' carries a path parameter for the same reason
+      // '/person/:personId' does, so it needs the same prefix treatment --
+      // a literal `signedIn` membership test never matches the substituted
+      // location and the screen becomes unreachable while still compiling
+      // and analyzing clean, exactly as '/person/:personId' once did.
+      final onGiftCatalogPage = at.startsWith('/gift/new/');
+      if (s is SessionReady &&
+          (signedIn.contains(at) || onPersonPage || onGiftCatalogPage)) {
         return null;
       }
 
