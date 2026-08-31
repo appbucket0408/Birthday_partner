@@ -70,6 +70,9 @@ class _FakeGift implements GiftRepository {
 }
 
 const _birthday = Birthday(month: 6, day: 15);
+// Distinctive on purpose (fix round 1, item 1): a stale id-based label
+// (e.g. 'Recipient #1') cannot accidentally match this.
+const _recipientName = 'Priya Sharma';
 DateTime _now() => DateTime(2026, 1, 1);
 final _occasionDate = _birthday.nextOccurrence(_now());
 
@@ -118,6 +121,7 @@ void main() {
         child: MaterialApp(
           home: SlotPickerScreen(
             personId: 1,
+            recipientName: _recipientName,
             product: _product,
             birthday: _birthday,
             now: _now,
@@ -200,6 +204,7 @@ void main() {
                     MaterialPageRoute<void>(
                       builder: (_) => SlotPickerScreen(
                         personId: 1,
+                        recipientName: _recipientName,
                         product: _product,
                         birthday: _birthday,
                         now: _now,
@@ -275,6 +280,7 @@ void main() {
 
     final draft = tester.widget<DraftScreen>(find.byType(DraftScreen));
     expect(draft.occasionDate, _occasionDate);
+    expect(draft.recipientName, _recipientName);
 
     await tester.tap(find.byKey(const Key('gift_create')));
     await tester.pumpAndSettle();

@@ -64,9 +64,9 @@ class _FakeGift implements GiftRepository {
 class _MockCatalogCubit extends MockCubit<CatalogState>
     implements CatalogCubit {}
 
-Person _person(int id, {Birthday? birthday}) => Person(
+Person _person(int id, {Birthday? birthday, String? displayName}) => Person(
       id: id,
-      displayName: 'Person $id',
+      displayName: displayName ?? 'Person $id',
       isClaimed: false,
       birthday: birthday ?? const Birthday(month: 6, day: 15),
     );
@@ -273,7 +273,8 @@ void main() {
   // rendered from it, which could pass even if the wrong Birthday travelled.
   testWidgets(
       'tapping a product pushes SlotPickerScreen carrying the product, '
-      "personId and the recipient's birthday", (tester) async {
+      "personId, the recipient's birthday and the recipient's displayName "
+      '(fix round 1, item 1)', (tester) async {
     final product = _product(1, name: 'Chocolate Truffle');
     const birthday = Birthday(month: 3, day: 20);
     await pumpView(
@@ -282,7 +283,7 @@ void main() {
         areas: [_area(1, 'Downtown')],
         selectedAreaId: 1,
         products: [product],
-        person: _person(1, birthday: birthday),
+        person: _person(1, birthday: birthday, displayName: 'Priya Sharma'),
       ),
     );
 
@@ -297,6 +298,10 @@ void main() {
     expect(picker.personId, 1);
     expect(picker.product, same(product));
     expect(picker.birthday, birthday);
+    // fix round 1, item 1: CatalogLoaded already carries the whole Person,
+    // so its displayName threads straight into the picker rather than
+    // DraftScreen later falling back to an id-based label.
+    expect(picker.recipientName, 'Priya Sharma');
   });
 
   // 5 (Amendment A2). CatalogLoaded's birthday-present invariant is

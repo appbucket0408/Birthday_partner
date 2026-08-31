@@ -161,10 +161,11 @@ abstract final class AppStrings {
   // handed down from the slot picker's own computation, never recomputed
   // (Amendment B1) -- see draft_cubit.dart's class doc.
   static const giftDraftTitle = 'Confirm the details';
-  // Not carried in AppStrings.giftDraftRecipientTemplate's `%s`'s wording:
-  // no PersonRepository is threaded into this screen or its cubit (see
-  // task-7-report.md), so the recipient is labelled by id, not by name.
-  static const giftDraftRecipientTemplate = 'Recipient #%s';
+  // The recipient's own displayName is threaded down verbatim from
+  // CatalogLoaded.person (fix round 1, item 1) -- through SlotPickerScreen
+  // and into DraftScreen -- never a PersonRepository re-fetch and never an
+  // id-based fallback. `%s` is the name, not the id.
+  static const giftDraftRecipientTemplate = 'For %s';
   static const giftMessageHint = 'Add a message (optional)';
   static const giftCreate = 'Reserve this slot';
   static const giftSlotJustFilled =

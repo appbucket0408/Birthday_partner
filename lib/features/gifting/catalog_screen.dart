@@ -214,6 +214,7 @@ class CatalogView extends StatelessWidget {
       MaterialPageRoute<void>(
         builder: (_) => SlotPickerScreen(
           personId: personId,
+          recipientName: state.person.displayName,
           product: product,
           birthday: birthday!,
         ),

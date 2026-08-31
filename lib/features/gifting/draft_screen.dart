@@ -20,16 +20,26 @@ import 'draft_state.dart';
 /// `_occasionDate` -- computed there, once, via `birthday.nextOccurrence` --
 /// and never recomputed here (Amendment B1; see `draft_cubit.dart`'s class
 /// doc for why a second derivation would be a bug, not a redundancy).
+///
+/// [recipientName] is likewise handed down, not fetched: `CatalogLoaded`
+/// already carries the whole `Person` (fix round 1, item 1), so
+/// `state.person.displayName` threads forward through the same push chain
+/// the birthday and the occasion date already use -- catalog ->
+/// `SlotPickerScreen` -> here. Neither this screen nor `DraftCubit` takes a
+/// `PersonRepository`: the data is already in hand, and re-fetching it would
+/// add a dependency and a failure mode for something already known.
 class DraftScreen extends StatelessWidget {
   const DraftScreen({
     super.key,
     required this.recipientPersonId,
+    required this.recipientName,
     required this.product,
     required this.slot,
     required this.occasionDate,
   });
 
   final int recipientPersonId;
+  final String recipientName;
   final Product product;
   final DeliverySlot slot;
   final DateTime occasionDate;
@@ -40,6 +50,7 @@ class DraftScreen extends StatelessWidget {
       create: (context) => DraftCubit(context.read<GiftRepository>()),
       child: DraftView(
         recipientPersonId: recipientPersonId,
+        recipientName: recipientName,
         product: product,
         slot: slot,
         occasionDate: occasionDate,
@@ -56,12 +67,14 @@ class DraftView extends StatefulWidget {
   const DraftView({
     super.key,
     required this.recipientPersonId,
+    required this.recipientName,
     required this.product,
     required this.slot,
     required this.occasionDate,
   });
 
   final int recipientPersonId;
+  final String recipientName;
   final Product product;
   final DeliverySlot slot;
   final DateTime occasionDate;
@@ -144,7 +157,7 @@ class _DraftViewState extends State<DraftView> {
                 Text(
                   AppStrings.giftDraftRecipientTemplate.replaceFirst(
                     '%s',
-                    '${widget.recipientPersonId}',
+                    widget.recipientName,
                   ),
                   key: const Key('gift_recipient_label'),
                   style: Theme.of(context).textTheme.titleMedium,

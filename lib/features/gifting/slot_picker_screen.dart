@@ -37,12 +37,18 @@ class SlotPickerScreen extends StatefulWidget {
   const SlotPickerScreen({
     super.key,
     required this.personId,
+    required this.recipientName,
     required this.product,
     required this.birthday,
     DateTime Function()? now,
   }) : _now = now;
 
   final int personId;
+  // Threaded straight through to DraftScreen (fix round 1, item 1):
+  // CatalogLoaded already carries the whole Person, so CatalogScreen passes
+  // `state.person.displayName` here rather than this screen or DraftCubit
+  // re-fetching it via a PersonRepository it doesn't have.
+  final String recipientName;
   final Product product;
   final Birthday birthday;
   final DateTime Function()? _now;
@@ -173,6 +179,7 @@ class _SlotPickerScreenState extends State<SlotPickerScreen> {
       MaterialPageRoute<void>(
         builder: (_) => DraftScreen(
           recipientPersonId: widget.personId,
+          recipientName: widget.recipientName,
           product: widget.product,
           slot: slot,
           occasionDate: _occasionDate,
