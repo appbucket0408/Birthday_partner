@@ -4,16 +4,57 @@ import 'package:birthday_app/core/app_strings.dart';
 import 'package:birthday_app/features/gifting/catalog_cubit.dart';
 import 'package:birthday_app/features/gifting/catalog_screen.dart';
 import 'package:birthday_app/features/gifting/catalog_state.dart';
+import 'package:birthday_app/features/gifting/slot_picker_screen.dart';
 import 'package:birthday_app/models/birthday.dart';
+import 'package:birthday_app/models/delivery_slot.dart';
+import 'package:birthday_app/models/gift.dart';
 import 'package:birthday_app/models/person.dart';
 import 'package:birthday_app/models/product.dart';
 import 'package:birthday_app/models/service_area.dart';
+import 'package:birthday_app/repositories/gift_repository.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+
+/// A real fake, not a mock -- SlotPickerScreen reads `GiftRepository` off
+/// context in its own `initState`, so any test that lets a push to it
+/// actually mount needs one in the tree, or that read throws
+/// `ProviderNotFoundException`. Returns no slots by default: these tests
+/// are about what CatalogScreen hands to SlotPickerScreen, not about the
+/// picker's own rendering, which `slot_picker_screen_test.dart` covers.
+class _FakeGift implements GiftRepository {
+  @override
+  Future<List<DeliverySlot>> slotsIn(
+    int serviceAreaId, {
+    required DateTime onOrAfter,
+  }) async =>
+      const [];
+
+  @override
+  Future<List<ServiceArea>> serviceAreas() async =>
+      throw UnimplementedError('not used by CatalogScreen');
+
+  @override
+  Future<List<Product>> productsIn(int serviceAreaId) async =>
+      throw UnimplementedError('not used by CatalogScreen');
+
+  @override
+  Future<Gift> createDraft({
+    required int recipientPersonId,
+    required int productId,
+    required int slotId,
+    required DateTime occasionDate,
+    String? message,
+  }) async =>
+      throw UnimplementedError('not used by CatalogScreen');
+
+  @override
+  Future<List<Gift>> myGifts() async =>
+      throw UnimplementedError('not used by CatalogScreen');
+}
 
 /// A mocked CatalogCubit -- same pattern as
 /// test/features/person/person_screen_test.dart's `_MockPersonCubit`. Lets
@@ -47,9 +88,10 @@ CatalogLoaded _loaded({
   required List<ServiceArea> areas,
   required int? selectedAreaId,
   required List<Product> products,
+  Person? person,
 }) =>
     CatalogLoaded(
-      person: _person(1),
+      person: person ?? _person(1),
       areas: areas,
       selectedAreaId: selectedAreaId,
       products: products,
@@ -69,14 +111,22 @@ void main() {
   });
 
   /// Pumps [CatalogView] alone (no router) -- used by the tests that don't
-  /// need `context.go` to actually resolve anywhere.
+  /// need `context.go` to actually resolve anywhere. Wrapped in a
+  /// [RepositoryProvider]<[GiftRepository]> because a push to
+  /// [SlotPickerScreen] reads one off context in its own `initState` --
+  /// needed here, not just by the dedicated push tests, since any test that
+  /// happens to trigger a push would otherwise throw
+  /// `ProviderNotFoundException` on a completely unrelated assertion.
   Future<void> pumpView(WidgetTester tester, CatalogState state) async {
     whenListen(cubit, const Stream<CatalogState>.empty(), initialState: state);
     await tester.pumpWidget(
       MaterialApp(
-        home: BlocProvider<CatalogCubit>.value(
-          value: cubit,
-          child: const CatalogView(personId: 1),
+        home: RepositoryProvider<GiftRepository>.value(
+          value: _FakeGift(),
+          child: BlocProvider<CatalogCubit>.value(
+            value: cubit,
+            child: const CatalogView(personId: 1),
+          ),
         ),
       ),
     );
@@ -213,31 +263,73 @@ void main() {
     verify(() => cubit.load(1)).called(1);
   });
 
-  // 4. Tapping a product pushes the slot picker, carrying the product
-  // forward. Asserting on the CATALOG after the push would silently pass
-  // for the wrong reason (or find nothing at all): Navigator marks a
-  // covered route offstage, and find.text/find.byType default to
-  // skipOffstage: true, so the pushed route is what must be asserted on.
-  testWidgets('tapping a product pushes the slot picker with the product',
-      (tester) async {
+  // 4. Tapping a product pushes the real SlotPickerScreen (Amendment A1 --
+  // the Task 5 placeholder is gone), carrying the product, the personId,
+  // AND the recipient's non-nullable birthday forward (Amendment A2).
+  // Asserting on the CATALOG after the push would silently pass for the
+  // wrong reason (or find nothing at all): Navigator marks a covered route
+  // offstage, and find.text/find.byType default to skipOffstage: true, so
+  // the pushed route's own widget is what must be asserted on -- not text
+  // rendered from it, which could pass even if the wrong Birthday travelled.
+  testWidgets(
+      'tapping a product pushes SlotPickerScreen carrying the product, '
+      "personId and the recipient's birthday", (tester) async {
     final product = _product(1, name: 'Chocolate Truffle');
+    const birthday = Birthday(month: 3, day: 20);
     await pumpView(
       tester,
       _loaded(
         areas: [_area(1, 'Downtown')],
         selectedAreaId: 1,
         products: [product],
+        person: _person(1, birthday: birthday),
       ),
     );
 
-    expect(find.textContaining('coming in a later task'), findsNothing);
+    expect(find.byType(SlotPickerScreen), findsNothing);
 
     await tester.tap(find.text('Chocolate Truffle').first);
     await tester.pumpAndSettle();
 
-    expect(
-      find.textContaining('Delivery windows for Chocolate Truffle'),
-      findsOneWidget,
+    final picker = tester.widget<SlotPickerScreen>(
+      find.byType(SlotPickerScreen),
     );
+    expect(picker.personId, 1);
+    expect(picker.product, same(product));
+    expect(picker.birthday, birthday);
+  });
+
+  // 5 (Amendment A2). CatalogLoaded's birthday-present invariant is
+  // asserted, not merely assumed, at the push site: if a CatalogLoaded ever
+  // carried a person with no birthday -- which CatalogCubit.load itself
+  // never allows into this state, but nothing at the type level forbids --
+  // the push must fail loudly (an AssertionError) rather than silently
+  // sending a picker forward with no birthday.
+  testWidgets(
+      'tapping a product with a null-birthday person violates the '
+      'CatalogLoaded invariant', (tester) async {
+    final product = _product(1, name: 'Chocolate Truffle');
+    // Built directly, not via `_person()`: that helper's `birthday ?? const
+    // Birthday(...)` default makes a genuinely null birthday unreachable
+    // through it.
+    const personWithNoBirthday = Person(
+      id: 1,
+      displayName: 'Person 1',
+      isClaimed: false,
+    );
+    await pumpView(
+      tester,
+      _loaded(
+        areas: [_area(1, 'Downtown')],
+        selectedAreaId: 1,
+        products: [product],
+        person: personWithNoBirthday,
+      ),
+    );
+
+    await tester.tap(find.text('Chocolate Truffle').first);
+    await tester.pump();
+
+    expect(tester.takeException(), isA<AssertionError>());
   });
 }

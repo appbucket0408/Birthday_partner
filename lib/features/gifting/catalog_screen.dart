@@ -9,6 +9,7 @@ import '../../repositories/gift_repository.dart';
 import '../../repositories/person_repository.dart';
 import 'catalog_cubit.dart';
 import 'catalog_state.dart';
+import 'slot_picker_screen.dart';
 
 /// The catalog screen (spec §7): service area, then the active products in
 /// it. Reached from a person page's "Send a cake" action -- or, since
@@ -187,48 +188,35 @@ class CatalogView extends StatelessWidget {
     return parts.join(' · ');
   }
 
-  /// Pushes the slot picker, carrying the chosen product forward, per spec
-  /// §7 -- Task 6 builds `SlotPickerScreen` itself and is expected to
-  /// replace this call with `Navigator.push(context,
-  /// MaterialPageRoute(builder: (_) => SlotPickerScreen(personId: ...,
-  /// product: product)))`. Left as an explicit placeholder rather than a
-  /// silent no-op so the interaction is visibly wired end to end today: this
-  /// file is the only one Task 5 is scoped to create or modify, and
-  /// task-6-brief.md's own file list does not list catalog_screen.dart as a
-  /// file it modifies, even though wiring the real screen in requires
-  /// touching this exact call site.
+  /// Pushes the slot picker, carrying the chosen product -- and the
+  /// recipient's birthday -- forward, per spec §7.
+  ///
+  /// [CatalogCubit.load] refuses to emit [CatalogLoaded] for a person with
+  /// no birthday (see `catalog_cubit.dart`'s null-birthday refusal), so
+  /// within a [CatalogLoaded] state, `state.person.birthday` being non-null
+  /// is an invariant, not an assumption. Asserted once, here, at the push
+  /// site: [SlotPickerScreen] and Task 7's draft screen both need a real
+  /// `Birthday` for `Birthday.nextOccurrence` and are not routes, so the
+  /// birthday can only be carried forward from here -- threading `Birthday?`
+  /// onward instead would hand Task 7 a null case it cannot resolve.
   void _openSlotPicker(
     BuildContext context,
     CatalogLoaded state,
     Product product,
   ) {
+    final birthday = state.person.birthday;
+    assert(
+      birthday != null,
+      'CatalogLoaded invariant violated: CatalogCubit.load never emits '
+      'CatalogLoaded for a person with no birthday.',
+    );
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => _SlotPickerPlaceholder(
+        builder: (_) => SlotPickerScreen(
           personId: personId,
           product: product,
+          birthday: birthday!,
         ),
-      ),
-    );
-  }
-}
-
-/// Stands in for Task 6's `SlotPickerScreen`. Pushed (not routed), the same
-/// as the real thing will be, so the default back arrow is supplied by the
-/// framework and no `leading` is needed here.
-class _SlotPickerPlaceholder extends StatelessWidget {
-  const _SlotPickerPlaceholder({required this.personId, required this.product});
-
-  final int personId;
-  final Product product;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(product.name)),
-      body: Center(
-        child: Text('Delivery windows for ${product.name} — coming in a '
-            'later task.'),
       ),
     );
   }

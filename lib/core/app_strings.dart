@@ -146,4 +146,14 @@ abstract final class AppStrings {
   // further down the flow either -- there is no date to fall back to.
   static const giftNeedsBirthday =
       'Add their birthday first — a cake needs a date to arrive on.';
+
+  // Gifting -- slot picker (Task 6). Slots are filtered to the occasion date
+  // client-side (spec §11 open question 1: a cake dated anything other than
+  // the birthday is a different product), so giftNoSlots is the expected,
+  // common outcome locally -- not a bug -- until the seed data carries a slot
+  // dated to a recipient's actual next birthday.
+  static const giftSlotTitle = 'Pick a delivery window';
+  static const giftSlotRemainingTemplate = '%s left';
+  static const giftSlotFull = 'Full';
+  static const giftNoSlots = 'No delivery windows are open for this area yet.';
 }
