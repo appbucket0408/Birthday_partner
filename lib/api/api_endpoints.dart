@@ -9,4 +9,5 @@ abstract final class ApiEndpoints {
   static const rpcPersonCelebratorCount = 'person_celebrator_count';
   static const rpcMyBirthdayStats = 'my_birthday_stats';
   static const rpcMyCelebrates = 'my_celebrates';
+  static const rpcCreateGift = 'rpc_create_gift';
 }
