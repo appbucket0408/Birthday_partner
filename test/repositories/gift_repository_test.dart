@@ -49,15 +49,12 @@ void main() {
     await auth.verifyOtp(phoneE164: phone, token: '123456');
   }
 
-  // people.id a caller neither owns nor holds an edge to -- the same
-  // "invisible id" pattern person_repository_test.dart uses. The exists()
-  // check inside rpc_create_gift returns false for a nonexistent id exactly
-  // as it would for a real one the caller does not celebrate, so a fixed,
-  // never-minted id is enough to exercise the guard.
-  const uncelebratedPersonId = 999999999;
-
   const testAreaNamePrefix = 'Gift Repo Test Area';
   const decoyUserPhone = '+919999555001';
+  // 64 hex chars to satisfy people_phone_hash_format -- a stable function of
+  // decoyUserPhone rather than a random value, so cleanUpStaleRows() can find
+  // and remove this row on a second run without having persisted its id.
+  const decoyPersonHashExpr = "encode(sha256('$decoyUserPhone'::bytea), 'hex')";
 
   Future<String> psql(String sql) async {
     final result = await Process.run('docker', [
@@ -100,6 +97,9 @@ void main() {
         select id from auth.users where phone = '$decoyUserPhone'
       );
     ''');
+    await psql(
+      'delete from public.people where phone_e164_hash = $decoyPersonHashExpr;',
+    );
     await psql("delete from auth.users where phone = '$decoyUserPhone';");
     await psql('''
       delete from public.delivery_slots
@@ -126,9 +126,21 @@ void main() {
   late int roomySlotId;
   late int tightSlotId;
   late int pastSlotId;
+  late int primaryPersonId;
   late int recipientPersonId;
   late String decoyProfileId;
-  late int decoyGiftId;
+  // A real, existing people row the primary caller never celebrates --
+  // assertion 5 targets this rather than a nonexistent sentinel id, so that
+  // with the celebration guard removed the RPC's only remaining obstacle
+  // would be a genuine one, not a foreign-key violation on a fake id.
+  late int decoyPersonId;
+  // A gift sent BY the decoy TO the primary caller. RLS's recipient branch
+  // (`recipient_person_id = private.my_person_id()`) makes this row visible
+  // to the primary caller, so only the explicit `.eq(senderProfileId, ...)`
+  // filter in GiftRepositoryImpl.myGifts() keeps it out of that list --
+  // exercising the actual property the brief calls out ("silently
+  // over-fetching if a policy ever loosens").
+  late int receivedGiftId;
 
   setUpAll(() async {
     setUpContractTestEnvironment();
@@ -180,7 +192,7 @@ void main() {
     ));
 
     await signIn(primary);
-    await auth.claimProfile();
+    primaryPersonId = await auth.claimProfile();
 
     final summary = await contacts.addCelebrations([
       const DeviceContact(
@@ -191,23 +203,32 @@ void main() {
     ]);
     recipientPersonId = summary.results.single.personId!;
 
-    // A second sender, for the "not another sender's" assertion. No
+    // A second identity, for the "not another sender's" assertion. No
     // repository can create a gift row for someone else, so this decoy is
     // seeded directly too: `id` is the only NOT NULL column on auth.users,
     // and the on_auth_user_created trigger mints its public.profiles row,
-    // which is all a decoy gift's sender_profile_id needs to satisfy the
-    // foreign key. It never signs in -- decoyUserPhone is not in
+    // which is all a gift's sender_profile_id needs to satisfy the foreign
+    // key. It never signs in -- decoyUserPhone is not in
     // [auth.sms.test_otp], it exists only so a second run of this suite can
     // find and remove this row.
     decoyProfileId = await psql(
       'insert into auth.users (id, phone) values (gen_random_uuid(), '
       "'$decoyUserPhone') returning id;",
     );
-    decoyGiftId = int.parse(await psql(
+    // The decoy's own people row -- claim_person is what normally creates
+    // one, and the decoy never signs in to call it, so this is seeded
+    // directly too. A real, existing person id the primary caller holds no
+    // celebration edge to.
+    decoyPersonId = int.parse(await psql(
+      'insert into public.people (phone_e164_hash, profile_id, display_name) '
+      "values ($decoyPersonHashExpr, '$decoyProfileId', 'Decoy Person') "
+      'returning id;',
+    ));
+    receivedGiftId = int.parse(await psql(
       'insert into public.gifts '
       '(sender_profile_id, recipient_person_id, product_id, '
       'service_area_id, slot_id, occasion_date, amount_minor, status) '
-      "values ('$decoyProfileId', $recipientPersonId, $productId, "
+      "values ('$decoyProfileId', $primaryPersonId, $productId, "
       "$serviceAreaId, $roomySlotId, current_date + 60, 50000, 'draft') "
       'returning id;',
     ));
@@ -220,12 +241,17 @@ void main() {
     // also means AuthRepository.deleteAccount() below can actually succeed:
     // once a sender has a gift row, deleting their account otherwise fails
     // (delete_account/index.ts documents this as a known M3 limit) and the
-    // profile would be left behind for good.
+    // profile would be left behind for good. This also clears receivedGiftId
+    // (recipient_person_id also on delete restrict), so the decoy's people
+    // row below can be deleted cleanly too.
     await psql(
       'delete from public.gifts where service_area_id in '
       '($serviceAreaId, $otherAreaId);',
     );
     await auth.deleteAccount().catchError((_) {});
+    await psql(
+      'delete from public.people where phone_e164_hash = $decoyPersonHashExpr;',
+    );
     await psql("delete from auth.users where phone = '$decoyUserPhone';");
     await psql(
       'delete from public.delivery_slots where service_area_id in '
@@ -307,9 +333,15 @@ void main() {
   test(
       '5. createDraft() for a person the caller does NOT celebrate throws '
       "ServerFailure with code '45005'", () async {
+    // decoyPersonId is a real, existing people row -- not a nonexistent
+    // sentinel. With the guard in place this proves the RPC checks
+    // celebration rather than mere existence; Step 7 (see task-4-report.md)
+    // proves that with the guard removed, THIS is the id-space-walking
+    // exploit the guard exists to close, because there is no foreign key
+    // left to trip on a real id.
     await expectLater(
       gift.createDraft(
-        recipientPersonId: uncelebratedPersonId,
+        recipientPersonId: decoyPersonId,
         productId: productId,
         slotId: roomySlotId,
         occasionDate: DateTime.now().add(const Duration(days: 10)),
@@ -359,7 +391,9 @@ void main() {
     final ids = gifts.map((g) => g.id).toList();
 
     expect(ids, contains(mine.id));
-    expect(ids, isNot(contains(decoyGiftId)));
+    // receivedGiftId is visible to the caller under RLS (they are its
+    // recipient) -- only the sender filter in myGifts() keeps it out here.
+    expect(ids, isNot(contains(receivedGiftId)));
     // THE PRODUCT'S CORE PROMISE: the city is denormalised onto the gift
     // only at confirmation, which does not exist in this phase, so the
     // sender must never be able to reach the recipient's address through it.
