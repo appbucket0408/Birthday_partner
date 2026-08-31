@@ -76,15 +76,17 @@ class _FakeGift implements GiftRepository {
 }
 
 class _FakePerson implements PersonRepository {
-  _FakePerson({this.personToReturn});
+  _FakePerson({this.personToReturn, this.personError});
 
   Person? personToReturn;
+  Object? personError;
 
   int personCalls = 0;
 
   @override
   Future<Person> person(int personId) async {
     personCalls++;
+    if (personError != null) throw personError!;
     return personToReturn!;
   }
 
@@ -224,6 +226,47 @@ void main() {
     final cubit = CatalogCubit(
       gift,
       _FakePerson(personToReturn: _person(1, birthday: _birthday)),
+    );
+
+    await cubit.load(1);
+
+    final state = cubit.state;
+    expect(state, isA<CatalogError>());
+    expect((state as CatalogError).message, AppStrings.somethingWentWrong);
+  });
+
+  // 4b (fix round 1, item 2). The person() fetch sits inside the SAME try /
+  // on AppFailure / catch (_) block as the areas fetch (not a separate one),
+  // so its failures must surface exactly the same way serviceAreas()'s do.
+  // Unlike serviceAreasError above, this was previously untested -- an edit
+  // that moved the null-birthday check (and so the person() call) outside
+  // the try block would have broken this silently.
+  test(
+      'a failing person() surfaces as CatalogError with the ServerFailure\'s '
+      "own message, never 'Instance of'", () async {
+    final gift = _FakeGift();
+    final cubit = CatalogCubit(
+      gift,
+      _FakePerson(personError: const ServerFailure('no access to this person')),
+    );
+
+    await cubit.load(1);
+
+    final state = cubit.state;
+    expect(state, isA<CatalogError>());
+    final message = (state as CatalogError).message;
+    expect(message, 'no access to this person');
+    expect(message, isNot(contains('Instance of')));
+    expect(gift.serviceAreasCalls, 0);
+  });
+
+  test(
+      'a non-AppFailure error from person() falls back to the generic '
+      'message', () async {
+    final gift = _FakeGift();
+    final cubit = CatalogCubit(
+      gift,
+      _FakePerson(personError: StateError('unexpected')),
     );
 
     await cubit.load(1);

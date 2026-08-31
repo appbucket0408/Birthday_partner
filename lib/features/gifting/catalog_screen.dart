@@ -127,14 +127,12 @@ class CatalogView extends StatelessWidget {
               children: [
                 Text(AppStrings.giftAreaLabel),
                 const SizedBox(width: AppSpacing.sm),
-                // A plain DropdownButton, not DropdownButtonFormField: the
-                // latter seeds its selection from `initialValue` only once,
-                // at first build, and does not re-sync it on a later
-                // rebuild carrying a different value -- exactly the
-                // TextFormField.initialValue gotcha. This screen's selection
-                // is externally controlled by CatalogCubit, re-emitted on
-                // every selectArea(), so it needs the plain, always-current
-                // `value` a DropdownButton reads on every build.
+                // A plain DropdownButton, not DropdownButtonFormField: this
+                // dropdown is not inside a Form and needs no validation or
+                // FormField lifecycle, so the plainer widget is the right
+                // one here. (Its value-resync-on-rebuild is proven by
+                // test/features/gifting/catalog_screen_test.dart, not by
+                // this comment.)
                 DropdownButton<int>(
                   key: const Key('gift_area_dropdown'),
                   value: state.selectedAreaId,
@@ -169,11 +167,8 @@ class CatalogView extends StatelessWidget {
                         key: Key('product_${product.id}'),
                         title: Text(product.name),
                         subtitle: Text(_subtitleFor(product)),
-                        // priceLabel already carries the '₹' -- see
-                        // Product.priceLabel's doc. AppStrings.giftPriceTemplate
-                        // ('₹%s') is not applied on top of it: it exists for
-                        // a value that does NOT already carry the symbol, and
-                        // wrapping priceLabel in it would double the '₹'.
+                        // Product.priceLabel already carries the '₹' -- see
+                        // its doc. No AppStrings template wraps it.
                         trailing: Text(product.priceLabel),
                         onTap: () => _openSlotPicker(context, state, product),
                       ),

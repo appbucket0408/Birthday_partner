@@ -137,7 +137,6 @@ abstract final class AppStrings {
   static const giftAreaLabel = 'Delivering to';
   static const giftNoAreas = 'No delivery areas are available yet.';
   static const giftNoProducts = 'Nothing available in this area yet.';
-  static const giftPriceTemplate = '₹%s';
 
   // A person reached cold via a deep link (or any context.go straight to
   // '/gift/new/:personId') bypasses the person page's own gate entirely, so
