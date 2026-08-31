@@ -156,4 +156,24 @@ abstract final class AppStrings {
   static const giftSlotRemainingTemplate = '%s left';
   static const giftSlotFull = 'Full';
   static const giftNoSlots = 'No delivery windows are open for this area yet.';
+
+  // Gifting -- draft screen (Task 7). The occasion date shown here is
+  // handed down from the slot picker's own computation, never recomputed
+  // (Amendment B1) -- see draft_cubit.dart's class doc.
+  static const giftDraftTitle = 'Confirm the details';
+  // Not carried in AppStrings.giftDraftRecipientTemplate's `%s`'s wording:
+  // no PersonRepository is threaded into this screen or its cubit (see
+  // task-7-report.md), so the recipient is labelled by id, not by name.
+  static const giftDraftRecipientTemplate = 'Recipient #%s';
+  static const giftMessageHint = 'Add a message (optional)';
+  static const giftCreate = 'Reserve this slot';
+  static const giftSlotJustFilled =
+      'That slot just filled. Please pick another window.';
+  static const giftNotCelebrating =
+      'You can only send a cake to someone you celebrate.';
+  static const giftHoldNoticeTitle = 'Slot reserved for 15 minutes';
+  static const giftHoldNoticeBody =
+      'Checkout is not built yet, so this gift stays a draft and the slot is '
+      'released when the hold expires. Nothing has been charged.';
+  static const giftSeeMyGifts = 'See my gifts';
 }

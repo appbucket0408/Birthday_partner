@@ -1,4 +1,5 @@
 import 'package:birthday_app/core/app_strings.dart';
+import 'package:birthday_app/features/gifting/draft_screen.dart';
 import 'package:birthday_app/features/gifting/slot_picker_screen.dart';
 import 'package:birthday_app/models/birthday.dart';
 import 'package:birthday_app/models/delivery_slot.dart';
@@ -17,6 +18,13 @@ class _FakeGift implements GiftRepository {
 
   List<DeliverySlot> slotsToReturn;
   final List<DateTime> onOrAfterCalls = [];
+
+  // Recorded by `createDraft` -- used only by the Amendment B2 threading
+  // test below, which pushes past the picker into the real `DraftScreen`
+  // and taps its create button. Every other test in this file never reaches
+  // `createDraft` at all.
+  int createDraftCalls = 0;
+  DateTime? lastOccasionDate;
 
   @override
   Future<List<DeliverySlot>> slotsIn(
@@ -42,8 +50,19 @@ class _FakeGift implements GiftRepository {
     required int slotId,
     required DateTime occasionDate,
     String? message,
-  }) async =>
-      throw UnimplementedError('not used by SlotPickerScreen');
+  }) async {
+    createDraftCalls++;
+    lastOccasionDate = occasionDate;
+    return Gift(
+      id: 1,
+      recipientPersonId: recipientPersonId,
+      productId: productId,
+      slotId: slotId,
+      occasionDate: occasionDate,
+      amountMinor: 84905,
+      status: GiftStatus.draft,
+    );
+  }
 
   @override
   Future<List<Gift>> myGifts() async =>
@@ -83,12 +102,21 @@ DeliverySlot _slot(
     );
 
 void main() {
+  // RepositoryProvider wraps MaterialApp itself, not just `home` -- pushed
+  // routes are siblings of the initial route within the Navigator's own
+  // Overlay, not its descendants, so a provider placed inside `home` is
+  // invisible to anything pushed later. `SlotPickerScreen`'s own read
+  // (inside a try/catch in `_load()`) fails silently either way and so
+  // never surfaced this, but `DraftScreen`'s `BlocProvider(create: ...)`
+  // reads `GiftRepository` synchronously during build, with nothing
+  // catching a `ProviderNotFoundException` there -- which is exactly what
+  // test 6 below hits if this provider is scoped too narrowly.
   Future<void> pumpPicker(WidgetTester tester, _FakeGift gift) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: RepositoryProvider<GiftRepository>.value(
-          value: gift,
-          child: SlotPickerScreen(
+      RepositoryProvider<GiftRepository>.value(
+        value: gift,
+        child: MaterialApp(
+          home: SlotPickerScreen(
             personId: 1,
             product: _product,
             birthday: _birthday,
@@ -221,5 +249,37 @@ void main() {
 
     expect(find.byKey(const Key('slot_1')), findsOneWidget);
     expect(find.byKey(const Key('slot_2')), findsNothing);
+  });
+
+  // 6 (Amendment B2). Tapping a bookable slot pushes the real DraftScreen
+  // carrying the picker's OWN `_occasionDate` -- not a value DraftScreen
+  // recomputed on its own -- and that same date is what ultimately reaches
+  // `createDraft`. This is the single-source-of-truth guarantee: the van
+  // slot and the occasion are booked against the one date the picker
+  // filtered its slots by, never a second, independently-derived one.
+  //
+  // Asserted two ways, per the house rule that a push must be checked on
+  // the PUSHED route's own content: first directly on the pushed
+  // DraftScreen's `occasionDate` field, then end-to-end through a real
+  // `create()` call reaching the fake's `createDraft`.
+  testWidgets(
+      'tapping a slot pushes DraftScreen with the occasion date the picker '
+      'filtered by, and that date reaches createDraft', (tester) async {
+    final gift = _FakeGift(slotsToReturn: [_slot(1)]);
+
+    await pumpPicker(tester, gift);
+
+    expect(find.byType(DraftScreen), findsNothing);
+    await tester.tap(find.byKey(const Key('slot_1')));
+    await tester.pumpAndSettle();
+
+    final draft = tester.widget<DraftScreen>(find.byType(DraftScreen));
+    expect(draft.occasionDate, _occasionDate);
+
+    await tester.tap(find.byKey(const Key('gift_create')));
+    await tester.pumpAndSettle();
+
+    expect(gift.createDraftCalls, 1);
+    expect(gift.lastOccasionDate, _occasionDate);
   });
 }

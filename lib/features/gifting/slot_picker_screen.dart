@@ -8,6 +8,7 @@ import '../../models/birthday.dart';
 import '../../models/delivery_slot.dart';
 import '../../models/product.dart';
 import '../../repositories/gift_repository.dart';
+import 'draft_screen.dart';
 
 /// The slot picker (spec §7): delivery windows for the product's service
 /// area, each showing what capacity is left. Pushed (not routed) from
@@ -157,42 +158,24 @@ class _SlotPickerScreenState extends State<SlotPickerScreen> {
     );
   }
 
+  /// Pushes the real [DraftScreen] (Amendment B2 -- Task 5's placeholder,
+  /// which Task 6 kept alive as `_DraftScreenPlaceholder`, is gone).
+  ///
+  /// [_occasionDate] -- already computed once, in [initState] -- is what
+  /// travels forward, not [widget.birthday]: [DraftScreen] (and
+  /// `DraftCubit.create`) must not recompute `birthday.nextOccurrence` a
+  /// second time from their own clock, because a second derivation could
+  /// disagree with this one (a session crossing midnight between the two
+  /// screens is enough) and nothing server-side would catch it. See
+  /// `draft_cubit.dart`'s class doc.
   void _selectSlot(BuildContext context, DeliverySlot slot) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => _DraftScreenPlaceholder(
-          personId: widget.personId,
+        builder: (_) => DraftScreen(
+          recipientPersonId: widget.personId,
           product: widget.product,
           slot: slot,
-        ),
-      ),
-    );
-  }
-}
-
-/// Stands in for Task 7's `DraftScreen`. Pushed (not routed), the same as
-/// the real thing will be, so the default back arrow is supplied by the
-/// framework and no `leading` is needed here -- same reasoning as
-/// `catalog_screen.dart`'s (now removed) `_SlotPickerPlaceholder`.
-class _DraftScreenPlaceholder extends StatelessWidget {
-  const _DraftScreenPlaceholder({
-    required this.personId,
-    required this.product,
-    required this.slot,
-  });
-
-  final int personId;
-  final Product product;
-  final DeliverySlot slot;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(product.name)),
-      body: Center(
-        child: Text(
-          'Confirming ${product.name} for slot ${slot.id} -- coming in a '
-          'later task.',
+          occasionDate: _occasionDate,
         ),
       ),
     );
