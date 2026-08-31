@@ -177,4 +177,39 @@ abstract final class AppStrings {
       'Checkout is not built yet, so this gift stays a draft and the slot is '
       'released when the hold expires. Nothing has been charged.';
   static const giftSeeMyGifts = 'See my gifts';
+
+  // Gifting -- gift list (Task 8). Reached from the profile (spec §7): the
+  // sender's own gifts and their status.
+  static const giftListTitle = 'My gifts';
+  static const giftListEmpty = 'You have not sent a cake yet.';
+  // Every gift in this phase has a null deliveryCity -- nothing confirms one
+  // yet (spec §6) -- so rendering nothing here would look like a bug rather
+  // than the honest state it is.
+  static const giftCityPending = 'Address not confirmed yet';
+  static const giftCityTemplate = 'Delivering to %s';
+  static const giftHoldExpired = 'Slot hold expired';
+
+  // Not in the brief's Step-1 list; the brief describes each row as showing
+  // "the product" but neither GiftListCubit nor Gift carries a product NAME
+  // -- only Gift.productId, an int. Threading a name would need either a
+  // ProductRepository this cubit's interfaces don't authorize
+  // (`GiftListCubit(GiftRepository, {now})` per the brief) or a join added to
+  // GiftRepositoryImpl.myGifts(), which is out of this task's file list. The
+  // same shape as Task 7's F6 (recipient shown by id): disclosed, not hidden.
+  static const giftProductTemplate = 'Product #%s';
+
+  // GiftStatus carries eleven DB states plus an `unknown` fallback (Task 3);
+  // every one needs a human label on the list row.
+  static const giftStatusDraft = 'Draft';
+  static const giftStatusPaid = 'Paid';
+  static const giftStatusAwaitingConfirm = 'Awaiting confirmation';
+  static const giftStatusConfirmed = 'Confirmed';
+  static const giftStatusPlaced = 'Placed';
+  static const giftStatusOutForDelivery = 'Out for delivery';
+  static const giftStatusDelivered = 'Delivered';
+  static const giftStatusExpired = 'Expired';
+  static const giftStatusDeclined = 'Declined';
+  static const giftStatusDeliveryFailed = 'Delivery failed';
+  static const giftStatusRefunded = 'Refunded';
+  static const giftStatusUnknown = 'Unknown';
 }

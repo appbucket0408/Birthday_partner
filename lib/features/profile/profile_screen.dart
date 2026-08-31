@@ -86,6 +86,19 @@ class ProfileView extends StatelessWidget {
   Widget _buildLoaded(BuildContext context, ProfileLoaded state) {
     return ListView(
       children: [
+        // The gift list's entry point (spec §7: "reached from the profile").
+        // A plain ListTile, not a fourth _StatTile -- there is no count to
+        // show here that GiftListCubit.load() has not already fetched, and
+        // duplicating that fetch just to render a badge would be a second
+        // network round trip for a number the destination screen shows
+        // anyway.
+        ListTile(
+          key: const Key('profile_my_gifts_tile'),
+          leading: const Icon(Icons.cake_outlined),
+          title: const Text(AppStrings.giftListTitle),
+          onTap: () => context.go('/gifts'),
+        ),
+        const Divider(height: 1),
         Row(
           children: [
             Expanded(

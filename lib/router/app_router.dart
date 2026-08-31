@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../core/app_strings.dart';
 import '../features/contacts_import/import_disclosure_screen.dart';
 import '../features/gifting/catalog_screen.dart';
+import '../features/gifting/gift_list_screen.dart';
 import '../features/onboarding/phone_screen.dart';
 import '../features/onboarding/profile_setup_screen.dart';
 import '../features/person/person_screen.dart';
@@ -62,11 +63,12 @@ GoRouter buildRouter(SessionCubit session) {
       ),
       // Carries a path parameter, so -- like '/person/:personId' -- it is
       // matched by prefix below, not added to the literal `signedIn` set.
-      // Only this one route is real: the slot picker and the draft screen
-      // that follow it are parameterless and cannot carry the selection
-      // (person, birthday, product, slot) accumulating across the three
-      // screens, so both are pushed rather than routed (see
-      // task-5-brief.md and CatalogScreen's doc).
+      // The slot picker and the draft screen that follow it are
+      // parameterless but cannot carry the selection (person, birthday,
+      // product, slot) accumulating across the three screens, so both are
+      // pushed rather than routed (see task-5-brief.md and CatalogScreen's
+      // doc). '/gifts' (below) is the one screen after this point that IS a
+      // real route: it carries nothing forward, so it can be.
       GoRoute(
         path: '/gift/new/:personId',
         builder: (_, state) => CatalogScreen(
@@ -74,6 +76,14 @@ GoRouter buildRouter(SessionCubit session) {
         ),
       ),
       GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+      // Parameterless and genuinely addressable -- unlike the slot picker and
+      // draft screens that precede it, it only loads the signed-in user's
+      // own gifts, so it needs nothing carried forward from another screen.
+      // Literal `signedIn` membership is therefore correct here, unlike
+      // '/person/:personId' and '/gift/new/:personId' below, which carry a
+      // path parameter and so need prefix matching instead (see those
+      // routes' own comments).
+      GoRoute(path: '/gifts', builder: (_, __) => const GiftListScreen()),
       GoRoute(
         path: '/profile/celebrating',
         builder: (context, __) => CelebrationListScreen(
@@ -125,6 +135,7 @@ GoRouter buildRouter(SessionCubit session) {
         '/profile',
         '/profile/celebrating',
         '/profile/celebrates',
+        '/gifts',
       };
       final onPersonPage = at.startsWith('/person/');
       // '/gift/new/:personId' carries a path parameter for the same reason

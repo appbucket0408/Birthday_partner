@@ -1,4 +1,5 @@
 import 'package:birthday_app/features/gifting/catalog_screen.dart';
+import 'package:birthday_app/features/gifting/gift_list_screen.dart';
 import 'package:birthday_app/features/person/person_screen.dart';
 import 'package:birthday_app/features/profile/celebration_list_screen.dart';
 import 'package:birthday_app/models/birthday.dart';
@@ -280,6 +281,51 @@ void main() {
 
         await tester.pumpAndSettle();
         expect(find.byType(CatalogView), findsOneWidget);
+      },
+    );
+
+    // Task 8: '/gifts' had NO GoRoute at all until this task -- a signed-in
+    // user who completed a draft and tapped "See my gifts" landed on
+    // go_router's default unmatched-route error page (draft_screen.dart's
+    // `context.go('/gifts')` was a live dead end). The test that would have
+    // caught it needs the REAL buildRouter, not an inline test router --
+    // draft_screen_test.dart's "See my gifts" test builds its own
+    // GoRouter with a '/gifts' GoRoute declared inline, so it proved the
+    // button's onPressed callback, never that the production router could
+    // resolve the destination. This is that missing test: it proves BOTH
+    // that '/gifts' resolves through buildRouter, and that the redirect
+    // guard ADMITS a signed-in user there rather than bouncing them to
+    // '/timeline' -- the same shape of test as '/person/1' and
+    // '/gift/new/1' above, for the one other real, parameterless route
+    // this phase adds.
+    testWidgets(
+      '/gifts is reachable and is not bounced back to /timeline',
+      (tester) async {
+        final fixture = _routerAt('/gifts');
+        addTearDown(() => _disposeFixture(fixture));
+        final router = fixture.router;
+
+        await tester.pumpWidget(_appWith(router));
+        // See the '/person/1' test above for why only this one exception is
+        // swallowed rather than asserted on.
+        final err = tester.takeException();
+        if (err != null) {
+          expect(
+            err.toString(),
+            contains('You must initialize the supabase instance'),
+            reason: 'unexpected exception during pump (not the '
+                'expected GiftListScreen/Supabase crash): $err',
+          );
+        }
+
+        expect(
+          _locationOf(router),
+          '/gifts',
+          reason: 'the redirect guard sent /gifts elsewhere',
+        );
+
+        await tester.pumpAndSettle();
+        expect(find.byType(GiftListView), findsOneWidget);
       },
     );
   });

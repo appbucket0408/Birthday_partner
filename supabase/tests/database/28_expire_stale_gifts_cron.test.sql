@@ -36,11 +36,17 @@ insert into public.delivery_slots
 select id, current_date + 7, '09:00', '11:00', 1
 from public.service_areas where name = 'Sweep Test Area';
 
+-- Scoped by the fixture's OWN area, not by slot_date: Task 8 seeds Gurugram
+-- with a slot on every one of the next 60 days (F4), so `current_date + 7`
+-- is no longer a date only this fixture occupies -- a plain slot_date
+-- filter here would join against Gurugram's own product too and this
+-- temporary table would hold more than one row.
 create temporary table sweep_slot as
 select s.id as slot_id, p.id as product_id
 from public.delivery_slots s
 join public.products p on p.service_area_id = s.service_area_id
-where s.slot_date = current_date + 7;
+where s.service_area_id =
+  (select id from public.service_areas where name = 'Sweep Test Area');
 
 select private.create_gift(
   (select gifter from sweep_ids),

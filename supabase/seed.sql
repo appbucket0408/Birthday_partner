@@ -184,3 +184,21 @@ insert into public.delivery_slots (service_area_id, slot_date, window_start, win
 select id, current_date + 7, time '10:00', time '13:00', 1
 from public.service_areas where name = 'Race Test Area'
 on conflict (service_area_id, slot_date, window_start) do nothing;
+
+-- Task 8 / Ruling F4: the local seed could not complete a gift at all.
+-- 'Gurugram' (above) had a product and no slots, ever; 'Race Test Area' had
+-- a slot and no products, so its picker was never reached -- and Task 6's
+-- exact-date filter compounds it, since the picker shows only slots on the
+-- recipient's OWN birthday, and one fixed seed date matches an arbitrary
+-- birthday essentially never. Give Gurugram a slot on every one of the next
+-- 60 days so any test contact whose birthday falls in that window reaches a
+-- bookable one. 'Race Test Area' is untouched above, exactly as it was:
+-- Task 7's concurrency test (tests.race_last_slot) reserves against it from
+-- two separate connections and depends on it existing outside any test
+-- transaction.
+insert into public.delivery_slots (service_area_id, slot_date, window_start, window_end, capacity)
+select a.id, d, time '10:00', time '13:00', 5
+from public.service_areas a
+cross join generate_series(current_date + 1, current_date + 60, interval '1 day') as d
+where a.name = 'Gurugram'
+on conflict (service_area_id, slot_date, window_start) do nothing;
