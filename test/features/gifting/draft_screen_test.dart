@@ -299,6 +299,78 @@ void main() {
     expect(find.text(AppStrings.somethingWentWrong), findsNothing);
   });
 
+  // Whole-branch review §8 fold-in: DraftError.slotFull was set by
+  // DraftCubit (test 4 above) but never read by this screen -- either it had
+  // to start driving something, or it had to go; draft_cubit_test.dart
+  // already asserts on it directly (`.having((s) => s.slotFull, ...)`), so
+  // removing the field would have broken a passing test for no gain. This
+  // is what it now drives: a real way back to a live slot, gated on exactly
+  // that flag and nothing else.
+  testWidgets(
+      'a slotFull DraftError shows a way back to a live slot, and tapping '
+      'it pops back to the caller', (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DraftState>.empty(),
+      initialState:
+          const DraftError(AppStrings.giftSlotJustFilled, slotFull: true),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Navigator(
+          // Keyed, and found by that key rather than by type: MaterialApp
+          // supplies its OWN root Navigator, so find.byType(Navigator)
+          // matches two and tester.state throws "Too many elements".
+          key: const Key('caller_navigator'),
+          onGenerateRoute: (_) => MaterialPageRoute(
+            builder: (_) => const Scaffold(key: Key('caller_screen')),
+          ),
+        ),
+      ),
+    );
+    final navigator = tester.state<NavigatorState>(
+      find.byKey(const Key('caller_navigator')),
+    );
+    navigator.push(
+      MaterialPageRoute(
+        builder: (_) => BlocProvider<DraftCubit>.value(
+          value: cubit,
+          child: DraftView(
+            recipientPersonId: _recipientPersonId,
+            recipientName: _recipientName,
+            product: _product,
+            slot: _slot,
+            occasionDate: _occasionDate,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('gift_pick_another_slot')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('gift_pick_another_slot')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('caller_screen')), findsOneWidget);
+    expect(find.byType(DraftView), findsNothing);
+  });
+
+  // The flip side: a non-slotFull DraftError (any other failure, including
+  // 45005 above) must NOT show this action -- there is no "another slot" to
+  // pick, and offering one would be a lie.
+  testWidgets(
+      'a non-slotFull DraftError does not show the way back to a live slot',
+      (tester) async {
+    await pumpView(
+      tester,
+      const Stream<DraftState>.empty(),
+      initialState: const DraftError(AppStrings.somethingWentWrong),
+    );
+
+    expect(find.byKey(const Key('gift_pick_another_slot')), findsNothing);
+  });
+
   // 6. The message field is capped at 280 characters, matching
   // `gifts_message_length` -- enforced client-side so an over-length
   // message is unreachable through the UI rather than round-tripping to the

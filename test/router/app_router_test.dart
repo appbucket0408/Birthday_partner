@@ -42,8 +42,14 @@ class _FakeAuthRepository implements AuthRepository {
   @override
   String? get currentUserId => null;
 
+  // Whole-branch review §8 should-fix 5: the '/profile' route's own
+  // ProfileScreen (via ProfileCubit) calls this during load(), which no
+  // test in this file needed until the "My gifts" tile arrival test below
+  // needed to actually reach a rendered ProfileScreen. Returning a real
+  // profile rather than throwing costs nothing -- no existing test in this
+  // file ever reached '/profile' before, so nothing depended on the throw.
   @override
-  Future<Profile> loadProfile() async => throw UnimplementedError();
+  Future<Profile> loadProfile() async => _readyProfile();
 
   @override
   Future<void> signOut() async {}
@@ -113,6 +119,40 @@ class _FakeGiftRepository implements GiftRepository {
   Future<List<Gift>> myGifts() async => [];
 }
 
+// Whole-branch review §8 should-fix 5: person_screen.dart's "Send a cake"
+// tile is gated on `_canComposeFor` (a non-null birthday AND
+// viewerCelebrates), which _FakePersonRepository/_FakeGraphRepository above
+// never satisfy (no birthday, no celebrations). These two exist only to
+// satisfy that gate for the one arrival test that needs the tile to
+// actually render.
+class _ComposablePersonRepository extends _FakePersonRepository {
+  @override
+  Future<Person> person(int personId) async => Person(
+        id: personId,
+        displayName: 'Compose Target',
+        isClaimed: true,
+        birthday: const Birthday(month: 6, day: 1),
+      );
+}
+
+class _CelebratingGraphRepository extends _FakeGraphRepository {
+  _CelebratingGraphRepository(this._personId);
+  final int _personId;
+
+  @override
+  Future<List<Celebration>> celebrations() async => [
+        Celebration(
+          id: 1,
+          person: Person(
+            id: _personId,
+            displayName: 'Compose Target',
+            isClaimed: true,
+            birthday: const Birthday(month: 6, day: 1),
+          ),
+        ),
+      ];
+}
+
 class _FakeWishRepository implements WishRepository {
   @override
   Future<List<Wish>> wishesFor(int personId) async => [];
@@ -141,17 +181,28 @@ Profile _readyProfile() => const Profile(
 /// exactly as app.dart registers them in production, via
 /// MultiRepositoryProvider above MaterialApp.router -- never read by the
 /// router itself, only by the screens the router builds.
-Widget _appWith(GoRouter router) => MultiRepositoryProvider(
+Widget _appWith(
+  GoRouter router, {
+  PersonRepository? personRepository,
+  GraphRepository? graphRepository,
+}) =>
+    MultiRepositoryProvider(
       providers: [
-        RepositoryProvider<GraphRepository>.value(value: _FakeGraphRepository()),
+        RepositoryProvider<GraphRepository>.value(
+          value: graphRepository ?? _FakeGraphRepository(),
+        ),
         RepositoryProvider<ProfileRepository>.value(
           value: _FakeProfileRepository(),
         ),
         RepositoryProvider<PersonRepository>.value(
-          value: _FakePersonRepository(),
+          value: personRepository ?? _FakePersonRepository(),
         ),
         RepositoryProvider<WishRepository>.value(value: _FakeWishRepository()),
         RepositoryProvider<GiftRepository>.value(value: _FakeGiftRepository()),
+        // Needed by '/profile' (ProfileScreen -> ProfileCubit._auth), added
+        // alongside the should-fix 5 arrival tests below -- no earlier test
+        // in this file ever reached '/profile'.
+        RepositoryProvider<AuthRepository>.value(value: _FakeAuthRepository()),
       ],
       child: MaterialApp.router(routerConfig: router),
     );
@@ -366,6 +417,106 @@ void main() {
           find.byType(CelebrationListScreen),
         );
         expect(screen.navigable, isTrue);
+      },
+    );
+  });
+
+  // Whole-branch review §8 should-fix 5: two navigation edges the same shape
+  // as the '/gifts' dead end Task 8 fixed -- reachable only by tapping a
+  // button whose destination path string no test exercised. Both go through
+  // the REAL buildRouter, not an inline test router (the exact gap that let
+  // '/gifts' hide): profile_screen_test.dart and person_screen_test.dart
+  // each prove the tile renders and is visible, never that tapping it
+  // actually arrives anywhere.
+  group('navigation edges with no arrival test (whole-branch review §8)', () {
+    testWidgets(
+      'tapping "My gifts" on the profile page arrives at /gifts through '
+      'the real router', (tester) async {
+        final fixture = _routerAt('/profile');
+        addTearDown(() => _disposeFixture(fixture));
+        final router = fixture.router;
+
+        await tester.pumpWidget(_appWith(router));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('profile_my_gifts_tile')));
+        await tester.pumpAndSettle();
+
+        expect(
+          _locationOf(router),
+          '/gifts',
+          reason: 'tapping the "My gifts" tile did not arrive at /gifts',
+        );
+        expect(find.byType(GiftListView), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'tapping "Send a cake" on the person page arrives at '
+      '/gift/new/:personId through the real router', (tester) async {
+        const personId = 42;
+        final fixture = _routerAt('/person/$personId');
+        addTearDown(() => _disposeFixture(fixture));
+        final router = fixture.router;
+
+        await tester.pumpWidget(
+          _appWith(
+            router,
+            personRepository: _ComposablePersonRepository(),
+            graphRepository: _CelebratingGraphRepository(personId),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('gift_send_cake_button')));
+        await tester.pumpAndSettle();
+
+        expect(
+          _locationOf(router),
+          '/gift/new/$personId',
+          reason: 'tapping "Send a cake" did not arrive at /gift/new/:personId',
+        );
+        expect(find.byType(CatalogView), findsOneWidget);
+      },
+    );
+  });
+
+  // Whole-branch review §8 should-fix 4: app.dart configured NO errorBuilder
+  // at all -- Task 8 closed the one known instance ('/gifts'), not the
+  // class. Any unmatched location landed on go_router's own default error
+  // page, with no way back into the app.
+  group('errorBuilder', () {
+    testWidgets(
+      'an unknown location renders the error page, which can navigate home',
+      (tester) async {
+        final fixture = _routerAt('/this-route-does-not-exist');
+        addTearDown(() => _disposeFixture(fixture));
+        final router = fixture.router;
+
+        await tester.pumpWidget(_appWith(router));
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const Key('router_error_go_home')), findsOneWidget);
+
+        // Deliberately NOT followed by `tester.pump()`: navigating home
+        // builds the REAL TimelineScreen, which falls back to
+        // GraphRepositoryImpl(ApiClient.instance) because it takes no
+        // repository argument at all (see _routerAt's own doc), and this
+        // test never initializes Supabase, so that build throws mid
+        // page-transition -- which leaves a pending high-performance-mode
+        // request undisposed (go_router's page transition requests one) and
+        // fails this test on an unrelated framework invariant, not on
+        // anything this fix is responsible for. `context.go` itself runs
+        // synchronously inside `onPressed`, updating the router's own
+        // location before any frame is pumped, so the assertion below is
+        // already meaningful without ever letting that doomed frame build.
+        await tester.tap(find.byKey(const Key('router_error_go_home')));
+
+        expect(
+          _locationOf(router),
+          '/timeline',
+          reason: 'the error page\'s home button did not navigate to /timeline',
+        );
       },
     );
   });

@@ -166,10 +166,16 @@ void main() {
     final tile = tester.widget<ListTile>(find.byKey(const Key('slot_1')));
     expect(tile.onTap, isNull);
 
-    expect(find.textContaining('coming in a later task'), findsNothing);
+    // Whole-branch review §8 should-fix 6: this used to assert absence of
+    // 'coming in a later task', a string Amendment B2 deleted from lib/
+    // entirely -- so a newly-tappable full slot would push the real
+    // DraftScreen and this assertion would still pass; only the
+    // `tile.onTap, isNull` check above actually carried the test. Asserting
+    // DraftScreen absence directly is what a regression here would actually
+    // violate.
     await tester.tap(find.byKey(const Key('slot_1')));
     await tester.pumpAndSettle();
-    expect(find.textContaining('coming in a later task'), findsNothing);
+    expect(find.byType(DraftScreen), findsNothing);
   });
 
   // 3. An empty slot list renders AppStrings.giftNoSlots, not a blank

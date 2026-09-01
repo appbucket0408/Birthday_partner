@@ -189,6 +189,20 @@ class _DraftViewState extends State<DraftView> {
                     style:
                         TextStyle(color: Theme.of(context).colorScheme.error),
                   ),
+                  // Whole-branch review §8 fold-in: `slotFull` was set by
+                  // DraftCubit (23514) but never read here -- the error text
+                  // alone says the slot filled but gives no way back to a
+                  // live one. Pops back to SlotPickerScreen, which pushed
+                  // this screen and so is always the caller directly below
+                  // it on the stack.
+                  if (state.slotFull) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    TextButton(
+                      key: const Key('gift_pick_another_slot'),
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text(AppStrings.giftPickAnotherSlot),
+                    ),
+                  ],
                 ],
                 const SizedBox(height: AppSpacing.md),
                 FilledButton(

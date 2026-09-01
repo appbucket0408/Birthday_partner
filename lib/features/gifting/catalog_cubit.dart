@@ -21,27 +21,18 @@ import 'catalog_state.dart';
 /// consumes it the same way), so this is not a new dependency in the tree,
 /// only a new consumer of an existing one.
 class CatalogCubit extends Cubit<CatalogState> with ReentrancyGuard {
-  /// [now] is accepted for the same reason every other cubit in this app
-  /// takes it -- injectable so a test never depends on the real clock --
-  /// even though this cubit's own logic does not derive a date yet. Task
-  /// 6/7 carry [CatalogLoaded.person]'s birthday forward into the slot
-  /// picker and the draft, where `Birthday.nextOccurrence` needs a clock.
-  CatalogCubit(
-    this._gifts,
-    this._people, {
-    DateTime Function()? now,
-  })  : _now = now ?? DateTime.now,
-        super(const CatalogLoading());
+  /// Whole-branch review §8 fold-in: this cubit once took an injectable
+  /// `now` clock on the theory that Tasks 6/7 would need it here for
+  /// `Birthday.nextOccurrence`. They didn't -- the slot picker and the
+  /// draft screen each take their own clock independently -- so the
+  /// parameter and its backing field sat unread behind
+  /// `// ignore: unused_field` from the day this cubit was written. Removed
+  /// rather than kept "for later": nothing in this codebase currently reads
+  /// it, and reintroducing it if a future task genuinely needs it is cheap.
+  CatalogCubit(this._gifts, this._people) : super(const CatalogLoading());
 
   final GiftRepository _gifts;
   final PersonRepository _people;
-  // Genuinely unused by this task's own logic -- kept (rather than dropping
-  // the parameter) because Task 6/7 carry CatalogLoaded.person's birthday
-  // forward into a clock-dependent Birthday.nextOccurrence call, and this is
-  // where that clock is meant to be injected from, matching every other
-  // cubit in this app (PersonCubit, TimelineCubit).
-  // ignore: unused_field
-  final DateTime Function() _now;
 
   /// Loads the recipient and the service areas together, then the first
   /// area's products.

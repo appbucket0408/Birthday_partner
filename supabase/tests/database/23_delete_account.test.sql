@@ -26,7 +26,7 @@
 -- is what this test performs directly rather than re-implementing the HTTP
 -- call the Edge Function makes.
 begin;
-select plan(27);
+select plan(35);
 
 select tests.as_postgres();
 
@@ -317,6 +317,136 @@ select is(
     where conname = 'gift_events_actor_profile_id_fkey'),
   'n',
   'catalog: gift_events.actor_profile_id is still ON DELETE SET NULL'
+);
+
+-- ------------------------------------------ Whole-branch review §8 BLOCKER:
+-- the F5 catalog pin above only ever proved confdeltype = 'r' -- never that
+-- deletion actually behaves, which is exactly why the live regression this
+-- section covers shipped unnoticed: gifts.sender_profile_id's RESTRICT
+-- became reachable (and permanent -- expire_stale_gifts keeps a lapsed
+-- draft as 'expired' rather than deleting it) the moment M3 let a real
+-- client create a gift, and nothing here would have failed.
+--
+-- pgTAP has no HTTP layer, so this cannot call the delete_account Edge
+-- Function itself -- it exercises the two SQL-level statements that
+-- function now performs, in order: public.rpc_delete_own_draft_gifts, then
+-- the `delete from auth.users` that stands in for admin.auth.admin.
+-- deleteUser everywhere else in this file. What this leaves uncovered: the
+-- Edge Function's own HTTP response shape, including the new distinguishable
+-- "account_has_active_gifts" / 409 branch -- that is a claim about
+-- index.ts's own code, not about the database, and pgTAP cannot see it.
+select tests.as_postgres();
+select tests.create_user('draft_deleter');
+select tests.create_user('paid_deleter');
+
+insert into public.service_areas (name) values ('Delete Account Test Area');
+insert into public.products (service_area_id, name, price_minor)
+select id, 'Delete Account Cake', 50000
+from public.service_areas where name = 'Delete Account Test Area';
+insert into public.delivery_slots
+  (service_area_id, slot_date, window_start, window_end, capacity)
+select id, current_date + 30, '09:00', '11:00', 5
+from public.service_areas where name = 'Delete Account Test Area';
+
+create temporary table delete_account_gift_fixture as
+select
+  (select id from public.profiles where handle = 'draft_deleter') as draft_deleter,
+  (select id from public.profiles where handle = 'paid_deleter') as paid_deleter,
+  tests.create_person('+919999556501', 'Delete Account Friend') as friend,
+  (select p.id from public.products p
+     join public.service_areas a on a.id = p.service_area_id
+     where a.name = 'Delete Account Test Area') as product_id,
+  (select s.id from public.delivery_slots s
+     join public.service_areas a on a.id = s.service_area_id
+     where a.name = 'Delete Account Test Area') as slot_id;
+
+-- A gift still in 'draft' -- the free, one-tap state this fix must clear.
+create temporary table draft_gift as
+with ins as (
+  insert into public.gifts
+    (sender_profile_id, recipient_person_id, product_id, service_area_id,
+     slot_id, occasion_date, amount_minor, status)
+  select draft_deleter, friend, product_id,
+    (select service_area_id from public.products where id = product_id),
+    slot_id, current_date + 30, 50000, 'draft'
+  from delete_account_gift_fixture
+  returning id
+)
+select id from ins;
+
+-- A gift moved past draft/expired -- the case this fix must NOT touch.
+-- 'paid' is reachable directly from 'draft' via private.gift_transition
+-- (20260822000007_gifts.sql's transition table), so no payment webhook is
+-- needed to reach it here.
+create temporary table paid_gift as
+with ins as (
+  insert into public.gifts
+    (sender_profile_id, recipient_person_id, product_id, service_area_id,
+     slot_id, occasion_date, amount_minor, status)
+  select paid_deleter, friend, product_id,
+    (select service_area_id from public.products where id = product_id),
+    slot_id, current_date + 30, 50000, 'draft'
+  from delete_account_gift_fixture
+  returning id
+)
+select id from ins;
+
+select private.gift_transition((select id from paid_gift), 'paid');
+
+-- -------------------------------- the fix: draft clears, deletion succeeds
+select lives_ok(
+  $$ select public.rpc_delete_own_draft_gifts(
+       (select draft_deleter from delete_account_gift_fixture)) $$,
+  'rpc_delete_own_draft_gifts does not raise for a sender with only a draft gift'
+);
+
+select is(
+  (select count(*)::int from public.gifts where id = (select id from draft_gift)),
+  0,
+  'the draft gift is gone after rpc_delete_own_draft_gifts'
+);
+
+select lives_ok(
+  $$ delete from auth.users where id =
+       (select draft_deleter from delete_account_gift_fixture) $$,
+  'a user whose only gift was a draft can now have their account deleted'
+);
+
+select is(
+  (select count(*)::int from public.profiles
+     where id = (select draft_deleter from delete_account_gift_fixture)),
+  0,
+  'the draft-gift sender''s profile is actually gone'
+);
+
+-- ------------------------------ the guard: a PAID gift still blocks, loudly
+-- rpc_delete_own_draft_gifts only ever touches draft/expired, so it must
+-- leave this row untouched -- proved before the delete is even attempted.
+select lives_ok(
+  $$ select public.rpc_delete_own_draft_gifts(
+       (select paid_deleter from delete_account_gift_fixture)) $$,
+  'rpc_delete_own_draft_gifts does not raise for a sender with a paid gift either'
+);
+
+select is(
+  (select status::text from public.gifts where id = (select id from paid_gift)),
+  'paid',
+  'the paid gift is untouched by rpc_delete_own_draft_gifts'
+);
+
+select throws_ok(
+  $$ delete from auth.users where id =
+       (select paid_deleter from delete_account_gift_fixture) $$,
+  '23503',
+  null,
+  'a user with a gift in any status other than draft/expired still cannot be deleted'
+);
+
+select is(
+  (select count(*)::int from public.profiles
+     where id = (select paid_deleter from delete_account_gift_fixture)),
+  1,
+  'the paid-gift sender''s profile survives the refused delete'
 );
 
 select * from finish();

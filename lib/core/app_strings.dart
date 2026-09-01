@@ -7,6 +7,16 @@ abstract final class AppStrings {
   static const somethingWentWrong = 'Something went wrong. Please try again.';
   static const noConnection = 'No internet connection.';
 
+  // Router -- errorBuilder (whole-branch review §8 should-fix 4). Shown for
+  // ANY unmatched location, not just the one instance ('/gifts') that was
+  // fixed by adding a real route: with no errorBuilder configured at all,
+  // every other typo or dead link still lands on go_router's own default
+  // error page, which has no way back into the app.
+  static const routeNotFoundTitle = 'Page not found';
+  static const routeNotFoundBody =
+      "That page doesn't exist, or the link is out of date.";
+  static const routeNotFoundAction = 'Go to timeline';
+
   // Onboarding — phone
   static const phoneTitle = 'What is your number?';
   static const phoneSubtitle = 'We use it to find the people you already know.';
@@ -170,6 +180,11 @@ abstract final class AppStrings {
   static const giftCreate = 'Reserve this slot';
   static const giftSlotJustFilled =
       'That slot just filled. Please pick another window.';
+  // Whole-branch review §8 fold-in: DraftError.slotFull was set but never
+  // read -- draft_screen.dart rendered only `state.message`, which already
+  // says the slot filled, but gave no way back to a live one. This is the
+  // action that field now drives.
+  static const giftPickAnotherSlot = 'Choose another time';
   static const giftNotCelebrating =
       'You can only send a cake to someone you celebrate.';
   static const giftHoldNoticeTitle = 'Slot reserved for 15 minutes';

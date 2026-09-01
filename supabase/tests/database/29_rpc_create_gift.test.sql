@@ -1,5 +1,5 @@
 begin;
-select plan(6);
+select plan(7);
 
 select tests.as_postgres();
 select tests.create_user('sender');
@@ -58,12 +58,31 @@ select is(
   'a draft carries no city -- it is written only at confirmation'
 );
 
--- 3. The sender cannot reach the address row a gift points at. Nothing points
---    at one yet in a draft, but the policy is what must hold, not the null.
+-- 3. THE PRODUCT'S CORE PROMISE, genuinely exercised. Whole-branch review §8
+--    should-fix 3: the original version of this assertion counted
+--    public.addresses with the table holding ZERO rows, so it passed with
+--    every RLS policy on addresses dropped -- it proved nothing. Fixed by
+--    creating a REAL address for the gift's own recipient (the friend, not
+--    an unrelated person -- this must be the exact row a real gift points
+--    at, not merely some address existing) and asserting as the sender that
+--    it is still invisible. Same pattern as 04_addresses.test.sql:42-58
+--    (zero rows, then a city-filter probe) -- not invented here.
+select tests.as_postgres();
+select private.set_address_for_person(
+  (select friend from gift_ids), 'Home', '1 Test Lane', null, 'Giftville', '110001'
+);
+
+select tests.as_user((select sender from gift_ids));
 select is(
   (select count(*)::int from public.addresses),
   0,
-  'no address is readable by the sender'
+  'a sender selecting addresses gets zero rows even though the recipient has a real one'
+);
+
+select is(
+  (select count(*)::int from public.addresses where city = 'Giftville'),
+  0,
+  'a sender cannot find the recipient''s address by filtering on city'
 );
 
 -- 4. THE GUARD THIS TASK ADDS. people.id is a sequential bigint, so without

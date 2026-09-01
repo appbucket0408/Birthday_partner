@@ -21,18 +21,33 @@
 // makes "delete my account" actually mean the app stops knowing this
 // person's birthday, rather than merely unlinking a still-fully-populated row.
 //
-// KNOWN LIMITS -- two of the ten foreign keys into public.profiles are
-// ON DELETE RESTRICT, and both are currently inert only because M1 ships no
-// gifts:
-//   - gifts.sender_profile_id: once M3 ships and a user has sent one gift,
-//     deleting their account fails until M3 decides whether a sender's gifts
-//     are reassigned, anonymised, or deletion is refused.
-//   - address_access_log.staff_profile_id: worse than the above, because that
-//     table is deliberately immutable (an audit trail its own subject can
-//     edit is not an audit trail), so reassignment/anonymisation are not
-//     options here the way they are for gifts. A staff member who has ever
-//     opened the ops console could never be deleted once a single gift, and
-//     therefore a single access-log row, exists.
+// KNOWN LIMIT -- gifts.sender_profile_id, PARTIALLY ADDRESSED (M3 Phase 1a
+// pre-merge fix round). This was written when M1 shipped no gifts, so the
+// RESTRICT below was inert; M3 shipped gifts, so it no longer is. Reproduced
+// on the live DB: a user who had ever drafted a gift could NEVER delete
+// their account again -- not even after the hold lapsed, since
+// private.expire_stale_gifts moves a lapsed draft to 'expired' and keeps the
+// row.
+//
+// Fixed for the two states that carry no payment, no delivery and no
+// counterparty obligation: rpc_delete_own_draft_gifts (below, before
+// admin.deleteUser) deletes the caller's own 'draft' and 'expired' gifts,
+// so an abandoned or lapsed hold no longer blocks erasure.
+//
+// STILL a real limit for every other status: a 'paid' gift and beyond is a
+// real transaction with a counterparty, and deleting the sender's account
+// out from under it is NOT safe to do silently. That case still refuses
+// deletion below (accountHasActiveGifts) -- M3 Phase 2, which ships
+// payments, must decide whether such a sender's gifts are reassigned,
+// anonymised, or deletion is refused outright, and must revisit this
+// function then.
+//
+// address_access_log.staff_profile_id is untouched by this fix and remains
+// a KNOWN LIMIT: that table is deliberately immutable (an audit trail its
+// own subject can edit is not an audit trail), so reassignment/anonymisation
+// are not options here the way they are for gifts. A staff member who has
+// ever opened the ops console could never be deleted once a single
+// access-log row exists.
 //
 // KNOWN LIMIT -- the JWT window: a deleted user's access token stays
 // signature-valid until it expires (jwt_expiry, 3600s by default). Their
@@ -86,16 +101,51 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const admin = createClient(url, serviceKey);
-  const { error } = await admin.auth.admin.deleteUser(userData.user.id);
 
-  if (error) {
-    // Do not echo the driver text: once M3 exists this is where a
-    // gifts-RESTRICT violation will surface, and it names internal tables.
-    console.error("deleteUser failed", error.message);
+  // Clear the one class of gifts that must never block deletion: a draft or
+  // expired hold is free, unconfirmed, and has no counterparty obligation.
+  // This must run BEFORE deleteUser, not as a fallback after it fails --
+  // deleteUser is a single all-or-nothing GoTrue call, so any RESTRICT
+  // violation it hits aborts the whole delete, and there is no way to
+  // "retry after clearing gifts" once that has already happened.
+  const { error: giftsError } = await admin.rpc(
+    "rpc_delete_own_draft_gifts",
+    { p_profile_id: userData.user.id },
+  );
+  if (giftsError) {
+    // Same driver-text rule as below: this is our own RPC, not GoTrue, but
+    // it still touches internal table/column names in its error text.
+    console.error("rpc_delete_own_draft_gifts failed", giftsError.message);
     return new Response(JSON.stringify({ error: "delete failed" }), {
       status: 500,
       headers: { "content-type": "application/json" },
     });
+  }
+
+  const { error } = await admin.auth.admin.deleteUser(userData.user.id);
+
+  if (error) {
+    // Do not echo the driver text -- it names internal tables. But a caller
+    // that still fails here (after draft/expired gifts were just cleared
+    // above) is in a genuinely different situation than any other failure:
+    // they hold a gift in a status this function deliberately does not
+    // touch (paid and beyond -- a real transaction with a counterparty, not
+    // safe to silently delete). That is distinguishable from "something
+    // went wrong" without revealing which table or constraint fired, so the
+    // client gets a code it can act on (e.g. "finish or cancel your gift
+    // before deleting your account") instead of a dead end. Anything else
+    // (a genuinely unexpected error) keeps the old generic shape.
+    console.error("deleteUser failed", error.message);
+    const looksLikeActiveGift = error.message?.includes("gifts") ?? false;
+    return new Response(
+      JSON.stringify({
+        error: looksLikeActiveGift ? "account_has_active_gifts" : "delete failed",
+      }),
+      {
+        status: looksLikeActiveGift ? 409 : 500,
+        headers: { "content-type": "application/json" },
+      },
+    );
   }
 
   return new Response(JSON.stringify({ deleted: true }), {

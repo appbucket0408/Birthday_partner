@@ -351,6 +351,27 @@ added rather than silently dropped.
   open** — this task did not touch `29_rpc_create_gift.test.sql`'s
   assertion ordering or fixture capacity, only the unrelated area-scoping
   fix in §1 above (a different query in the same file).
+- **Real gap, not previously entered anywhere in this manifest (whole-branch
+  review, pre-merge fix round):** spec §9 requires a race-condition test, and
+  no such test exists against `rpc_create_gift`. The plan
+  (`2026-08-30-m3-phase1a-gifting-draft.md:1341-1342`) originally waived this
+  requirement with a factually wrong claim — that Task 2's assertion 5 "races
+  two real connections." It does not: that assertion is a sequential,
+  single-connection call against a slot already emptied by an earlier
+  assertion in the same test, proving the client-visible 23514 outcome of an
+  *already-full* slot, not a genuine race for the *last* unit. `grep -n race`
+  over this whole ledger returned zero hits before this entry — the plan's
+  waiver was simply trusted and the deliverable silently dropped. The only
+  genuine two-connection race helper in this codebase, M0's
+  `tests.race_last_slot`, is used solely by the pre-existing
+  `06_slot_concurrency.test.sql`, which races `private.reserve_slot`
+  directly, never `rpc_create_gift`. **Not fixed here — writing the race test
+  is real, undone work, not a fix-round item.** What IS covered: the
+  reservation primitive itself is race-tested (M0, against `reserve_slot`).
+  What is NOT: `rpc_create_gift`'s own oversold path under real concurrency
+  (as opposed to the sequential simulation `29_rpc_create_gift.test.sql`
+  assertion 5 actually performs). The plan document has been corrected in
+  place to state this rather than repeat the false claim.
 
 ### Task 3 (catalog/gift row mappings)
 
@@ -613,3 +634,99 @@ from `supabase db reset`, verified in this session at HEAD `7467612`.
 Per this task's own Step 7 and the top-level constraints: **this branch is
 not merged.** The merge decision, and the whole-branch review that must
 come before it, both belong to the human.
+
+---
+
+## 8. Whole-branch review (opus) — MERGE WITH FIXES
+
+Range f294efb..f49a313, 17 commits, 46 files. Every number reproduced
+independently from a cold `supabase db reset`. No unreachability defect of the
+Phase 2b shape, no security hole, and no new platform surface — `git diff` over
+pubspec, ios/, android/, web/, macos/ is EMPTY.
+
+**Ten ledger entries sampled; all ten hold.** The reviewer's words: "the first
+record on this project I have not had to correct." Two omissions rather than
+errors, both now recorded below.
+
+### BLOCKER — and MY LEDGER UNDERSTATED IT
+
+Item 2 (gifts.sender_profile_id ON DELETE RESTRICT) is not a pending product
+decision. It is a LIVE REGRESSION this branch introduces, and I recorded the
+mechanism correctly while getting the severity wrong. Proved on the live DB:
+
+    ERROR: update or delete on table "profiles" violates foreign key constraint
+           "gifts_sender_profile_id_fkey" on table "gifts"
+
+Three facts my entry did not state:
+- The trigger is a FREE, ONE-TAP action. No payment, no confirmation. Creating a
+  draft is the entire point of this phase.
+- It is PERMANENT. private.expire_stale_gifts UPDATEs status to 'expired' and
+  keeps the row (verified: 20260822000008_gift_lifecycle.sql:223,233 are
+  gift_transition calls, not deletes), so the hold lapsing never clears the FK.
+  One draft, ever, and that account can never be deleted.
+- The user is told NOTHING. delete_account/index.ts:95 deliberately swallows the
+  driver text and returns {"error":"delete failed"}. No test covers the new path;
+  23_delete_account.test.sql:299-305 only pins confdeltype='r' in the catalog,
+  never the behaviour.
+
+Before this branch deleteAccount() always worked, because no client path created
+gifts. The code PREDICTED this in writing at delete_account/index.ts:92 — "once
+M3 exists this is where a gifts-RESTRICT violation will surface". M3 now exists.
+
+**Ruling (mine, not deferred to the user): delete the caller's `draft` and
+`expired` gifts inside the Edge Function before admin.deleteUser.** For the only
+states that can exist today this is unambiguous — a draft or expired gift carries
+no payment, no delivery and no counterparty obligation, so removing it harms
+nobody, while refusing erasure is the worse option and would be a right-to-be-
+forgotten problem. The genuinely hard case, a PAID gift, cannot arise until
+payments ship; that policy stays deferred to M3 Phase 2, which must revisit this
+function. Cost if wrong: a user who deletes their account silently removes draft
+rows an operator might have wanted for analytics. Acceptable — they were never
+charged and nothing was delivered.
+
+### Should fix before merge (accepted, all six)
+
+2. Spec §9's race row is UNMET and the plan's waiver for it is FACTUALLY WRONG.
+   plan:1341-1342 claims Task 2's assertion 5 covers it because "the helper races
+   two real connections". It does not: 29_rpc_create_gift.test.sql:94-104 is a
+   SEQUENTIAL single-connection call, and the only user of tests.race_last_slot is
+   the pre-existing 06_slot_concurrency.test.sql:6, which races reserve_slot
+   directly, not create_gift. `grep -n race` over this ledger returned ZERO hits —
+   a spec-mandated deliverable was dropped and never entered the manifest. This is
+   my defect and my false waiver.
+3. 29_rpc_create_gift.test.sql:63-67 is VACUOUS on the product's core promise. It
+   asserts `count(*) from public.addresses = 0` to prove the sender cannot read an
+   address — but the table holds zero rows in the fixture, so it passes with every
+   RLS policy on addresses dropped. Spec §6 calls this "the whole product". Real
+   coverage does exist at 04_addresses.test.sql:42-58, but that is unchanged M0
+   work, so this BRANCH added a test proving nothing.
+4. app.dart:54-60 still configures NO errorBuilder. The /gifts dead end was the
+   symptom; the class — any unmatched location landing on go_router's default
+   error page with no way back — is untouched.
+5. Two navigation edges have NO test, the same shape as the bug Task 8 fixed: the
+   profile "My gifts" tile (profile_screen.dart:89-100, spec §7's stated entry
+   point — grep for its key in test/ returns nothing) and "Send a cake"
+   (person_screen.dart:143), whose visibility is tested three ways but which is
+   never TAPPED. A typo in either path string passes every test in the repo.
+6. slot_picker_screen_test.dart:169,172 CANNOT FAIL. The "tapping a full slot
+   pushes nothing" test asserts absence of 'coming in a later task' — a string
+   Amendment B2 deleted from lib/ entirely. A newly-tappable full slot would push
+   the real DraftScreen and this still passes. Only the onTap-is-null check at
+   :167 carries it. Thirteenth such test on this project.
+7. serviceAreas() and productsIn() have no .order() (gift_repository_impl.dart:
+   22-25, 37-41) while slotsIn and myGifts do. CatalogCubit picks areas.first.id,
+   so the default area is whatever Postgres returns.
+
+### Carry-forwards ADDED by this review
+- catalog_cubit.dart:43-44 — `_now` is a genuinely dead field kept alive by
+  `// ignore: unused_field`. Tasks 6/7 take their clock elsewhere.
+- draft_state.dart:41 — DraftError.slotFull is set but never read;
+  draft_screen.dart:186 renders only state.message.
+
+### Confirmed accurate, no escalation
+Items 1, 3, 4, 5, 6, 7, 8. F3's CLIENT half is airtight — the reviewer traced the
+single-derivation chain and confirmed a second derivation is structurally
+impossible, since DraftCubit takes occasionDate as a required argument with no
+Birthday and no clock. F2's ruling also holds for the READ layer, not just the
+write: people_select_visible blocks a stranger's row, so a cold deep link into
+/gift/new/<guessed id> leaks no name or birthday.

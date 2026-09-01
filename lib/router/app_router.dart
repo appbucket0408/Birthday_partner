@@ -38,6 +38,32 @@ GoRouter buildRouter(SessionCubit session) {
   return GoRouter(
     initialLocation: '/splash',
     refreshListenable: _CubitRefresh(session.stream),
+    // Whole-branch review §8 should-fix 4: Task 8 fixed the one KNOWN
+    // instance of this (a live '/gifts' dead end), but with no errorBuilder
+    // configured at all, that fix closed one symptom, not the class -- any
+    // OTHER unmatched location (a typo, a stale deep link, a future route
+    // rename) still fell through to go_router's own default error page,
+    // which has no way back into the app.
+    errorBuilder: (context, state) => Scaffold(
+      appBar: AppBar(title: const Text(AppStrings.routeNotFoundTitle)),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(AppStrings.routeNotFoundBody, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              FilledButton(
+                key: const Key('router_error_go_home'),
+                onPressed: () => context.go('/timeline'),
+                child: const Text(AppStrings.routeNotFoundAction),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
     routes: [
       GoRoute(path: '/splash', builder: (_, __) => const _Splash()),
       GoRoute(path: '/phone', builder: (_, __) => const PhoneScreen()),
@@ -110,16 +136,6 @@ GoRouter buildRouter(SessionCubit session) {
       final s = session.state;
       final at = state.matchedLocation;
 
-      // Never route anywhere until the first load resolves.
-      if (s is SessionUnknown) return at == '/splash' ? null : '/splash';
-
-      final target = switch (s) {
-        SessionSignedOut() => '/phone',
-        SessionNeedsSetup() => '/setup',
-        SessionReady() => '/timeline',
-        SessionUnknown() => '/splash',
-      };
-
       // Once ready, the user moves freely between the signed-in screens.
       //
       // '/person/:personId' cannot go in the set as a literal string: unlike
@@ -144,6 +160,39 @@ GoRouter buildRouter(SessionCubit session) {
       // location and the screen becomes unreachable while still compiling
       // and analyzing clean, exactly as '/person/:personId' once did.
       final onGiftCatalogPage = at.startsWith('/gift/new/');
+
+      // Whole-branch review §8 should-fix 4, found while writing that item's
+      // own test: EVERY location this guard does not recognize -- not just
+      // ones outside the signed-in set -- fell through to the unconditional
+      // `return at == target ? null : target` below, which bounces it to
+      // some session's default page rather than ever letting go_router's own
+      // matching (and therefore `errorBuilder`, added below) see it. That
+      // silently steers a typo or a stale deep link somewhere plausible
+      // instead of surfacing it -- and it is precisely how a route/guard
+      // mismatch stays invisible: '/person/:personId' and
+      // '/gift/new/:personId' each already broke this way once (see their
+      // own comments above) purely because a matching check was subtly
+      // wrong, with nothing forcing that failure to be loud. A location that
+      // is not even a candidate for any session state at all is this
+      // guard's cue to step aside, not to guess -- go_router's own matching
+      // then fails it for real, and `errorBuilder` is what the user sees.
+      const recognizedElsewhere = {'/splash', '/phone', '/setup', ...signedIn};
+      if (!recognizedElsewhere.contains(at) &&
+          !onPersonPage &&
+          !onGiftCatalogPage) {
+        return null;
+      }
+
+      // Never route anywhere until the first load resolves.
+      if (s is SessionUnknown) return at == '/splash' ? null : '/splash';
+
+      final target = switch (s) {
+        SessionSignedOut() => '/phone',
+        SessionNeedsSetup() => '/setup',
+        SessionReady() => '/timeline',
+        SessionUnknown() => '/splash',
+      };
+
       if (s is SessionReady &&
           (signedIn.contains(at) || onPersonPage || onGiftCatalogPage)) {
         return null;

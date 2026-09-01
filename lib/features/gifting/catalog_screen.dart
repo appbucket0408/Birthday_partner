@@ -21,14 +21,9 @@ import 'slot_picker_screen.dart';
 /// registered in `app.dart` -- never constructed here, the same convention
 /// `PersonScreen` follows.
 class CatalogScreen extends StatelessWidget {
-  const CatalogScreen({
-    super.key,
-    required this.personId,
-    DateTime Function()? now,
-  }) : _now = now;
+  const CatalogScreen({super.key, required this.personId});
 
   final int personId;
-  final DateTime Function()? _now;
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +31,6 @@ class CatalogScreen extends StatelessWidget {
       create: (context) => CatalogCubit(
         context.read<GiftRepository>(),
         context.read<PersonRepository>(),
-        now: _now,
       )..load(personId),
       child: CatalogView(personId: personId),
     );

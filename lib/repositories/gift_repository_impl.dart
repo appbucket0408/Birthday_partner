@@ -19,10 +19,19 @@ class GiftRepositoryImpl implements GiftRepository {
     try {
       // service_areas_select_all hides nothing behind RLS -- is_active is
       // filtered here, not by the database.
+      //
+      // .order(name): whole-branch review §8 should-fix 7. Without it,
+      // Postgres returns rows in whatever order it finds convenient (not
+      // guaranteed to be insertion order), and CatalogCubit.load picks
+      // areas.first.id as the default selection -- so both the default area
+      // AND the dropdown's own order were nondeterministic. `name` is a
+      // stable, always-present column, unlike `id` gaps or timestamps this
+      // table doesn't have.
       final rows = await _client
           .from(ApiParams.serviceAreas)
           .select()
-          .eq(ApiParams.isActive, true);
+          .eq(ApiParams.isActive, true)
+          .order(ApiParams.name);
       return (rows as List)
           .map((r) => ServiceArea.fromRow(r as Map<String, dynamic>))
           .toList();
@@ -34,11 +43,18 @@ class GiftRepositoryImpl implements GiftRepository {
   @override
   Future<List<Product>> productsIn(int serviceAreaId) async {
     try {
+      // .order(name): same reasoning as serviceAreas() above (whole-branch
+      // review §8 should-fix 7). Ordered by name, not price, because this is
+      // a catalog listing a shopper scans by product identity ("Classic
+      // Chocolate Truffle") rather than by a price they haven't compared
+      // yet -- and unlike price, name is guaranteed unique-enough per area
+      // to give a stable, human-predictable order today.
       final rows = await _client
           .from(ApiParams.products)
           .select()
           .eq(ApiParams.serviceAreaId, serviceAreaId)
-          .eq(ApiParams.isActive, true);
+          .eq(ApiParams.isActive, true)
+          .order(ApiParams.name);
       return (rows as List)
           .map((r) => Product.fromRow(r as Map<String, dynamic>))
           .toList();
