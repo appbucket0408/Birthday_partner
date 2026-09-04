@@ -437,3 +437,17 @@ s3_region = "env(S3_REGION)"
 s3_access_key = "env(S3_ACCESS_KEY)"
 # Configures AWS_SECRET_ACCESS_KEY for S3 bucket
 s3_secret_key = "env(S3_SECRET_KEY)"
+
+# The confirm endpoint is unauthenticated BY DESIGN (spec §4.5): the gift's
+# confirm_token is the capability, and the recipient has no Supabase session --
+# they are not a user of this app. With the platform default verify_jwt = true,
+# Kong answers before the handler is reached and returns its own
+# {"msg": "Error: ..."} body, so the endpoint could never work deployed.
+#
+# This is the project's FIRST [functions] block. Every other function is
+# absent from this section deliberately and keeps verify_jwt = true.
+# 30_... and confirm/index.test.ts assert the other five still refuse an
+# unauthenticated caller at the HANDLER level, so this block cannot silently
+# widen them.
+[functions.confirm]
+verify_jwt = false
