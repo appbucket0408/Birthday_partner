@@ -109,7 +109,7 @@ select is(
   (select p.proconfig::text from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'rpc_confirm_gift'),
-  '{search_path=""}',
+  '{"search_path=\"\""}',
   'rpc_confirm_gift pins an empty search_path'
 );
 
@@ -123,7 +123,7 @@ rollback;
 supabase test db 2>&1 | tail -20
 ```
 
-Expected: `30_rpc_confirm_gift.test.sql` fails — assertions 1 and 4 because the function does not exist, 2 and 3 passing vacuously for the same reason. **Note that in the report:** assertions 2 and 3 pass against a nonexistent function, so they are not yet evidence. Step 6 is what makes them real.
+Expected: `30_rpc_confirm_gift.test.sql` fails. **Note what the failure actually is:** `has_function_privilege` on a signature that does not exist **hard-errors and aborts the whole script**, so no assertion runs individually — you get one script-level error, not four assertion results. That is a real failure but it is not per-assertion evidence. Step 6 supplies that for assertions 2 and 3; for assertions 1 and 4 you must add an isolated probe (create the function, then drop the grant / drop the `set search_path`, and watch each one fail alone). Do not report Step 3 as having exercised the four assertions.
 
 - [ ] **Step 4: Write the migration**
 
