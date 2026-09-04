@@ -11,7 +11,8 @@ natural home for.
 Three deliverables:
 
 1. **A confirm endpoint** — one Edge Function serving a server-rendered HTML form,
-   keyed by the gift's `confirm_token`.
+   keyed by the gift's `confirm_token`, plus the `verify_jwt = false` configuration it
+   requires (§4.5 — carry-forward #3, deferred since M1 Phase 2a, non-deferrable now).
 2. **F3's server-side date constraint** — `slot_date = occasion_date` enforced in
    `private.create_gift`, not just in the picker's UI.
 3. **§11.2** — a recipient can no longer read what the sender paid.
@@ -146,7 +147,50 @@ The token travels in an SMS URL and will persist in the recipient's message hist
 That is acceptable for a single-use address form on a gift the sender chose to send,
 and is noted rather than mitigated.
 
-### 4.5 What the page must not show
+### 4.5 `verify_jwt` — carry-forward #3 becomes non-deferrable here
+
+**Found while writing the implementation plan, and it is a required deliverable, not
+a detail.**
+
+`supabase/config.toml` has **no `[functions]` block at all**, so every Edge Function
+runs at the platform default `verify_jwt = true`. The gateway then answers an
+unauthenticated request *before the handler is ever reached* — Kong returns its own
+`{"msg": "Error: ..."}` body. This is documented in this repo twice already, in
+`docs/superpowers/plans/2026-08-29-m1-phase2b-flutter-app.md:338` and
+`2026-08-30-m1-phase3-social-loop.md:372`, and "the `verify_jwt` decision" has been
+**carry-forward #3 since M1 Phase 2a** (`2026-08-27-m1-phase2a-ledger.md:463`),
+deferred through three phases because no unauthenticated surface existed.
+
+The confirm endpoint is unauthenticated **by design** — the token is the capability
+and the recipient has no session. So it cannot function under the default, and this
+phase must add:
+
+```toml
+[functions.confirm]
+verify_jwt = false
+```
+
+Two things the plan must prove rather than assume:
+
+1. **That adding a `[functions.confirm]` block does not change the other five
+   functions' effective setting.** Per-function blocks should leave unlisted functions
+   at the default, but if adding any `[functions]` section altered that default it
+   would silently expose `claim_profile`, `delete_account`, `drain_reminders`,
+   `resolve_contacts` and `add_celebrations` to unauthenticated callers. That is a
+   security regression far worse than anything this phase delivers, so it gets an
+   explicit assertion: each of the other five must still reject an unauthenticated
+   request.
+2. **That the handler's own validation is the real gate.** With `verify_jwt = false`,
+   nothing upstream filters requests, so every branch of §4.3's outcome table is
+   reachable by an anonymous caller — which is the point, and why the neutral 404
+   folding matters.
+
+`config.toml` is the file that carries `[auth.sms] enable_confirmations = true` at
+line 252, guarding a reproduced total-account-takeover bug that no test covers, and
+`supabase init` or a CLI upgrade rewrites the whole file. **The task that edits
+`config.toml` must re-verify line 252 and paste the output.**
+
+### 4.6 What the page must not show
 
 Never `amount_minor`, and never any address the recipient did not just type.
 
@@ -285,6 +329,11 @@ one that needs to.
    to an existing guarantee.
 4. **`seed.sql`'s `products` insert is not idempotent** — pre-existing, unfixed,
    masked because the project always uses `supabase db reset`.
+5. **Editing `config.toml` for `verify_jwt` (§4.5) is the highest-risk change in this
+   phase.** It is the first `[functions]` block this project has ever had, it sits in
+   the same file as the account-takeover guard at line 252, and getting it wrong in
+   the permissive direction would expose five previously-authenticated endpoints. The
+   plan asserts the other five still refuse anonymous callers.
 
 ## 10. Carried forward, not addressed here
 
