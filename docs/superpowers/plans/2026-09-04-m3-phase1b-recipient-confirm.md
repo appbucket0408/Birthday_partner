@@ -646,7 +646,7 @@ Expected: all four fail on `501` from the `POST` stub.
 
 - [ ] **Step 4: Run and verify green**
 
-Expected: 14 passed, 0 failed.
+Expected: 16 passed, 0 failed (12 at Task 3's close, plus this task's four).
 
 - [ ] **Step 5: Prove the assertions can fail**
 
@@ -655,7 +655,7 @@ Four reverts, each restored byte-identically:
 1. **The refund branch** — render the confirmed page regardless of returned `status`. Expected: the out-of-area test fails on the page content while its DB assertion still passes, proving the page and the DB are asserted independently.
 2. **The validation guard** — call the RPC with blank fields. Expected: the blank-form test fails on the gift's status having advanced (or on a `500`), proving it checks the database and not just the HTTP code.
 3. **The already-used mapping** — let that error fall to the generic `500`. Expected: the double-POST test fails.
-4. **The `23514` folding** — give it its own message. Expected: Task 3's byte-identity test fails, showing the two tasks' folding is one shared path.
+4. **The `23514` folding** — give it its own message. **Note: Task 3's byte-identity test is GET-only and will NOT catch this**, so this revert needs a test that exercises `23514` through `POST`. If the four tests above do not include one, add it: POST a `draftGift`'s token and compare the body byte-for-byte against a GET neutral 404. Without that test this revert is a no-op and proves nothing.
 
 - [ ] **Step 6: Commit**
 
