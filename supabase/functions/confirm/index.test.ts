@@ -89,6 +89,11 @@ const FIXTURE_AREA_NAME = "Confirmville";
 const FIXTURE_PRODUCT_NAME = "Confirmfixture Cake";
 const FIXTURE_AMOUNT_MINOR = 84900;
 const FIXTURE_MESSAGE = "A birthday message for testing.";
+// Fix round 1, item 2: display_name is chosen by the sender and rendered to
+// the recipient on an unauthenticated page -- the only property of this page
+// with an attacker. Same literal used for both the sender's display_name and
+// the gift message, since both reach HTML through separate esc() calls.
+const HOSTILE_TEXT = `Hostile <script>alert(1)</script>"'&`;
 
 function futureDateString(daysFromNow: number): string {
   const d = new Date();
@@ -138,6 +143,7 @@ async function resetFixtureRows(pg: PgClient): Promise<void> {
 async function buildFixtureChain(
   pg: PgClient,
   occasionDate: string,
+  senderName: string = FIXTURE_SENDER_NAME,
 ): Promise<
   { senderId: string; personId: string; productId: string; slotId: string }
 > {
@@ -171,7 +177,7 @@ async function buildFixtureChain(
   await pg.queryArray(
     `update public.profiles set handle = $1, display_name = $2
      where id = $3::uuid`,
-    [FIXTURE_HANDLE, FIXTURE_SENDER_NAME, senderId],
+    [FIXTURE_HANDLE, senderName, senderId],
   );
 
   const personId = await scalar<string>(
@@ -218,6 +224,7 @@ async function createGift(
   pg: PgClient,
   chain: { senderId: string; personId: string; productId: string; slotId: string },
   occasionDate: string,
+  message: string = FIXTURE_MESSAGE,
 ): Promise<{ id: string; token: string }> {
   const result = await pg.queryArray<[string, string]>(
     `select g.id::text, g.confirm_token::text
@@ -230,7 +237,7 @@ async function createGift(
       chain.productId,
       chain.slotId,
       occasionDate,
-      FIXTURE_MESSAGE,
+      message,
     ],
   );
   const [id, token] = result.rows[0];
@@ -280,6 +287,49 @@ async function draftGift(pg: PgClient): Promise<{ token: string }> {
   const occasionDate = futureDateString(7);
   const chain = await buildFixtureChain(pg, occasionDate);
   const { token } = await createGift(pg, chain, occasionDate);
+  return { token };
+}
+
+// Fix round 1, item 1: a gift actually walked through to `confirmed`, so
+// `confirm_token_used_at` is genuinely set the same way a real recipient
+// submission would set it -- not faked by writing the column directly.
+// private.confirm_gift is revoked from public/anon/authenticated
+// (20260822000008_gift_lifecycle.sql:247-248), but that revoke does not bind
+// `postgres`: this connection is the superuser, exactly like every other
+// fixture call in this file (private.create_gift, private.gift_transition
+// are equally revoked from those three roles and equally callable here).
+// The city passed is the fixture's own service area, so this reaches
+// confirm_gift's success path (in-area) rather than its refund path.
+async function confirmedGift(pg: PgClient): Promise<{ token: string }> {
+  await resetFixtureRows(pg);
+  const occasionDate = futureDateString(7);
+  const chain = await buildFixtureChain(pg, occasionDate);
+  const { id, token } = await createGift(pg, chain, occasionDate);
+  await transition(pg, id, "paid");
+  await transition(pg, id, "awaiting_confirm");
+
+  await pg.queryArray(
+    `select c.id
+     from private.confirm_gift(
+       $1::uuid, $2::text, $3::text, $4::text, $5::text, $6::text
+     ) as c`,
+    [token, "1 Test Lane", "", FIXTURE_AREA_NAME, "560001", "Home"],
+  );
+
+  return { token };
+}
+
+// Fix round 1, item 2: a sender's display_name (and the gift message) reach
+// HTML unauthenticated. This gift's sender name and message are both the
+// same hostile literal, so a single fixture exercises both esc() call sites
+// renderForm has.
+async function hostileAwaitingConfirmGift(pg: PgClient): Promise<{ token: string }> {
+  await resetFixtureRows(pg);
+  const occasionDate = futureDateString(7);
+  const chain = await buildFixtureChain(pg, occasionDate, HOSTILE_TEXT);
+  const { id, token } = await createGift(pg, chain, occasionDate, HOSTILE_TEXT);
+  await transition(pg, id, "paid");
+  await transition(pg, id, "awaiting_confirm");
   return { token };
 }
 
@@ -350,4 +400,72 @@ Deno.test("GET with a malformed or missing token is the same neutral 404", async
   assertEquals(missing.status, 404);
   assertEquals(malformed.status, 404);
   assertEquals(await malformed.text(), await missing.text());
+});
+
+// Fix round 1, item 1: the third of the three GET outcomes the brief
+// declares (form / already confirmed / neutral 404) had no test at all.
+Deno.test("GET after confirmation shows the already-confirmed notice, not the neutral 404", async () => {
+  const pg = new PgClient(DB_URL);
+  await pg.connect();
+  let gift;
+  try {
+    gift = await confirmedGift(pg);
+  } finally {
+    await pg.end();
+  }
+
+  const res = await fetch(`${FN}?token=${gift.token}`);
+  const html = await res.text();
+
+  const neutral = await (
+    await fetch(`${FN}?token=00000000-0000-4000-8000-000000000000`)
+  ).text();
+
+  assertEquals(res.status, 200, `expected 200, got ${res.status}: ${html}`);
+  assertEquals(
+    html.includes("This gift is already confirmed."),
+    true,
+    "already-confirmed body is missing its copy",
+  );
+  // The point of this test: an already-confirmed token and an unknown one
+  // are ADJACENT branches in the handler, and only this assertion proves
+  // they resolve differently -- status 200 alone would also pass if the
+  // handler fell through to some other 200 page.
+  assertNotEquals(
+    html,
+    neutral,
+    "the already-confirmed page must not be the neutral 404 -- that distinction is the whole point of the branch",
+  );
+});
+
+// Fix round 1, item 2: display_name is sender-chosen and rendered to the
+// recipient on an unauthenticated page -- the only property of this page
+// with an attacker. Checks BOTH that the raw tag is absent AND that the
+// escaped form is present, so this fails if esc() is removed (the raw tag
+// leaks) and would equally fail if the hostile value were silently dropped
+// instead of escaped (the escaped form would then be absent too).
+Deno.test("GET escapes a hostile sender display_name and gift message", async () => {
+  const pg = new PgClient(DB_URL);
+  await pg.connect();
+  let gift;
+  try {
+    gift = await hostileAwaitingConfirmGift(pg);
+  } finally {
+    await pg.end();
+  }
+
+  const res = await fetch(`${FN}?token=${gift.token}`);
+  const html = await res.text();
+
+  assertEquals(res.status, 200);
+  assertEquals(
+    html.includes("<script>alert(1)</script>"),
+    false,
+    "a raw <script> tag reached the page -- an unescaped interpolation",
+  );
+  assertEquals(
+    html.includes("&lt;script&gt;alert(1)&lt;/script&gt;"),
+    true,
+    "the escaped form of the hostile sender name/message is missing",
+  );
 });
