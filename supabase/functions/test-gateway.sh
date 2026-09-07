@@ -18,8 +18,10 @@
 # of the five gated functions is stopped by Kong BEFORE the handler ever
 # runs, while `confirm` (config.toml: [functions.confirm] verify_jwt = false)
 # passes straight through to its handler. Run this against a
-# --no-verify-jwt server and every function looks gateway-exempt --
-# it would pass for the wrong reason, proving nothing.
+# --no-verify-jwt server instead and it does NOT pass silently: every
+# handler's own guard returns an {"error": ...} body, which fails the
+# Kong-shape check in check_gated below, so all five gated checks fail
+# loudly and the wrong-server mismatch is caught. It fails safe, not silent.
 #
 # Restart the server between running this and test.sh; do not try to
 # satisfy both with one flag choice.
@@ -79,13 +81,37 @@ check_exempt() {
   status=$(echo "$resp" | tail -n1)
   body=$(echo "$resp" | sed '$d')
 
-  # Deliberately loose: today the stub returns 501. Task 3 will make GET
-  # return a real page, and Task 4 will give POST real behaviour (200, or a
-  # 4xx from confirm's OWN logic, e.g. an unknown token) -- any of those are
-  # correct here, as long as Kong did not stop the request first. Pinning
-  # the exact status would make this script fail the moment Task 3 or 4
-  # lands, for a reason that has nothing to do with what it checks: whether
-  # the gateway let the request through.
+  # Deliberately loose on the SUCCESS status: today the stub returns 501.
+  # Task 3 will make GET return a real page, and Task 4 will give POST real
+  # behaviour (200, or a 4xx from confirm's OWN logic, e.g. an unknown
+  # token) -- any of those are correct here, as long as Kong did not stop
+  # the request first. Pinning the exact status would make this script fail
+  # the moment Task 3 or 4 lands, for a reason that has nothing to do with
+  # what it checks: whether the gateway let the request through.
+  #
+  # But looseness on status must not become blindness to the request never
+  # reaching a live `confirm` handler at all. Three shapes below are failures,
+  # not passes, because none of them is "confirm's own logic responded":
+  #   - "000": curl could not connect at all -- there is no handler response
+  #     to be loose about, only a network failure this check would otherwise
+  #     paper over.
+  #   - "404" with Kong's "Function not found" body: this is Kong saying the
+  #     function isn't deployed/served, not `confirm` saying anything -- an
+  #     undeployed confirm and a healthy one both need to be distinguishable,
+  #     and this is the one case where a 4xx is NOT confirm's own logic.
+  #   - Kong-shaped 401: confirm has somehow become gateway-blocked despite
+  #     verify_jwt = false (already handled above).
+  # Any other status/body -- 2xx, other 4xx, 5xx from the stub -- is treated
+  # as the handler responding, which is exactly what this check exists to
+  # confirm is still possible.
+  if [[ "$status" == "000" ]]; then
+    failures+=("$name: no response at all (curl could not connect) -- confirm looks unreachable, not gateway-exempt")
+    return
+  fi
+  if [[ "$status" == "404" ]] && echo "$body" | grep -qi "function not found"; then
+    failures+=("$name: got Kong's \"Function not found\" (404) -- confirm looks undeployed/unreachable, not gateway-exempt: $body")
+    return
+  fi
   if [[ "$status" == "401" ]] && is_kong_shaped "$body"; then
     failures+=("$name: looks GATEWAY-BLOCKED (401, Kong-shaped body: $body) but config.toml sets verify_jwt = false, so this request should reach the handler")
     return
