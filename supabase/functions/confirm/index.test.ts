@@ -469,3 +469,206 @@ Deno.test("GET escapes a hostile sender display_name and gift message", async ()
     "the escaped form of the hostile sender name/message is missing",
   );
 });
+
+// ------------------------------------------------------------------------
+// Task 4: POST /confirm
+//
+// Reuses Task 3's fixtures and its pg-over-SUPABASE_DB_URL posture for
+// post-hoc assertions on the gifts row -- this file never brings in a
+// supabase-js admin client, so DB checks here go through the same `pg`
+// connection the fixtures already use, not a second client.
+
+function form(fields: Record<string, string>): RequestInit {
+  return {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(fields).toString(),
+  };
+}
+
+// A literal, not imported from index.ts's COPY.alreadyConfirmed: if a copy
+// change ever broke the already-confirmed page, importing the same constant
+// would let this assertion silently follow it instead of catching it.
+const COPY_ALREADY_CONFIRMED_SUBSTRING = "This gift is already confirmed.";
+
+async function giftRow(pg: PgClient, token: string): Promise<{
+  status: string;
+  deliveryCity: string | null;
+  confirmTokenUsedAt: string | null;
+}> {
+  const result = await pg.queryArray<[string, string | null, string | null]>(
+    `select status::text, delivery_city, confirm_token_used_at::text
+     from public.gifts where confirm_token = $1`,
+    [token],
+  );
+  const [status, deliveryCity, confirmTokenUsedAt] = result.rows[0];
+  return { status, deliveryCity, confirmTokenUsedAt };
+}
+
+Deno.test("POST with an in-area address confirms the gift", async () => {
+  const pg = new PgClient(DB_URL);
+  await pg.connect();
+  try {
+    const gift = await awaitingConfirmGift(pg);
+
+    const res = await fetch(FN, form({
+      token: gift.token,
+      line1: "1 Cake Street",
+      line2: "",
+      city: gift.city, // matches the service area name
+      pincode: "122004",
+      label: "Home",
+    }));
+    const html = await res.text();
+
+    assertEquals(res.status, 200);
+    assertEquals(html.includes(gift.city), true);
+
+    // The DB is the real assertion: status advanced and delivery_city was
+    // denormalised onto the gift, which is what the sender's gift list reads
+    // instead of AppStrings.giftCityPending.
+    const row = await giftRow(pg, gift.token);
+    assertEquals(row.status, "confirmed");
+    assertEquals(row.deliveryCity, gift.city);
+    assertNotEquals(row.confirmTokenUsedAt, null);
+  } finally {
+    await pg.end();
+  }
+});
+
+Deno.test("POST with an out-of-area city refunds instead of delivering", async () => {
+  const pg = new PgClient(DB_URL);
+  await pg.connect();
+  try {
+    const gift = await awaitingConfirmGift(pg);
+
+    const res = await fetch(FN, form({
+      token: gift.token,
+      line1: "9 Far Road",
+      line2: "",
+      city: "Nowhere",
+      pincode: "999999",
+      label: "Home",
+    }));
+    const html = await res.text();
+
+    assertEquals(res.status, 200);
+    assertEquals(
+      html.includes("Nowhere"),
+      true,
+      "the page should name the city it cannot reach",
+    );
+    // "Nowhere" alone is not distinguishing -- the confirmed page also
+    // interpolates the recipient's typed city into its own sentence, so a
+    // handler that always rendered "confirmed" would still contain the city
+    // and pass the assertion above. This is the literal that actually
+    // separates the two pages.
+    assertEquals(
+      html.includes("has been refunded"),
+      true,
+      "the page must say the gift was refunded, not delivered",
+    );
+    assertEquals(
+      html.includes("Thank you"),
+      false,
+      "the confirmed page's copy must not appear on the refund page",
+    );
+
+    const row = await giftRow(pg, gift.token);
+    assertEquals(row.status, "refunded", "out of area means refund, not delivery");
+  } finally {
+    await pg.end();
+  }
+});
+
+Deno.test("POST twice with the same token reports already confirmed", async () => {
+  const pg = new PgClient(DB_URL);
+  await pg.connect();
+  try {
+    const gift = await awaitingConfirmGift(pg);
+    const fields = {
+      token: gift.token,
+      line1: "1 Cake Street",
+      line2: "",
+      city: gift.city,
+      pincode: "122004",
+      label: "Home",
+    };
+
+    await fetch(FN, form(fields));
+    const second = await fetch(FN, form(fields));
+    const html = await second.text();
+
+    assertEquals(second.status, 200);
+    assertEquals(html.includes(COPY_ALREADY_CONFIRMED_SUBSTRING), true);
+  } finally {
+    await pg.end();
+  }
+});
+
+Deno.test("POST with a missing required field re-renders the form, not a crash", async () => {
+  const pg = new PgClient(DB_URL);
+  await pg.connect();
+  try {
+    const gift = await awaitingConfirmGift(pg);
+
+    const res = await fetch(FN, form({
+      token: gift.token,
+      line1: "",
+      line2: "",
+      city: "",
+      pincode: "",
+      label: "",
+    }));
+
+    assertNotEquals(res.status, 500, "a blank form must not 500");
+    assertEquals(res.status, 200);
+
+    const row = await giftRow(pg, gift.token);
+    assertEquals(
+      row.status,
+      "awaiting_confirm",
+      "a rejected form must not advance the gift",
+    );
+  } finally {
+    await pg.end();
+  }
+});
+
+// None of the four tests above exercises private.confirm_gift's 23514 case
+// (gift found but not awaiting_confirm) -- the brief's own note that this
+// mapping "must reuse Task 3's exact neutral 404 ... not a copy of its
+// output" has no assertion without this test. draftGift's token is real and
+// well-formed but its gift is still `draft`, so a well-formed POST against
+// it reaches the RPC and hits the 23514 branch (unlike the missing-field
+// test above, which never reaches the RPC at all).
+Deno.test("POST against a gift that is not awaiting_confirm is the same neutral 404 as GET", async () => {
+  const pg = new PgClient(DB_URL);
+  await pg.connect();
+  try {
+    const draft = await draftGift(pg);
+
+    const res = await fetch(FN, form({
+      token: draft.token,
+      line1: "1 Cake Street",
+      line2: "",
+      city: "Anywhere",
+      pincode: "122004",
+      label: "Home",
+    }));
+    const postBody = await res.text();
+
+    const getBody = await (
+      await fetch(`${FN}?token=00000000-0000-4000-8000-000000000000`)
+    ).text();
+
+    assertEquals(res.status, 404);
+    assertEquals(
+      postBody,
+      getBody,
+      "POST's 23514 mapping must call the SAME renderNeutral404, not a copy of its output",
+    );
+  } finally {
+    await pg.end();
+  }
+});
