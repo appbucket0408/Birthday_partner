@@ -15,10 +15,28 @@ export const COPY = {
   refundedHeading: "We can't deliver there yet",
   genericFailureHeading: "Something went wrong",
   formError: "Please fill in the required fields.",
+  invalidPincode: "Please enter a valid 6-digit pincode.",
 };
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Mirrors addresses_pincode_format (20260822000005_addresses.sql:14): six
+// digits, first non-zero. Checked here BEFORE the RPC so a mistyped pincode
+// re-renders the form with a specific message instead of tripping that
+// CHECK constraint inside private.confirm_gift and coming back as a bare
+// 23514 -- the same SQLSTATE the status check below raises (fix round 1).
+const PINCODE_RE = /^[1-9][0-9]{5}$/;
+
+// private.confirm_gift raises this shape (with the gift id interpolated by
+// Postgres's `%`, so it's a substring match, not an exact one) for "the gift
+// exists but isn't awaiting_confirm right now" -- gift_lifecycle.sql:157.
+// 23514 is Postgres's GENERIC check-violation code, not exclusive to that
+// one raise: every table CHECK constraint uses it too (addresses_pincode_
+// format included), so matching on the code alone would fold an unrelated
+// constraint violation into the neutral 404 and silently swallow it from
+// the logs (fix round 1, item 1).
+const NOT_AWAITING_CONFIRMATION_RE = /is not awaiting confirmation/;
 
 // The gift columns this handler is allowed to read, spelled out so a column
 // added to `gifts` later (amount_minor included) cannot leak by default
@@ -164,7 +182,7 @@ ${errorHtml}
     <input type="text" name="pincode" value="${esc(v.pincode)}" required />
   </label>
   <label>Label
-    <input type="text" name="label" value="${esc(v.label || "Home")}" />
+    <input type="text" name="label" value="${esc(v.label)}" />
   </label>
   <button type="submit">Confirm delivery</button>
 </form>`;
@@ -331,10 +349,11 @@ async function handlePost(req: Request): Promise<Response> {
   const pincode = (params.get("pincode") ?? "").trim();
   const label = (params.get("label") ?? "").trim() || "Home";
 
-  // Validate BEFORE calling the RPC: a blank submission must not reach the
+  // Validate BEFORE calling the RPC: a blank submission -- and now a
+  // malformed pincode too (fix round 1, item 1) -- must not reach the
   // database at all, so the gift's status is left untouched. Re-fetching via
   // loadConfirmableGift (rather than trusting the posted token blindly) also
-  // means a blank submission against a bad/foreign token still gets the
+  // means a rejected submission against a bad/foreign token still gets the
   // neutral 404 or already-confirmed page instead of a form it has no right
   // to see re-rendered.
   if (!line1 || !city || !pincode) {
@@ -353,6 +372,28 @@ async function handlePost(req: Request): Promise<Response> {
     );
   }
 
+  // A well-formed-but-wrong pincode (e.g. leading zero, wrong length) would
+  // otherwise trip addresses_pincode_format inside private.confirm_gift and
+  // come back as a 23514 -- the SAME code the status check raises. Catching
+  // it here, ahead of the RPC, means a real recipient with a genuinely
+  // awaiting_confirm gift who mistypes their pincode gets told exactly
+  // what's wrong instead of "This link is not valid."
+  if (!PINCODE_RE.test(pincode)) {
+    const loaded = await loadConfirmableGift(admin, token);
+    if (!loaded.ok) {
+      return loaded.response;
+    }
+    return renderForm(
+      token,
+      loaded.data.occasionDate,
+      loaded.data.message,
+      loaded.data.senderName,
+      loaded.data.productName,
+      COPY.invalidPincode,
+      { line1, line2, city, pincode, label },
+    );
+  }
+
   const { data: gift, error } = await admin.rpc("rpc_confirm_gift", {
     p_confirm_token: token,
     p_line1: line1,
@@ -365,8 +406,16 @@ async function handlePost(req: Request): Promise<Response> {
   if (error) {
     // Not awaiting confirmation right now -- indistinguishable from an
     // unknown token, so this folds into the SAME neutral 404 Task 3 uses
-    // (spec §4.3), not a copy of its output.
-    if (error.code === "23514") {
+    // (spec §4.3), not a copy of its output. Keyed off the MESSAGE, not the
+    // bare SQLSTATE: 23514 is Postgres's generic check-violation code, not
+    // exclusive to this raise (see NOT_AWAITING_CONFIRMATION_RE's comment;
+    // fix round 1, item 1). Any other 23514 -- a table CHECK constraint we
+    // have not anticipated -- must fall through to the generic failure
+    // below and be logged, not be reported as a false "invalid link".
+    if (
+      error.code === "23514" &&
+      NOT_AWAITING_CONFIRMATION_RE.test(error.message)
+    ) {
       return renderNeutral404();
     }
     if (error.message === "this confirmation link has already been used") {

@@ -672,3 +672,57 @@ Deno.test("POST against a gift that is not awaiting_confirm is the same neutral 
     await pg.end();
   }
 });
+
+// ------------------------------------------------------------------------
+// Fix round 1, item 1: 23514 is Postgres's GENERIC check-violation code, not
+// exclusive to "gift is not awaiting confirmation" -- addresses_pincode_
+// format (20260822000005_addresses.sql:14) raises it too, for an IN-AREA
+// city with a malformed pincode. Before this fix that fell through to the
+// bare `error.code === "23514"` check above and rendered the neutral 404 to
+// a recipient holding a perfectly good, still-awaiting_confirm link.
+
+// A literal, not imported from index.ts's COPY.invalidPincode: same reason
+// COPY_ALREADY_CONFIRMED_SUBSTRING is a literal above.
+const COPY_INVALID_PINCODE_SUBSTRING = "Please enter a valid 6-digit pincode.";
+// Also a literal, so this test still fails if COPY.invalidLink ever drifts
+// FROM this string, rather than following it.
+const COPY_INVALID_LINK_SUBSTRING = "This link is not valid.";
+
+Deno.test("POST with a malformed pincode re-renders the form, not the neutral 404", async () => {
+  const pg = new PgClient(DB_URL);
+  await pg.connect();
+  try {
+    const gift = await awaitingConfirmGift(pg);
+
+    const res = await fetch(FN, form({
+      token: gift.token,
+      line1: "1 Cake Street",
+      line2: "",
+      city: gift.city, // in-area: this must NOT trip the status check's 23514
+      pincode: "12345", // five digits -- fails addresses_pincode_format
+      label: "Home",
+    }));
+    const html = await res.text();
+
+    assertEquals(res.status, 200);
+    assertEquals(
+      html.includes(COPY_INVALID_PINCODE_SUBSTRING),
+      true,
+      "a malformed pincode must get its own message, not a generic one",
+    );
+    assertEquals(
+      html.includes(COPY_INVALID_LINK_SUBSTRING),
+      false,
+      "a malformed pincode must not be reported as the neutral 404 -- the link is fine",
+    );
+
+    const row = await giftRow(pg, gift.token);
+    assertEquals(
+      row.status,
+      "awaiting_confirm",
+      "a rejected pincode must not advance the gift, and must not have reached the RPC's CHECK constraint",
+    );
+  } finally {
+    await pg.end();
+  }
+});
