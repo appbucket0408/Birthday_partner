@@ -229,7 +229,7 @@ void main() {
       '(sender_profile_id, recipient_person_id, product_id, '
       'service_area_id, slot_id, occasion_date, amount_minor, status) '
       "values ('$decoyProfileId', $primaryPersonId, $productId, "
-      "$serviceAreaId, $roomySlotId, current_date + 60, 50000, 'draft') "
+      "$serviceAreaId, $roomySlotId, current_date + 1, 50000, 'draft') "
       'returning id;',
     ));
   });
@@ -318,7 +318,7 @@ void main() {
       recipientPersonId: recipientPersonId,
       productId: productId,
       slotId: roomySlotId,
-      occasionDate: DateTime.now().add(const Duration(days: 10)),
+      occasionDate: DateTime.now().add(const Duration(days: 1)),
       message: 'Happy birthday!',
     );
 
@@ -344,7 +344,7 @@ void main() {
         recipientPersonId: decoyPersonId,
         productId: productId,
         slotId: roomySlotId,
-        occasionDate: DateTime.now().add(const Duration(days: 10)),
+        occasionDate: DateTime.now().add(const Duration(days: 1)),
       ),
       throwsA(isA<ServerFailure>().having((f) => f.code, 'code', '45005')),
     );
@@ -358,7 +358,7 @@ void main() {
       recipientPersonId: recipientPersonId,
       productId: productId,
       slotId: tightSlotId,
-      occasionDate: DateTime.now().add(const Duration(days: 20)),
+      occasionDate: DateTime.now().add(const Duration(days: 2)),
     );
     expect(filler.status, GiftStatus.draft);
 
@@ -370,7 +370,7 @@ void main() {
         recipientPersonId: recipientPersonId,
         productId: productId,
         slotId: tightSlotId,
-        occasionDate: DateTime.now().add(const Duration(days: 20)),
+        occasionDate: DateTime.now().add(const Duration(days: 2)),
       ),
       throwsA(isA<ServerFailure>().having((f) => f.code, 'code', '23514')),
     );
@@ -384,7 +384,7 @@ void main() {
       recipientPersonId: recipientPersonId,
       productId: productId,
       slotId: roomySlotId,
-      occasionDate: DateTime.now().add(const Duration(days: 30)),
+      occasionDate: DateTime.now().add(const Duration(days: 1)),
     );
 
     final gifts = await gift.myGifts();
