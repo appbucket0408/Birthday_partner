@@ -446,8 +446,10 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 #
 # This is the project's FIRST [functions] block. Every other function is
 # absent from this section deliberately and keeps verify_jwt = true.
-# 30_... and confirm/index.test.ts assert the other five still refuse an
-# unauthenticated caller at the HANDLER level, so this block cannot silently
-# widen them.
+# confirm/index.test.ts proves the other five still refuse an unauthenticated
+# caller at the HANDLER level (defence in depth, under --no-verify-jwt).
+# supabase/functions/test-gateway.sh proves the GATEWAY itself still blocks
+# those five while confirm passes through, so this block cannot have
+# silently widened them.
 [functions.confirm]
 verify_jwt = false
