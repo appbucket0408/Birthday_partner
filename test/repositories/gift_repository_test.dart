@@ -126,6 +126,16 @@ void main() {
   late int roomySlotId;
   late int tightSlotId;
   late int pastSlotId;
+  // The slot rows' own slot_date, read back from the same insert that
+  // created them (via `returning id, slot_date`) rather than recomputed on
+  // the Dart side. Postgres runs in UTC and this host may not; deriving
+  // "today" independently on each side let them disagree for 5.5 hours a
+  // night (00:00-05:30 IST), which private.create_gift's slot/occasion-date
+  // check (F3) turns into a nightly failure. Using the DB's own value for
+  // every createDraft() call against that slot means there is exactly one
+  // source of truth, in any timezone, at any hour.
+  late DateTime roomySlotDate;
+  late DateTime tightSlotDate;
   late int primaryPersonId;
   late int recipientPersonId;
   late String decoyProfileId;
@@ -172,18 +182,22 @@ void main() {
       'insert into public.products (service_area_id, name, price_minor) '
       "values ($otherAreaId, 'Other Area Cake', 50000) returning id;",
     ));
-    roomySlotId = int.parse(await psql(
+    final roomySlotRow = (await psql(
       'insert into public.delivery_slots '
       '(service_area_id, slot_date, window_start, window_end, capacity) '
       "values ($serviceAreaId, current_date + 1, '09:00', '12:00', 10) "
-      'returning id;',
-    ));
-    tightSlotId = int.parse(await psql(
+      'returning id, slot_date;',
+    )).split('|');
+    roomySlotId = int.parse(roomySlotRow[0]);
+    roomySlotDate = DateTime.parse(roomySlotRow[1]);
+    final tightSlotRow = (await psql(
       'insert into public.delivery_slots '
       '(service_area_id, slot_date, window_start, window_end, capacity) '
       "values ($serviceAreaId, current_date + 2, '09:00', '12:00', 1) "
-      'returning id;',
-    ));
+      'returning id, slot_date;',
+    )).split('|');
+    tightSlotId = int.parse(tightSlotRow[0]);
+    tightSlotDate = DateTime.parse(tightSlotRow[1]);
     pastSlotId = int.parse(await psql(
       'insert into public.delivery_slots '
       '(service_area_id, slot_date, window_start, window_end, capacity) '
@@ -318,7 +332,7 @@ void main() {
       recipientPersonId: recipientPersonId,
       productId: productId,
       slotId: roomySlotId,
-      occasionDate: DateTime.now().add(const Duration(days: 1)),
+      occasionDate: roomySlotDate,
       message: 'Happy birthday!',
     );
 
@@ -344,7 +358,7 @@ void main() {
         recipientPersonId: decoyPersonId,
         productId: productId,
         slotId: roomySlotId,
-        occasionDate: DateTime.now().add(const Duration(days: 1)),
+        occasionDate: roomySlotDate,
       ),
       throwsA(isA<ServerFailure>().having((f) => f.code, 'code', '45005')),
     );
@@ -358,7 +372,7 @@ void main() {
       recipientPersonId: recipientPersonId,
       productId: productId,
       slotId: tightSlotId,
-      occasionDate: DateTime.now().add(const Duration(days: 2)),
+      occasionDate: tightSlotDate,
     );
     expect(filler.status, GiftStatus.draft);
 
@@ -370,7 +384,7 @@ void main() {
         recipientPersonId: recipientPersonId,
         productId: productId,
         slotId: tightSlotId,
-        occasionDate: DateTime.now().add(const Duration(days: 2)),
+        occasionDate: tightSlotDate,
       ),
       throwsA(isA<ServerFailure>().having((f) => f.code, 'code', '23514')),
     );
@@ -384,7 +398,7 @@ void main() {
       recipientPersonId: recipientPersonId,
       productId: productId,
       slotId: roomySlotId,
-      occasionDate: DateTime.now().add(const Duration(days: 1)),
+      occasionDate: roomySlotDate,
     );
 
     final gifts = await gift.myGifts();
