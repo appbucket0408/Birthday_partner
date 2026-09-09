@@ -1,5 +1,5 @@
 begin;
-select plan(12);
+select plan(13);
 
 select has_table('public', 'gifts', 'gifts exists');
 select has_table('public', 'gift_events', 'gift_events exists');
@@ -83,13 +83,33 @@ select is(
   'the sender sees their own gift'
 );
 
--- The recipient sees the gift addressed to them.
+-- The sender still reads the full row, including amount_minor -- the price
+-- they paid. This must keep passing: it is the proof that the fix (dropping
+-- only the recipient branch of gifts_select_participants) does not become a
+-- column revoke, which would hide the price from the sender too and break
+-- myGifts()'s bare .select() (design doc §6.2, gift_repository_impl.dart:122).
+select is(
+  (select amount_minor::int from public.gifts limit 1),
+  84900,
+  'the sender still reads amount_minor on their own gift'
+);
+
+-- §6.4 (design doc 2026-09-04-m3-phase1b-recipient-confirm): this INVERTS an
+-- M0 guarantee deliberately. gifts_select_participants used to admit the
+-- recipient with no column restriction, so a claimed recipient who is also
+-- an app user could read amount_minor -- what the sender paid for their
+-- present -- directly through PostgREST, with no app screen involved. No
+-- in-app recipient surface exists to have shown it; the row was simply
+-- readable. The recipient branch is dropped: a recipient now reads nothing
+-- from public.gifts. When a recipient-facing surface ships, access returns
+-- through a narrow security-definer function exposing safe columns only,
+-- never by restoring this branch.
 select tests.as_postgres();
 select tests.as_user((select id from public.profiles where handle = 'honoree'));
 select is(
   (select count(*)::int from public.gifts),
-  1,
-  'the recipient sees the gift addressed to them'
+  0,
+  'the recipient can no longer read the gift addressed to them (§6.4)'
 );
 
 -- An unrelated user sees nothing.

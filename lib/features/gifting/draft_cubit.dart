@@ -17,16 +17,15 @@ import 'draft_state.dart';
 /// computes `birthday.nextOccurrence(now())` once and filters its slots to
 /// exactly that calendar day. A second, independent derivation here could
 /// disagree with the first -- a session crossing midnight between the two
-/// screens is enough -- and nothing server-side would catch it:
-/// `private.create_gift` checks the sender, self-gift, product-active, and
-/// the slot's area and capacity, but there is deliberately no
-/// `slot_date = p_occasion_date` constraint (spec §11, open question 1). So
-/// the client is the only guard against a cake dated one day and a van slot
-/// booked for another, and it can only be a reliable one if there is a
-/// single source of truth. Taking `occasionDate` as a plain argument, with
-/// no `Birthday` and no injectable clock for this purpose, makes the two
-/// dates structurally unable to diverge -- there is nothing left here to
-/// derive from.
+/// screens is enough -- and nothing server-side used to catch it. That gap
+/// is closed now: `private.create_gift` checks the sender, self-gift,
+/// product-active, and the slot's area and capacity, and (as of migration
+/// `20260904000002`) also enforces `slot_date = p_occasion_date` directly.
+/// The client-side single source of truth described below remains as
+/// defence in depth, not as the only guard. Taking `occasionDate` as a plain
+/// argument, with no `Birthday` and no injectable clock for this purpose,
+/// makes the two dates structurally unable to diverge -- there is nothing
+/// left here to derive from.
 class DraftCubit extends Cubit<DraftState> with ReentrancyGuard {
   DraftCubit(this._gifts) : super(const DraftIdle());
 

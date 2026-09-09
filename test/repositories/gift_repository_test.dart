@@ -144,12 +144,18 @@ void main() {
   // with the celebration guard removed the RPC's only remaining obstacle
   // would be a genuine one, not a foreign-key violation on a fake id.
   late int decoyPersonId;
-  // A gift sent BY the decoy TO the primary caller. RLS's recipient branch
-  // (`recipient_person_id = private.my_person_id()`) makes this row visible
-  // to the primary caller, so only the explicit `.eq(senderProfileId, ...)`
-  // filter in GiftRepositoryImpl.myGifts() keeps it out of that list --
-  // exercising the actual property the brief calls out ("silently
-  // over-fetching if a policy ever loosens").
+  // A gift sent BY the decoy, addressed to the primary caller's person row.
+  // Since M3 Phase 1b Task 6 (design doc §6), gifts_select_participants no
+  // longer has a recipient branch, so recipient_person_id no longer governs
+  // visibility here at all. Assertion 7 instead promotes the primary caller
+  // to staff for its own duration: private.is_staff() survives in the
+  // policy, so a staff caller's RLS admits every row in public.gifts --
+  // including this one -- and only the explicit
+  // `.eq(senderProfileId, ...)` filter in GiftRepositoryImpl.myGifts() keeps
+  // it out of that list. That is a sharper exercise of the same property the
+  // brief calls out ("silently over-fetching if a policy ever loosens") than
+  // a non-staff caller would give: for a non-staff caller RLS now excludes
+  // this row on its own, which would make the client filter untested.
   late int receivedGiftId;
 
   setUpAll(() async {
@@ -392,8 +398,24 @@ void main() {
 
   test(
       '7. myGifts() returns the caller\'s own drafts and NOT another '
-      'sender\'s, and every returned gift has deliveryCity == null',
-      () async {
+      'sender\'s -- even when RLS would admit every row -- and every '
+      'returned gift has deliveryCity == null', () async {
+    // Promote the primary caller to staff, for this assertion only.
+    // private.is_staff() survives Task 6's migration, so a staff caller's
+    // RLS admits every row in public.gifts: the client-side
+    // `.eq(senderProfileId, ...)` filter in myGifts() is then the ONLY
+    // thing narrowing the result to the caller's own gifts -- the real risk
+    // that filter guards, and a sharper one than a non-staff caller gives,
+    // since a staff user calling myGifts() without it would receive the
+    // whole table. No repository call can flip is_staff (authenticated has
+    // no update grant on that column -- 20260822000003_profiles.sql:54), so
+    // this goes through the same superuser psql() bypass as every other
+    // fixture no repository can create.
+    final primaryUid = ApiClient.instance.auth.currentUser!.id;
+    await psql(
+      "update public.profiles set is_staff = true where id = '$primaryUid';",
+    );
+
     final mine = await gift.createDraft(
       recipientPersonId: recipientPersonId,
       productId: productId,
@@ -405,8 +427,9 @@ void main() {
     final ids = gifts.map((g) => g.id).toList();
 
     expect(ids, contains(mine.id));
-    // receivedGiftId is visible to the caller under RLS (they are its
-    // recipient) -- only the sender filter in myGifts() keeps it out here.
+    // receivedGiftId belongs to another sender (the decoy). As a staff
+    // caller, RLS admits it to the primary caller regardless -- only the
+    // sender filter in myGifts() keeps it out here.
     expect(ids, isNot(contains(receivedGiftId)));
     // THE PRODUCT'S CORE PROMISE: the city is denormalised onto the gift
     // only at confirmation, which does not exist in this phase, so the
