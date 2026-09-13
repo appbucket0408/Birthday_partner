@@ -435,5 +435,18 @@ void main() {
     // only at confirmation, which does not exist in this phase, so the
     // sender must never be able to reach the recipient's address through it.
     expect(gifts.every((g) => g.deliveryCity == null), isTrue);
+
+    // Demote the primary caller back out of staff. tearDownAll deletes this
+    // profile outright via deleteAccount(), so nothing here leaks across
+    // suite runs -- but this test is not otherwise guaranteed to stay last,
+    // and a test appended after it would silently inherit is_staff = true
+    // and fail test 2's inactive-product exclusion for a reason that looks
+    // nothing like the cause (products_staff_write is a permissive `for
+    // all` policy, and Postgres ORs permissive policies together). A plain
+    // statement here, not a try/finally, matching this file's style
+    // elsewhere (no test in this file uses try/finally).
+    await psql(
+      "update public.profiles set is_staff = false where id = '$primaryUid';",
+    );
   });
 }
