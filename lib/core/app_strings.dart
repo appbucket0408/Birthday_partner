@@ -227,4 +227,19 @@ abstract final class AppStrings {
   static const giftStatusDeliveryFailed = 'Delivery failed';
   static const giftStatusRefunded = 'Refunded';
   static const giftStatusUnknown = 'Unknown';
+
+  // Ops console (M4 Phase 1). A separate web entry point; these never appear
+  // in the consumer app.
+  static const opsTitle = 'Ops console';
+  static const opsEmail = 'Email';
+  static const opsPassword = 'Password';
+  static const opsSignIn = 'Sign in';
+  static const opsSignOut = 'Sign out';
+  static const opsNotStaff = 'That account is not a staff account.';
+  static const opsSessionExpired =
+      'Your session has expired. Please sign in again.';
+  static const opsCatalogTab = 'Catalog';
+  static const opsSlotsTab = 'Delivery slots';
+  static const opsNotFound = 'That page does not exist.';
+  static const opsBackToCatalog = 'Back to the catalog';
 }
