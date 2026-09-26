@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/app_spacing.dart';
 import '../core/app_strings.dart';
+import 'catalog/ops_catalog_screen.dart';
 import 'signin/signin_cubit.dart';
 import 'signin/signin_screen.dart';
 import 'signin/signin_state.dart';
@@ -27,7 +28,7 @@ GoRouter buildOpsRouter(SignInCubit session) {
       ),
       GoRoute(
         path: '/catalog',
-        builder: (_, __) => const OpsCatalogPlaceholder(),
+        builder: (_, __) => const OpsCatalogScreen(),
       ),
       GoRoute(
         path: '/slots',
@@ -78,21 +79,6 @@ class _CubitListenable extends ChangeNotifier {
     _sub.cancel();
     super.dispose();
   }
-}
-
-/// Stands in for Task 4's `OpsCatalogScreen`. Exists so this router compiles
-/// and its redirect is testable before that task lands — M1 Phase 2b shipped
-/// a router naming five screens it never imported or stubbed, and this is
-/// that defect avoided rather than rediscovered. Task 4 deletes this class
-/// and points the route at the real screen.
-class OpsCatalogPlaceholder extends StatelessWidget {
-  const OpsCatalogPlaceholder({super.key});
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text(AppStrings.opsCatalogTab)),
-        body: const Center(child: Text('Catalog — coming in Task 4.')),
-      );
 }
 
 /// Stands in for Task 5's `OpsSlotsScreen`. Same reasoning as

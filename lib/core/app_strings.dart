@@ -242,4 +242,18 @@ abstract final class AppStrings {
   static const opsSlotsTab = 'Delivery slots';
   static const opsNotFound = 'That page does not exist.';
   static const opsBackToCatalog = 'Back to the catalog';
+
+  // Ops catalog (Task 4)
+  static const opsAddProduct = 'Add product';
+  static const opsProductName = 'Name';
+  static const opsProductFlavour = 'Flavour (optional)';
+  static const opsProductSize = 'Size (optional)';
+  static const opsProductPrice = 'Price in rupees';
+  static const opsPriceInvalid =
+      'Enter a price greater than zero, with at most two decimal places.';
+  static const opsNameRequired = 'A product needs a name.';
+  static const opsActive = 'Active';
+  static const opsInactive = 'Inactive';
+  static const opsNoAreas = 'No service areas exist yet.';
+  static const opsNoProducts = 'No products in this area yet.';
 }
