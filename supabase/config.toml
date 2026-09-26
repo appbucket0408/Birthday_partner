@@ -292,6 +292,11 @@ max_frequency = "5s"
 919999000011 = "123456"
 919999000012 = "123456"
 919999000013 = "123456"
+# ops_repository_test.dart (M4 Phase 1). Its own number for the same reason
+# every other suite has one: `flutter test` runs files concurrently and
+# GoTrue's OTP rate limit is cross-process, so a shared identity produces
+# failures in files the change never touched.
+919999000014 = "123456"
 
 # Configure logged in session timeouts.
 # [auth.sessions]

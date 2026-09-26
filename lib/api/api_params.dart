@@ -18,6 +18,11 @@ abstract final class ApiParams {
   static const city = 'city';
   static const remindersEnabled = 'reminders_enabled';
 
+  /// Read by the ops console to explain a refusal. Never written from a
+  /// client: `authenticated` has no update grant on this column
+  /// (20260822000003_profiles.sql:54), and it is a DBA action by design.
+  static const isStaff = 'is_staff';
+
   // birthday parts, on both people and profiles
   static const birthMonth = 'birth_month';
   static const birthDay = 'birth_day';

@@ -4,6 +4,46 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Product.fromRow', () {
+    // `is_active` is `not null default true`
+    // (20260822000006_catalog_slots.sql:19). The buyer's catalog never needed
+    // it -- productsIn filters to active rows, so everything it maps is
+    // active by definition. The ops console does need it: it must SHOW an
+    // inactive product in order to reactivate one.
+    test('maps is_active through, both ways', () {
+      Product withActive(bool value) => Product.fromRow({
+            ApiParams.id: 1,
+            ApiParams.serviceAreaId: 1,
+            ApiParams.name: 'Toggle Cake',
+            ApiParams.flavour: null,
+            ApiParams.size: null,
+            ApiParams.priceMinor: 50000,
+            ApiParams.imageUrl: null,
+            ApiParams.isActive: value,
+          });
+
+      expect(withActive(true).isActive, isTrue);
+      expect(withActive(false).isActive, isFalse);
+    });
+
+    // Every existing caller builds rows without the column (the buyer's
+    // reads predate it), and `not null default true` means a real row always
+    // carries one. Defaulting to true keeps those call sites working rather
+    // than making the field nullable, which would push a null check into
+    // every consumer for a column the database guarantees.
+    test('a row omitting is_active defaults to active', () {
+      final product = Product.fromRow({
+        ApiParams.id: 1,
+        ApiParams.serviceAreaId: 1,
+        ApiParams.name: 'Legacy Cake',
+        ApiParams.flavour: null,
+        ApiParams.size: null,
+        ApiParams.priceMinor: 50000,
+        ApiParams.imageUrl: null,
+      });
+
+      expect(product.isActive, isTrue);
+    });
+
     test('a row with flavour and size present maps them through', () {
       final product = Product.fromRow({
         ApiParams.id: 1,
