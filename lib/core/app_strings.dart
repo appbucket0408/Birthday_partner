@@ -256,4 +256,19 @@ abstract final class AppStrings {
   static const opsInactive = 'Inactive';
   static const opsNoAreas = 'No service areas exist yet.';
   static const opsNoProducts = 'No products in this area yet.';
+
+  // Ops delivery slots (Task 5)
+  static const opsAddSlot = 'Add delivery window';
+  static const opsSlotDate = 'Date';
+  static const opsWindowStart = 'Starts';
+  static const opsWindowEnd = 'Ends';
+  static const opsCapacity = 'Capacity';
+  static const opsReservedTemplate = '%s reserved';
+  static const opsWindowOrder = 'The window must end after it starts.';
+  static const opsCapacityBelowReservedTemplate =
+      'Capacity cannot go below the %s already reserved.';
+  static const opsCapacityNegative = 'Capacity cannot be negative.';
+  static const opsDuplicateWindow =
+      'A window already starts at that time on that date.';
+  static const opsNoSlots = 'No delivery windows in this range.';
 }

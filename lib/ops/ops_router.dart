@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../core/app_spacing.dart';
 import '../core/app_strings.dart';
 import 'catalog/ops_catalog_screen.dart';
+import 'slots/ops_slots_screen.dart';
 import 'signin/signin_cubit.dart';
 import 'signin/signin_screen.dart';
 import 'signin/signin_state.dart';
@@ -32,7 +33,19 @@ GoRouter buildOpsRouter(SignInCubit session) {
       ),
       GoRoute(
         path: '/slots',
-        builder: (_, __) => const OpsSlotsPlaceholder(),
+        // The range is the console's default window, chosen here rather
+        // than inside the screen so the screen never derives a date from
+        // the client clock. `DateTime.now()` is acceptable at this one
+        // call site because it only picks what to SHOW; nothing written to
+        // the database is derived from it.
+        builder: (_, __) {
+          final today = DateTime.now();
+          return OpsSlotsScreen(
+            from: DateTime(today.year, today.month, today.day),
+            to: DateTime(today.year, today.month, today.day)
+                .add(const Duration(days: 30)),
+          );
+        },
       ),
     ],
     redirect: (context, state) {
@@ -79,16 +92,4 @@ class _CubitListenable extends ChangeNotifier {
     _sub.cancel();
     super.dispose();
   }
-}
-
-/// Stands in for Task 5's `OpsSlotsScreen`. Same reasoning as
-/// [OpsCatalogPlaceholder]; Task 5 deletes it.
-class OpsSlotsPlaceholder extends StatelessWidget {
-  const OpsSlotsPlaceholder({super.key});
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text(AppStrings.opsSlotsTab)),
-        body: const Center(child: Text('Delivery slots — coming in Task 5.')),
-      );
 }
