@@ -1,5 +1,6 @@
 
 import 'package:birthday_app/core/app_strings.dart';
+import 'package:birthday_app/core/result.dart';
 import 'package:birthday_app/ops/catalog/ops_catalog_screen.dart';
 import 'package:birthday_app/ops/ops_router.dart';
 import 'package:birthday_app/ops/signin/signin_cubit.dart';
@@ -18,11 +19,23 @@ import 'package:flutter_test/flutter_test.dart';
 /// read nothing, so this provider was not needed -- swapping a placeholder
 /// for a real screen changes what the router's own tree must supply.
 class _FakeOps implements OpsRepository {
-  @override
-  Future<List<ServiceArea>> allServiceAreas() async => const [];
+  _FakeOps();
+
+  /// When set, every read throws it -- used to simulate a session dying
+  /// while the user is on a console screen.
+  Object? error;
 
   @override
-  Future<List<Product>> allProductsIn(int serviceAreaId) async => const [];
+  Future<List<ServiceArea>> allServiceAreas() async {
+    if (error != null) throw error!;
+    return const [];
+  }
+
+  @override
+  Future<List<Product>> allProductsIn(int serviceAreaId) async {
+    if (error != null) throw error!;
+    return const [];
+  }
 
   @override
   Future<Product> createProduct({
@@ -167,5 +180,64 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(OpsCatalogScreen), findsOneWidget);
+  });
+
+  testWidgets(
+      'a session that dies mid-console routes back to sign-in, not an inline '
+      'error with a doomed retry', (tester) async {
+    final ops = _FakeOps();
+    final cubit = SignInCubit(_FakeStaffAuth(staff: true));
+    final router = buildOpsRouter(cubit);
+
+    await tester.pumpWidget(
+      RepositoryProvider<OpsRepository>.value(
+        value: ops,
+        child: BlocProvider.value(
+          value: cubit,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      ),
+    );
+    await cubit.submit(email: 'ops@example.com', password: 'pw');
+    await tester.pumpAndSettle();
+    expect(find.byType(OpsCatalogScreen), findsOneWidget);
+
+    // The session dies. The next read the screen makes fails with an
+    // AuthFailure, exactly as Supabase reports an expired JWT.
+    ops.error = const AuthFailure('JWT expired');
+    router.go('/slots');
+    await tester.pumpAndSettle();
+
+    // Arrival at sign-in -- not "JWT expired" rendered inline on the slots
+    // screen behind a Retry button that would fail identically.
+    expect(find.byType(SignInScreen), findsOneWidget);
+    expect(find.text('JWT expired'), findsNothing);
+    expect(find.text(AppStrings.opsSessionExpired), findsOneWidget);
+  });
+
+  testWidgets('a staff user can sign out, and lands back at sign-in',
+      (tester) async {
+    final cubit = SignInCubit(_FakeStaffAuth(staff: true));
+    final router = buildOpsRouter(cubit);
+
+    await tester.pumpWidget(
+      RepositoryProvider<OpsRepository>.value(
+        value: _FakeOps(),
+        child: BlocProvider.value(
+          value: cubit,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      ),
+    );
+    await cubit.submit(email: 'ops@example.com', password: 'pw');
+    await tester.pumpAndSettle();
+    expect(find.byType(OpsCatalogScreen), findsOneWidget);
+
+    // Without this the only way to end a staff session is closing the tab,
+    // which on a shared machine is not a way at all.
+    await tester.tap(find.byKey(const Key('ops_sign_out')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SignInScreen), findsOneWidget);
   });
 }

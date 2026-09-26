@@ -271,4 +271,5 @@ abstract final class AppStrings {
   static const opsDuplicateWindow =
       'A window already starts at that time on that date.';
   static const opsNoSlots = 'No delivery windows in this range.';
+  static const opsDateInvalid = 'Enter the date as YYYY-MM-DD.';
 }

@@ -43,6 +43,12 @@ class OpsSlotsLoaded extends OpsSlotsState {
 }
 
 class OpsSlotsError extends OpsSlotsState {
-  const OpsSlotsError(this.message);
+  const OpsSlotsError(this.message, {this.sessionExpired = false});
   final String message;
+
+  /// True when the failure was an [AuthFailure]: the session is gone, not
+  /// merely a request that failed. The screen routes back to sign-in on
+  /// this, because rendering the driver's own "JWT expired" inline with a
+  /// Retry button gives the user no way out -- every retry fails the same.
+  final bool sessionExpired;
 }

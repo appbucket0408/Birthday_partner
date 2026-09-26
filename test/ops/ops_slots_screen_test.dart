@@ -13,6 +13,10 @@ class _FakeOps implements OpsRepository {
   _FakeOps(this.slots);
   List<DeliverySlot> slots;
   int setCapacityCalls = 0;
+  int createCalls = 0;
+  int? lastCreateCapacity;
+  DateTime? lastCreateDate;
+  String? lastCreateStart;
 
   @override
   Future<List<ServiceArea>> allServiceAreas() async =>
@@ -42,8 +46,13 @@ class _FakeOps implements OpsRepository {
     required String windowStart,
     required String windowEnd,
     required int capacity,
-  }) async =>
-      throw UnimplementedError();
+  }) async {
+    createCalls++;
+    lastCreateCapacity = capacity;
+    lastCreateDate = slotDate;
+    lastCreateStart = windowStart;
+    return slots.first;
+  }
 
   @override
   Future<List<Product>> allProductsIn(int serviceAreaId) async =>
@@ -159,5 +168,137 @@ void main() {
     // Without this, a guard that refused EVERY capacity change would pass
     // the test above while making the screen useless.
     expect(ops.setCapacityCalls, 1);
+  });
+
+  testWidgets(
+      'the screen can CREATE a slot -- the reason this phase exists',
+      (tester) async {
+    final ops = _FakeOps([
+      DeliverySlot(
+        id: 10,
+        serviceAreaId: 1,
+        slotDate: day,
+        windowStart: '10:00:00',
+        windowEnd: '13:00:00',
+        capacity: 5,
+        reserved: 0,
+      ),
+    ]);
+    await pumpView(tester, ops);
+
+    await tester.enterText(find.byKey(const Key('ops_new_date')), '2026-10-01');
+    await tester.enterText(find.byKey(const Key('ops_new_start')), '14:00');
+    await tester.enterText(find.byKey(const Key('ops_new_end')), '17:00');
+    await tester.enterText(find.byKey(const Key('ops_new_capacity')), '8');
+    await tester.tap(find.byKey(const Key('ops_add_slot')));
+    await tester.pumpAndSettle();
+
+    // M3 Phase 1a closed with the seed unable to complete a gift because
+    // its only product and its only slot sat in different service areas.
+    // A console that cannot create a slot cannot fix that, which was this
+    // screen's entire justification.
+    expect(ops.createCalls, 1);
+    expect(ops.lastCreateStart, '14:00');
+    expect(ops.lastCreateCapacity, 8);
+  });
+
+  testWidgets('the screen can switch service area', (tester) async {
+    final ops = _FakeOps([
+      DeliverySlot(
+        id: 10,
+        serviceAreaId: 1,
+        slotDate: day,
+        windowStart: '10:00:00',
+        windowEnd: '13:00:00',
+        capacity: 5,
+        reserved: 0,
+      ),
+    ]);
+    await pumpView(tester, ops);
+
+    // Asserting .value, never find.text: a DropdownButton keeps every item
+    // mounted in an IndexedStack and they are not Offstage-wrapped.
+    final dropdown = tester.widget<DropdownButton<int>>(
+      find.byKey(const Key('ops_slots_area_dropdown')),
+    );
+    expect(dropdown.value, 1);
+  });
+
+  testWidgets('an inverted window is refused before any write',
+      (tester) async {
+    final ops = _FakeOps([
+      DeliverySlot(
+        id: 10,
+        serviceAreaId: 1,
+        slotDate: day,
+        windowStart: '10:00:00',
+        windowEnd: '13:00:00',
+        capacity: 5,
+        reserved: 0,
+      ),
+    ]);
+    await pumpView(tester, ops);
+
+    await tester.enterText(find.byKey(const Key('ops_new_date')), '2026-10-01');
+    await tester.enterText(find.byKey(const Key('ops_new_start')), '17:00');
+    await tester.enterText(find.byKey(const Key('ops_new_end')), '14:00');
+    await tester.enterText(find.byKey(const Key('ops_new_capacity')), '8');
+    await tester.tap(find.byKey(const Key('ops_add_slot')));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.opsWindowOrder), findsOneWidget);
+    expect(ops.createCalls, 0);
+  });
+
+  testWidgets('a typed date is what gets created, not the range start',
+      (tester) async {
+    final ops = _FakeOps([
+      DeliverySlot(
+        id: 10,
+        serviceAreaId: 1,
+        slotDate: day,
+        windowStart: '10:00:00',
+        windowEnd: '13:00:00',
+        capacity: 5,
+        reserved: 0,
+      ),
+    ]);
+    await pumpView(tester, ops);
+
+    await tester.enterText(find.byKey(const Key('ops_new_date')), '2026-11-20');
+    await tester.enterText(find.byKey(const Key('ops_new_start')), '14:00');
+    await tester.enterText(find.byKey(const Key('ops_new_end')), '17:00');
+    await tester.enterText(find.byKey(const Key('ops_new_capacity')), '8');
+    await tester.tap(find.byKey(const Key('ops_add_slot')));
+    await tester.pumpAndSettle();
+
+    // Without a date field the form could only ever create slots on the
+    // range's first day, which is barely more useful than not having one.
+    expect(ops.lastCreateDate, DateTime(2026, 11, 20));
+  });
+
+  testWidgets('a malformed date is refused before any write', (tester) async {
+    final ops = _FakeOps([
+      DeliverySlot(
+        id: 10,
+        serviceAreaId: 1,
+        slotDate: day,
+        windowStart: '10:00:00',
+        windowEnd: '13:00:00',
+        capacity: 5,
+        reserved: 0,
+      ),
+    ]);
+    await pumpView(tester, ops);
+
+    await tester.enterText(find.byKey(const Key('ops_new_date')), '20-11-2026');
+    await tester.enterText(find.byKey(const Key('ops_new_start')), '14:00');
+    await tester.enterText(find.byKey(const Key('ops_new_end')), '17:00');
+    await tester.enterText(find.byKey(const Key('ops_new_capacity')), '8');
+    await tester.tap(find.byKey(const Key('ops_add_slot')));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.opsDateInvalid), findsOneWidget);
+    expect(ops.createCalls, 0);
   });
 }

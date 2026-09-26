@@ -32,6 +32,8 @@ class OpsCatalogCubit extends Cubit<OpsCatalogState> with ReentrancyGuard {
             products: products,
           );
           emit(_loaded!);
+        } on AuthFailure catch (f) {
+          emit(OpsCatalogError(f.message, sessionExpired: true));
         } on AppFailure catch (f) {
           emit(OpsCatalogError(f.message));
         } catch (_) {
@@ -51,6 +53,8 @@ class OpsCatalogCubit extends Cubit<OpsCatalogState> with ReentrancyGuard {
             products: products,
           );
           emit(_loaded!);
+        } on AuthFailure catch (f) {
+          emit(OpsCatalogError(f.message, sessionExpired: true));
         } on AppFailure catch (f) {
           emit(OpsCatalogError(f.message));
         } catch (_) {
@@ -95,6 +99,8 @@ class OpsCatalogCubit extends Cubit<OpsCatalogState> with ReentrancyGuard {
           final products = await _ops.allProductsIn(areaId);
           _loaded = current.copyWith(products: products);
           emit(_loaded!);
+        } on AuthFailure catch (f) {
+          emit(OpsCatalogError(f.message, sessionExpired: true));
         } on AppFailure catch (f) {
           emit(OpsCatalogError(f.message));
         } catch (_) {
@@ -112,6 +118,8 @@ class OpsCatalogCubit extends Cubit<OpsCatalogState> with ReentrancyGuard {
           final products = await _ops.allProductsIn(areaId);
           _loaded = current.copyWith(products: products);
           emit(_loaded!);
+        } on AuthFailure catch (f) {
+          emit(OpsCatalogError(f.message, sessionExpired: true));
         } on AppFailure catch (f) {
           emit(OpsCatalogError(f.message));
         } catch (_) {

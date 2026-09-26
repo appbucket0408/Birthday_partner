@@ -220,6 +220,22 @@ void main() {
     );
   });
 
+  test('8. an AuthFailure is flagged as a dead session, not a normal error',
+      () async {
+    final ops = _FakeOps(
+      areas: areas,
+      areasError: const AuthFailure('JWT expired'),
+    );
+    final cubit = OpsCatalogCubit(ops);
+
+    await cubit.load();
+
+    final state = cubit.state as OpsCatalogError;
+    // Without this flag the screen renders "JWT expired" inline with a Retry
+    // button that fails identically, and the user has no way back to sign-in.
+    expect(state.sessionExpired, isTrue);
+  });
+
   test('7. a second addProduct while the first is in flight is ignored',
       () async {
     final gate = Completer<void>();

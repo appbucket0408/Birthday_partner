@@ -49,6 +49,8 @@ class OpsSlotsCubit extends Cubit<OpsSlotsState> with ReentrancyGuard {
             slots: slots,
           );
           emit(_loaded!);
+        } on AuthFailure catch (f) {
+          emit(OpsSlotsError(f.message, sessionExpired: true));
         } on AppFailure catch (f) {
           emit(OpsSlotsError(f.message));
         } catch (_) {
@@ -140,6 +142,11 @@ class OpsSlotsCubit extends Cubit<OpsSlotsState> with ReentrancyGuard {
         }
       });
 
+  /// The screen parses the typed date and calls this when it cannot. Kept
+  /// on the cubit so the refusal lands in the same state the rest of the
+  /// validations use, rather than the screen growing a second error channel.
+  void rejectDate() => emit(const OpsSlotsError(AppStrings.opsDateInvalid));
+
   Future<void> _reload(OpsSlotsLoaded base) async {
     final areaId = base.selectedAreaId;
     if (areaId == null) {
@@ -154,6 +161,13 @@ class OpsSlotsCubit extends Cubit<OpsSlotsState> with ReentrancyGuard {
   }
 
   void _emitFailure(AppFailure f) {
+    // The session is gone, not merely this request. Flagged so the screen
+    // can route back to sign-in instead of offering a retry that cannot
+    // succeed.
+    if (f is AuthFailure) {
+      emit(OpsSlotsError(f.message, sessionExpired: true));
+      return;
+    }
     // 23505 is unique_violation -- the ONE constraint on this table with a
     // code of its own, so it gets a message of its own.
     if (f is ServerFailure && f.code == '23505') {

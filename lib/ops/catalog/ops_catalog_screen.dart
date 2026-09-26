@@ -6,6 +6,7 @@ import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
 import '../../models/product.dart';
 import '../../repositories/ops_repository.dart';
+import '../signin/signin_cubit.dart';
 import 'ops_catalog_cubit.dart';
 import 'ops_catalog_state.dart';
 
@@ -59,9 +60,24 @@ class _OpsCatalogViewState extends State<OpsCatalogView> {
             onPressed: () => context.go('/slots'),
             child: const Text(AppStrings.opsSlotsTab),
           ),
+          TextButton(
+            key: const Key('ops_sign_out'),
+            onPressed: () => context.read<SignInCubit>().signOut(),
+            child: const Text(AppStrings.opsSignOut),
+          ),
         ],
       ),
-      body: BlocBuilder<OpsCatalogCubit, OpsCatalogState>(
+      // A dead session is not this screen's problem to render. Routing
+      // back to sign-in is the only outcome the user can act on -- an
+      // inline "JWT expired" behind a Retry button offers a retry that
+      // fails identically, forever.
+      body: BlocListener<OpsCatalogCubit, OpsCatalogState>(
+        listenWhen: (_, s) => s is OpsCatalogError && s.sessionExpired,
+        listener: (context, _) {
+          context.read<SignInCubit>().sessionExpired();
+          context.go('/signin');
+        },
+        child: BlocBuilder<OpsCatalogCubit, OpsCatalogState>(
         builder: (context, state) {
           if (state is OpsCatalogLoading) {
             return const Center(child: CircularProgressIndicator());
@@ -117,7 +133,8 @@ class _OpsCatalogViewState extends State<OpsCatalogView> {
               _addForm(context),
             ],
           );
-        },
+          },
+        ),
       ),
     );
   }

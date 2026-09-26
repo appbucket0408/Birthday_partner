@@ -217,6 +217,17 @@ void main() {
     expect((b.state as OpsSlotsError).message, AppStrings.somethingWentWrong);
   });
 
+  test('9. an AuthFailure is flagged as a dead session, not a normal error',
+      () async {
+    final ops = _FakeOps(createError: const AuthFailure('JWT expired'));
+    final cubit = await loaded(ops);
+
+    await cubit.addSlot(
+        slotDate: day, windowStart: '10:00', windowEnd: '13:00', capacity: 5);
+
+    expect((cubit.state as OpsSlotsError).sessionExpired, isTrue);
+  });
+
   test('8. a second addSlot while the first is in flight is ignored',
       () async {
     final gate = Completer<void>();
