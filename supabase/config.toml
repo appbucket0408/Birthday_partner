@@ -201,7 +201,27 @@ web3 = 30
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.
-enable_signup = true
+#
+# FALSE, deliberately (M4 Phase 1). No path in this product needs email
+# self-signup: consumers arrive by phone OTP, and staff accounts are
+# provisioned by an administrator -- admin.auth.admin.createUser, then a DBA
+# `update public.profiles set is_staff = true`, because `authenticated` has
+# no update grant on that column (20260822000003_profiles.sql:54).
+#
+# Left open, a stranger did not merely occupy a row: because
+# enable_confirmations below is false, signup returned a full access token
+# with email_confirmed_at already set, so they became a functioning
+# authenticated user with no `people` row behind them. Harmless on its own --
+# is_staff defaults false and every staff policy gates on
+# private.is_staff() -- but nothing in this project cleans such rows up.
+#
+# NOT COVERED BY ANY AUTOMATED SUITE. This is a GoTrue setting read at
+# container start; no Dart test reaches the signup endpoint and no pgTAP test
+# can see an env var. supabase/functions/test-signup.sh is the manual check,
+# the same arrangement test-gateway.sh provides for verify_jwt. Re-run it
+# after any edit here, and after any `supabase init` or CLI upgrade, both of
+# which rewrite this file wholesale.
+enable_signup = false
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
