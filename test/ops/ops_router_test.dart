@@ -1,4 +1,3 @@
-import 'dart:async';
 
 import 'package:birthday_app/core/app_strings.dart';
 import 'package:birthday_app/ops/ops_router.dart';
