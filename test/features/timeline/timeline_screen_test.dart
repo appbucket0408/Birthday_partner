@@ -4,6 +4,8 @@ import 'package:birthday_app/models/birthday.dart';
 import 'package:birthday_app/models/celebration.dart';
 import 'package:birthday_app/models/person.dart';
 import 'package:birthday_app/repositories/graph_repository.dart';
+import 'package:birthday_app/repositories/push_repository.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -34,14 +36,43 @@ Person _person(int id, {Birthday? birthday}) =>
 
 Celebration _celeb(int id, Person person) => Celebration(id: id, person: person);
 
+class _FakePush implements PushRepository {
+  int permissionCalls = 0;
+  int registerCalls = 0;
+
+  @override
+  Future<bool> requestPermission() async {
+    permissionCalls++;
+    return true;
+  }
+
+  @override
+  Future<void> registerThisDevice() async => registerCalls++;
+
+  @override
+  Future<void> deleteThisDeviceToken() async {}
+
+  @override
+  Stream<String> get notificationRoutes => const Stream.empty();
+
+  @override
+  Future<String?> initialRoute() async => null;
+}
+
 DateTime _fixedNow() => DateTime(2026, 4, 15);
 
 Future<void> pump(WidgetTester tester, List<Celebration> celebrations) async {
+  // TimelineScreen creates a PushCubit eagerly (lazy: false), so this
+  // provider is required now -- arriving at the timeline is what asks for
+  // notification permission.
   await tester.pumpWidget(
     MaterialApp(
-      home: TimelineScreen(
-        repository: _FakeGraph(celebrations),
-        now: _fixedNow,
+      home: RepositoryProvider<PushRepository>.value(
+        value: _FakePush(),
+        child: TimelineScreen(
+          repository: _FakeGraph(celebrations),
+          now: _fixedNow,
+        ),
       ),
     ),
   );
@@ -127,5 +158,29 @@ void main() {
     expect(find.text(AppStrings.timelineEditNickname), findsOneWidget);
     expect(find.text(AppStrings.timelineStopCelebrating), findsOneWidget);
     expect(find.byType(PopupMenuItem<VoidCallback>), findsNWidgets(3));
+  });
+
+  // The assertion M4 Phase 1 taught this project to write: unit tests on
+  // PushCubit prove enable() works, and prove NOTHING about whether anything
+  // ever calls it. BlocProvider is lazy by default and nothing in
+  // _TimelineView reads PushCubit, so without `lazy: false` the cubit is
+  // never constructed, enable() never runs, no device ever registers, and
+  // every other test in this file still passes. This is the test that fails
+  // when that happens.
+  testWidgets('arriving at the timeline asks for permission and registers',
+      (tester) async {
+    final push = _FakePush();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepositoryProvider<PushRepository>.value(
+          value: push,
+          child: TimelineScreen(repository: _FakeGraph([]), now: _fixedNow),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(push.permissionCalls, 1);
+    expect(push.registerCalls, 1);
   });
 }

@@ -10,6 +10,8 @@ import '../../models/birthday.dart';
 import '../../models/celebration.dart';
 import '../../repositories/graph_repository.dart';
 import '../../repositories/graph_repository_impl.dart';
+import '../../repositories/push_repository.dart';
+import '../push/push_cubit.dart';
 import 'timeline_cubit.dart';
 import 'timeline_state.dart';
 
@@ -55,11 +57,30 @@ class TimelineScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => TimelineCubit(
-        _repository ?? GraphRepositoryImpl(ApiClient.instance),
-        now: _now,
-      )..load(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (_) => TimelineCubit(
+            _repository ?? GraphRepositoryImpl(ApiClient.instance),
+            now: _now,
+          )..load(),
+        ),
+        // Permission is asked HERE, on arrival at the timeline, and not at
+        // launch: Android 13+ treats POST_NOTIFICATIONS as a runtime
+        // permission, and prompting on the first cold frame -- before the
+        // user knows what the app is -- is the reliable way to be denied
+        // permanently. A denial renders nothing: the app works and
+        // reminders simply do not arrive.
+        // lazy: false is load-bearing. BlocProvider defaults to lazy, and
+        // nothing in _TimelineView ever READS PushCubit -- a denial renders
+        // nothing by design -- so with the default the cubit is never
+        // constructed and enable() never runs. The whole feature would be
+        // dead while every test stayed green.
+        BlocProvider(
+          lazy: false,
+          create: (c) => PushCubit(c.read<PushRepository>())..enable(),
+        ),
+      ],
       child: const _TimelineView(),
     );
   }
