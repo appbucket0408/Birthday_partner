@@ -6,7 +6,12 @@
 // the function runs in dry-run mode: it reports what it would have sent and
 // leaves the rows unsent, so the pipeline is exercisable before credentials.
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { reminderBody } from "./fcm.ts";
+import {
+  accessToken,
+  isDeadToken,
+  reminderBody,
+  type ServiceAccount,
+} from "./fcm.ts";
 
 type Reminder = {
   outbox_id: number;
@@ -61,25 +66,39 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const batch = (data ?? []) as Reminder[];
 
   // FCM HTTP v1. The legacy fcm.googleapis.com/fcm/send endpoint with a
-  // `key=SERVER_KEY` header was shut down by Google in 2024 and no longer accepts
-  // traffic — do not reintroduce it.
+  // `key=SERVER_KEY` header was shut down by Google in 2024 and no longer
+  // accepts traffic -- do not reintroduce it.
   //
-  // PHASE 2 MUST REPLACE FCM_ACCESS_TOKEN. v1 authenticates with a short-lived
-  // OAuth2 bearer token minted from a service-account key (JWT assertion exchanged
-  // at oauth2.googleapis.com/token), and those tokens expire hourly. A static env
-  // var is a deliberate placeholder so this path has the right shape and can be
-  // exercised with a stub — it is not a deployment strategy.
-  const fcmProject = Deno.env.get("FCM_PROJECT_ID");
-  const fcmToken = Deno.env.get("FCM_ACCESS_TOKEN");
+  // One secret, holding the service-account JSON verbatim. There is no
+  // separate FCM_PROJECT_ID: the project id is the file's own `project_id`,
+  // and two sources for one value is two things to drift apart.
+  const saRaw = Deno.env.get("FCM_SERVICE_ACCOUNT");
 
-  if (!fcmProject || !fcmToken) {
+  if (!saRaw) {
     // Dry run. Note the rows in this batch are already CLAIMED for their
-    // 10-minute lease — next_reminder_batch claims as it reads — so an immediate
-    // second call reports zero. Expected, not a bug.
+    // 10-minute lease -- next_reminder_batch claims as it reads -- so an
+    // immediate second call reports zero. Expected, not a bug.
     return new Response(
       JSON.stringify({ dryRun: true, would_send: batch.length, sent: 0, failed: 0 }),
       { status: 200, headers: { "content-type": "application/json" } },
     );
+  }
+
+  const sa = JSON.parse(saRaw) as ServiceAccount;
+
+  // Minted ONCE for the batch, outside the loop. A failure here is NOT a
+  // per-message failure: no message was attempted, so nothing may be marked
+  // failed. Returning 500 leaves the claim lease to expire in ten minutes
+  // and the next drain picks the rows up untouched, with `attempts` intact.
+  let bearer: string;
+  try {
+    bearer = await accessToken(sa, Date.now());
+  } catch (e) {
+    console.error("fcm token mint failed", e);
+    return new Response(JSON.stringify({ error: "auth failed" }), {
+      status: 500,
+      headers: { "content-type": "application/json" },
+    });
   }
 
   let sent = 0;
@@ -93,11 +112,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // per-device delivery tracking.
     try {
       const res = await fetch(
-        `https://fcm.googleapis.com/v1/projects/${fcmProject}/messages:send`,
+        `https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`,
         {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${fcmToken}`,
+            "Authorization": `Bearer ${bearer}`,
             "content-type": "application/json",
           },
           body: JSON.stringify({
@@ -114,6 +133,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
 
       if (!res.ok) {
+        if (isDeadToken(res.status)) {
+          // UNREGISTERED: the OS revoked this token. Deleting the row is the
+          // only thing that stops every future reminder for this user being
+          // claimed and burned against a corpse. The user re-registers on
+          // next launch -- registerThisDevice runs on every timeline arrival.
+          const { error: delError } = await admin
+            .from("device_tokens").delete().eq("token", r.token);
+          if (delError) {
+            console.error("stale token delete failed", delError.message);
+          }
+        }
         const { error: failError } = await admin.rpc("rpc_mark_reminder_failed", {
           p_outbox_id: r.outbox_id,
           p_error: `fcm ${res.status}`,
