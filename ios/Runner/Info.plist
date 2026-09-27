@@ -47,7 +47,7 @@
 	<true/>
 	<!-- The app talks to a local Supabase stack (http://127.0.0.1:54321) during
 	     development, and ATS blocks cleartext HTTP by default. This exception
-	     permits cleartext ONLY to local-network destinations -- it does not
+	     permits cleartext ONLY to local-network destinations; it does not
 	     disable ATS globally (that would be NSAllowsArbitraryLoads, which this
 	     deliberately avoids) and a hosted deployment reached over HTTPS never
 	     exercises it. Safe to leave in for production; it only ever relaxes
@@ -59,7 +59,7 @@
 	</dict>
 	<!-- Without this key, iOS terminates the process with SIGABRT the moment
 	     ImportCubit.start() calls FlutterContacts.requestPermission(), which
-	     reaches CNContactStore().requestAccess -- the literal twin of the
+	     reaches CNContactStore().requestAccess; the literal twin of the
 	     ATS defect fixed above, in this same file. Copy matches the app's
 	     own disclosure text (AppStrings.importDisclosureBody): the app reads
 	     contacts so the user can pick who to celebrate, and never stores
