@@ -124,6 +124,40 @@ FCM hop, and the app registers real device tokens from real hardware.
     Task 9 for the human partner and forbade running the app; the partner
     then said a device was connected and to proceed.
 
+## Final whole-branch review
+
+A fresh reviewer (separate context, most capable model) found **one Critical
+and nine Important**. Eight were fixed in one pass, each with a test watched
+to fail first; one was escalated rather than fixed; one was judged a
+duplicate of work already done.
+
+| | Finding | Outcome |
+|---|---|---|
+| C1 | `next_reminder_batch` burns an attempt **as it claims**, so every abandon path still destroyed reminders — and `index.ts` carried a comment asserting the opposite. A failed mint returned 500 marking nothing failed, the cron re-claimed every 10 min, and within ~1 hour every pending row crossed `attempts < 5` and vanished forever with `last_error` null. | Fixed: `private.release_reminder_claims` |
+| I2 | U+2028/U+2029 not stripped — mandatory line breaks to Android's ICU breaker, so a name could still forge the second line. LRM/RLM/ALM also missing. | Fixed |
+| I3 | `trim()` does not remove U+200B, so a name of pure zero-width characters defeated the `Someone` fallback and rendered `It's 's birthday today.` | Fixed |
+| I4 | `index.ts` had **no tests**. Review Focus 2 was evidenced by `isDeadToken(404) === true` — a predicate over an integer that cannot fail if the delete is missing. | Fixed: handler extracted to `handler.ts`, 10 tests |
+| I5 | A notification tapped from a **cold start** never reached the person page: `getInitialMessage` resolves before the session, and the router bounces `SessionUnknown` to `/splash`, then to `/timeline`. | Fixed: `navigateWhenSessionResolves` |
+| I6 | A bare 404 deleted device tokens with no body check; a service account missing `project_id` would have made the URL `/projects/undefined/` and deleted **every** token in the batch, silently. | Fixed |
+| I7 | The bearer cache was global and never invalidated, so a revoked key kept being served for ~55 minutes. | Fixed: keyed on `client_email`, dropped on 401/403 |
+| I8 | Four hard-coded-OTP phone numbers in `config.toml`. | **Escalated, not fixed** — see below |
+| I9 | `trigger_drain`'s configured path was executed by nothing; only the empty-config guard was tested. | Fixed: 3 assertions |
+| I10 | Re-prompting on every timeline arrival spends Android 13's second and final refusal within seconds of the first. | Fixed: status checked before asking |
+
+Fixing I10 surfaced something the review did not catch: the analyzer rejected
+the non-exhaustive switch, revealing `AuthorizationStatus.deniedPermanently`
+— the exact state a second refusal produces. Without mapping it to `denied`
+the cubit would have called `requestPermission()` forever against an OS that
+will never show a prompt again.
+
+**I8 was escalated rather than fixed.** Commit `670ff21` added four
+`[auth.sms.test_otp]` numbers, including two that look like real personal
+mobiles. They arrived in the working tree from outside the session — only the
+spec file was staged, so they were already in the index — which is consistent
+with them having been added deliberately to test OTP on a real handset.
+Reverting would destroy that; keeping them silently would bury a real hazard.
+The decision belongs to the project owner.
+
 ## Carried forward
 
 1. The SMS half of Phase 2c: provider, DLT registration, `send_invite`, and
