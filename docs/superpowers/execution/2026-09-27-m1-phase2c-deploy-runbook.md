@@ -8,12 +8,15 @@ Run in order. Steps 1–3 need credentials only the project owner has.
 
 Not once, not with `--dry-run`, not "just to see the diff".
 
-`supabase/config.toml` carries `[auth.sms.test_otp]`: twelve real-format
-Indian phone numbers whose OTP is the hardcoded string `123456`. `db push`
-does not touch that file. **`config push` applies it**, which would place
-twelve working backdoor credentials on an internet-facing GoTrue. This
-project has already reproduced two account-takeover bugs on this exact
-surface.
+`supabase/config.toml` carries `[auth.sms.test_otp]`: real-format Indian
+phone numbers whose OTP is the hardcoded string `123456`. `db push` does not
+touch that file. **`config push` applies it**, which would place every one of
+them on an internet-facing GoTrue as a working backdoor. This project has
+already reproduced two account-takeover bugs on this exact surface.
+
+How many there are is asserted by `supabase/check-no-config-push.sh`, which
+also fails if the count changes without that script changing in the same
+commit. Do not restate the number here; it drifted once already.
 
 The same hazard applies by hand: **do not** add test phone numbers in the
 hosted dashboard's Auth → Providers → Phone → Test OTP panel. It is the same
@@ -112,6 +115,7 @@ fired yet — it runs at `*/10`.
 ```bash
 grep -n 'enable_confirmations' supabase/config.toml   # must be true
 ./supabase/check-no-config-push.sh                    # must print PASS
+                                                      # (checks the command AND the count)
 ```
 
 Then, in the hosted dashboard, confirm Auth → Providers → Phone has **no**

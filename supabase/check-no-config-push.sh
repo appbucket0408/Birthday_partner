@@ -1,31 +1,43 @@
 #!/usr/bin/env bash
-# Fails if any tracked RUNNABLE file invokes `supabase config push` while
-# config.toml still carries the test-OTP block.
+# Two checks on the test-OTP block in supabase/config.toml:
 #
-# config.toml holds twelve real-format phone numbers whose OTP is a
-# hardcoded "123456". `db push` does not touch config.toml; `config push`
-# DOES, and would place those numbers on an internet-facing GoTrue. This
-# project has already reproduced two account-takeover bugs on this surface.
+#   1. No tracked RUNNABLE file invokes `supabase config push`.
+#   2. The number of test-OTP entries matches EXPECTED_TEST_OTP below.
 #
-# SCOPE IS THE WHOLE SUBTLETY HERE. The places that mention this command
-# most are the ones FORBIDDING it: config.toml's own warning, the specs, the
-# ledgers, the deploy runbook. A check that flagged prose would fail on the
-# day it was written and be deleted by the first person it annoyed. So this
-# searches only files that can actually execute -- shell, CI, Makefiles,
-# package scripts -- and inside those, skips comment lines. Prose in docs/
-# and .md is never matched, by design and not by oversight.
+# Why both. That block maps real-format Indian phone numbers to the hardcoded
+# OTP "123456". `db push` does not touch config.toml; `config push` DOES, and
+# would place every one of them on an internet-facing GoTrue as a working
+# backdoor. This project has already reproduced two account-takeover bugs on
+# this exact surface.
+#
+# The count check exists because the prose drifted: four numbers were added
+# at some point while the spec, the runbook, this script and config.toml's
+# own warning all still said "twelve" -- so the file and every description of
+# it disagreed, silently, and the only reason anyone noticed was a code
+# review. A number in a comment cannot police itself; this can. When the
+# block legitimately changes, update EXPECTED_TEST_OTP in the same commit and
+# the reviewer sees the delta.
+#
+# SCOPE OF CHECK 1 IS DELIBERATE. The places that mention `config push` most
+# are the ones FORBIDDING it: config.toml's own warning, the specs, the
+# ledgers, this runbook. A check that flagged prose would have failed the day
+# it was written and been deleted by the first person it annoyed. So it
+# searches only files that can execute, and skips comment lines inside them.
 #
 # This guards the REPO's contents. It cannot guard an operator's shell.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+EXPECTED_TEST_OTP=18
+
 if ! grep -q '^\[auth.sms.test_otp\]' supabase/config.toml; then
-  echo "note: no [auth.sms.test_otp] block; this check is moot."
+  echo "note: no [auth.sms.test_otp] block; both checks are moot."
   exit 0
 fi
 
-# git grep prints `path:lineno:content`; the filter drops content whose
-# first non-space character starts a comment.
+# --- 1. nothing runs the command ----------------------------------------
+# git grep prints `path:lineno:content`; the filter drops content whose first
+# non-space character starts a comment.
 hits=$(git grep -n -- 'config push' -- \
          '*.sh' '*.bash' '*.zsh' '*.yml' '*.yaml' '*.mk' \
          'Makefile' 'justfile' 'package.json' '.github/**' \
@@ -39,4 +51,18 @@ if [ -n "$hits" ]; then
   exit 1
 fi
 
-echo "PASS: no runnable tracked file runs 'supabase config push'."
+# --- 2. the block is the size we think it is ----------------------------
+actual=$(sed -n '/^\[auth.sms.test_otp\]/,/^\[/p' supabase/config.toml \
+         | grep -cE '^[0-9]+ = ' || true)
+
+if [ "$actual" -ne "$EXPECTED_TEST_OTP" ]; then
+  echo "FAIL: [auth.sms.test_otp] has $actual entries, expected $EXPECTED_TEST_OTP."
+  echo
+  echo "Every entry is a working backdoor credential if this block ever"
+  echo "reaches a hosted project. If the change is intended, update"
+  echo "EXPECTED_TEST_OTP in this script in the same commit, so the delta is"
+  echo "visible in review rather than buried in a config file."
+  exit 1
+fi
+
+echo "PASS: nothing runs 'supabase config push'; test_otp has $actual entries."

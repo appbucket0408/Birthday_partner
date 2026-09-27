@@ -68,8 +68,10 @@ above its test-OTP block, and it is correct:
 > `supabase db push` does not touch this file, but `supabase config push` DOES
 > apply config.toml (this `[auth.sms]` block included) to a hosted project.
 
-Twelve real-format phone numbers whose OTP is a hardcoded `"123456"` would land
-on an internet-facing auth endpoint. This project has already reproduced two
+Every real-format phone number in that block, each with a hardcoded OTP of
+`"123456"`, would land on an internet-facing auth endpoint. (The count is
+asserted by the guard script rather than written down here: it drifted once,
+and every prose copy of it was wrong at the same time.) This project has already reproduced two
 account-takeover bugs on this exact surface. The same hazard applies to entering
 those numbers into the hosted dashboard's test-OTP feature by hand: it is the
 same backdoor, typed instead of pushed. **Neither is done.** Hosted auth is

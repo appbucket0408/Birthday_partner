@@ -286,9 +286,13 @@ max_frequency = "5s"
 # `supabase db push` does not touch this file, but `supabase config push`
 # DOES apply config.toml (this [auth.sms] block included) to a hosted
 # project. NEVER run `supabase link && supabase config push` while this
-# block exists -- it would ship twelve real-format phone numbers whose OTP is
-# a hardcoded "123456" to hosted GoTrue: full account takeover on an auth
-# surface that has already produced two takeover bugs.
+# block exists -- it would ship EVERY number below, whose OTP is a hardcoded
+# "123456", to hosted GoTrue: full account takeover on an auth surface that
+# has already produced two takeover bugs.
+#
+# The count is asserted by supabase/check-no-config-push.sh, not stated here.
+# It drifted once already -- four numbers were added while this comment, the
+# spec, the runbook and the guard script all still said "twelve".
 [auth.sms.test_otp]
 919999000001 = "123456"
 919999000002 = "123456"
