@@ -1,3 +1,4 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -13,6 +14,8 @@ import 'repositories/graph_repository_impl.dart';
 import 'repositories/person_repository.dart';
 import 'repositories/person_repository_impl.dart';
 import 'repositories/profile_repository.dart';
+import 'repositories/push_repository.dart';
+import 'repositories/push_repository_impl.dart';
 import 'repositories/profile_repository_impl.dart';
 import 'repositories/wish_repository.dart';
 import 'repositories/wish_repository_impl.dart';
@@ -35,6 +38,8 @@ class _BirthdayAppState extends State<BirthdayApp> {
       ProfileRepositoryImpl(ApiClient.instance);
   late final GraphRepository _graph = GraphRepositoryImpl(ApiClient.instance);
   late final GiftRepository _gift = GiftRepositoryImpl(ApiClient.instance);
+  late final PushRepository _push =
+      PushRepositoryImpl(ApiClient.instance, FirebaseMessaging.instance);
   late final SessionCubit _session = SessionCubit(_auth)..load();
   late final _router = buildRouter(_session);
 
@@ -48,6 +53,7 @@ class _BirthdayAppState extends State<BirthdayApp> {
         RepositoryProvider<ProfileRepository>.value(value: _profile),
         RepositoryProvider<GraphRepository>.value(value: _graph),
         RepositoryProvider<GiftRepository>.value(value: _gift),
+        RepositoryProvider<PushRepository>.value(value: _push),
       ],
       child: BlocProvider.value(
         value: _session,

@@ -58,12 +58,4 @@ void main() {
     final profile = await auth.loadProfile();
     expect(profile.remindersEnabled, isTrue);
   });
-
-  // Push is stubbed in Phase 2b, so a freshly claimed profile has no
-  // registered device token. This is the ONLY path this method takes until
-  // Phase 2c -- if it throws instead of no-op-ing, every sign-out breaks.
-  test('deleteThisDeviceToken on a user with no registered token is a '
-      'no-op, not an error', () async {
-    await expectLater(settings.deleteThisDeviceToken(), completes);
-  });
 }

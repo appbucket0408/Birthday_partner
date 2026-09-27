@@ -2,6 +2,7 @@ import 'package:birthday_app/features/settings/settings_screen.dart';
 import 'package:birthday_app/models/birthday.dart';
 import 'package:birthday_app/models/profile.dart';
 import 'package:birthday_app/repositories/auth_repository.dart';
+import 'package:birthday_app/repositories/push_repository.dart';
 import 'package:birthday_app/repositories/settings_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -12,9 +13,23 @@ import 'package:flutter_test/flutter_test.dart';
 class _FakeSettings implements SettingsRepository {
   @override
   Future<void> setRemindersEnabled(bool enabled) async {}
+}
 
+class _FakePush implements PushRepository {
   @override
   Future<void> deleteThisDeviceToken() async {}
+
+  @override
+  Future<bool> requestPermission() async => true;
+
+  @override
+  Future<void> registerThisDevice() async {}
+
+  @override
+  Stream<String> get notificationRoutes => const Stream.empty();
+
+  @override
+  Future<String?> initialRoute() async => null;
 }
 
 class _FakeAuth implements AuthRepository {
@@ -73,8 +88,11 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
-        home: RepositoryProvider<AuthRepository>.value(
-          value: _FakeAuth(),
+        home: MultiRepositoryProvider(
+          providers: [
+            RepositoryProvider<AuthRepository>.value(value: _FakeAuth()),
+            RepositoryProvider<PushRepository>.value(value: _FakePush()),
+          ],
           child: SettingsScreen(repository: _FakeSettings()),
         ),
       ),

@@ -9,6 +9,10 @@ abstract final class ApiParams {
 
   // device_tokens
   static const token = 'token';
+  static const platform = 'platform';
+  static const rpcRegisterDeviceToken = 'register_device_token';
+  static const pToken = 'p_token';
+  static const pPlatform = 'p_platform';
 
   // profiles
   static const id = 'id';

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/app_strings.dart';
 import '../../core/result.dart';
 import '../../repositories/auth_repository.dart';
+import '../../repositories/push_repository.dart';
 import '../../repositories/settings_repository.dart';
 import 'settings_state.dart';
 
@@ -17,10 +18,12 @@ import 'settings_state.dart';
 /// SessionCubit, the same shape as PhoneCubit/ProfileSetupCubit finishing
 /// and the screen telling SessionCubit to re-derive routing state.
 class SettingsCubit extends Cubit<SettingsState> {
-  SettingsCubit(this._settings, this._auth) : super(const SettingsLoading());
+  SettingsCubit(this._settings, this._auth, this._push)
+      : super(const SettingsLoading());
 
   final SettingsRepository _settings;
   final AuthRepository _auth;
+  final PushRepository _push;
 
   // Guards re-entrancy per action, not with one flag for the whole cubit --
   // same shape as TimelineCubit._inFlight: a double-tap on "Sign out" must
@@ -80,7 +83,7 @@ class SettingsCubit extends Cubit<SettingsState> {
     if (!_inFlight.add('signOut')) return;
     final current = state;
     try {
-      await _settings.deleteThisDeviceToken();
+      await _push.deleteThisDeviceToken();
       await _auth.signOut();
       emit(const SettingsSignedOut());
     } catch (_) {

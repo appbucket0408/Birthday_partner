@@ -22,24 +22,4 @@ class SettingsRepositoryImpl implements SettingsRepository {
       throw mapError(e);
     }
   }
-
-  /// null until Phase 2c registers a push token via
-  /// `register_device_token`. There is no client-side field to read a
-  /// current token from yet, so this always resolves to null today -- see
-  /// the guarded no-op below and the class doc on [deleteThisDeviceToken].
-  String? get _currentDeviceToken => null;
-
-  @override
-  Future<void> deleteThisDeviceToken() async {
-    final token = _currentDeviceToken;
-    if (token == null) return;
-    try {
-      await _client
-          .from(ApiParams.deviceTokens)
-          .delete()
-          .eq(ApiParams.token, token);
-    } catch (e) {
-      throw mapError(e);
-    }
-  }
 }

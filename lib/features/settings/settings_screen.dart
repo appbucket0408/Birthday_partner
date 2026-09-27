@@ -6,6 +6,7 @@ import '../../api/api_client.dart';
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
 import '../../repositories/auth_repository.dart';
+import '../../repositories/push_repository.dart';
 import '../../repositories/settings_repository.dart';
 import '../../repositories/settings_repository_impl.dart';
 import '../../router/session_cubit.dart';
@@ -32,6 +33,11 @@ class SettingsScreen extends StatelessWidget {
       create: (c) => SettingsCubit(
         _repository ?? SettingsRepositoryImpl(ApiClient.instance),
         c.read<AuthRepository>(),
+        // Read off context with no `?? ConcreteImpl(...)` fallback, the
+        // convention every other repository here follows. The older
+        // `_repository` parameter above predates it and is left alone --
+        // changing it is not this phase's work.
+        c.read<PushRepository>(),
       )..load(),
       child: const _SettingsView(),
     );

@@ -5,6 +5,7 @@ import 'package:birthday_app/features/settings/settings_state.dart';
 import 'package:birthday_app/models/birthday.dart';
 import 'package:birthday_app/models/profile.dart';
 import 'package:birthday_app/repositories/auth_repository.dart';
+import 'package:birthday_app/repositories/push_repository.dart';
 import 'package:birthday_app/repositories/settings_repository.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,19 +24,41 @@ class _FakeSettings implements SettingsRepository {
   Object? setRemindersEnabledError;
 
   int setRemindersEnabledCalls = 0;
-  int deleteThisDeviceTokenCalls = 0;
 
   @override
   Future<void> setRemindersEnabled(bool enabled) async {
     setRemindersEnabledCalls++;
     if (setRemindersEnabledError != null) throw setRemindersEnabledError!;
   }
+}
+
+/// The device-token half of what _FakeSettings used to fake. It keeps the
+/// SAME shared [calls] list, so the sign-out ordering assertion goes on
+/// asserting across a repository boundary -- now the boundary that actually
+/// exists.
+class _FakePush implements PushRepository {
+  _FakePush({required this.calls});
+
+  final List<String> calls;
+  int deleteThisDeviceTokenCalls = 0;
 
   @override
   Future<void> deleteThisDeviceToken() async {
     calls.add('deleteThisDeviceToken');
     deleteThisDeviceTokenCalls++;
   }
+
+  @override
+  Future<bool> requestPermission() async => true;
+
+  @override
+  Future<void> registerThisDevice() async {}
+
+  @override
+  Stream<String> get notificationRoutes => const Stream.empty();
+
+  @override
+  Future<String?> initialRoute() async => null;
 }
 
 class _FakeAuth implements AuthRepository {
@@ -113,7 +136,7 @@ void main() {
   // 1. toggleReminders(false) emits saving then the new value.
   blocTest<SettingsCubit, SettingsState>(
     'toggleReminders(false) emits saving then the new value',
-    build: () => SettingsCubit(_FakeSettings(calls: []), _FakeAuth(calls: [])),
+    build: () => SettingsCubit(_FakeSettings(calls: []), _FakeAuth(calls: []), _FakePush(calls: [])),
     seed: () => const SettingsLoaded(remindersEnabled: true),
     act: (c) => c.toggleReminders(false),
     expect: () => [
@@ -137,6 +160,7 @@ void main() {
         setRemindersEnabledError: const ServerFailure('boom'),
       ),
       _FakeAuth(calls: []),
+      _FakePush(calls: []),
     ),
     seed: () => const SettingsLoaded(remindersEnabled: true),
     act: (c) => c.toggleReminders(false),
@@ -164,7 +188,7 @@ void main() {
       final calls = <String>[];
       final settings = _FakeSettings(calls: calls);
       final auth = _FakeAuth(calls: calls);
-      final cubit = SettingsCubit(settings, auth);
+      final cubit = SettingsCubit(settings, auth, _FakePush(calls: calls));
 
       await cubit.signOut();
 
@@ -181,7 +205,7 @@ void main() {
     () async {
       final calls = <String>[];
       final auth = _FakeAuth(calls: calls);
-      final cubit = SettingsCubit(_FailingDeleteTokenSettings(), auth);
+      final cubit = SettingsCubit(_FakeSettings(calls: calls), auth, _FailingDeleteTokenPush());
 
       await cubit.signOut();
 
@@ -202,7 +226,7 @@ void main() {
         calls: calls,
         signOutError: const ServerFailure('boom'),
       );
-      final cubit = SettingsCubit(_FakeSettings(calls: calls), auth);
+      final cubit = SettingsCubit(_FakeSettings(calls: calls), auth, _FakePush(calls: calls));
       cubit.emit(const SettingsLoaded(remindersEnabled: true));
 
       await cubit.signOut();
@@ -226,7 +250,7 @@ void main() {
     'deleteAccount calls AuthRepository.deleteAccount and signs out',
     () async {
       final auth = _FakeAuth(calls: []);
-      final cubit = SettingsCubit(_FakeSettings(calls: []), auth);
+      final cubit = SettingsCubit(_FakeSettings(calls: []), auth, _FakePush(calls: []));
 
       await cubit.deleteAccount();
 
@@ -246,7 +270,7 @@ void main() {
         calls: [],
         deleteAccountError: const ServerFailure('boom'),
       );
-      final cubit = SettingsCubit(_FakeSettings(calls: []), auth);
+      final cubit = SettingsCubit(_FakeSettings(calls: []), auth, _FakePush(calls: []));
       cubit.emit(const SettingsLoaded(remindersEnabled: true));
 
       await cubit.deleteAccount();
@@ -265,6 +289,7 @@ void main() {
     final cubit = SettingsCubit(
       _FakeSettings(calls: []),
       _FakeAuth(calls: [], profile: _profile(remindersEnabled: false)),
+      _FakePush(calls: []),
     );
 
     await cubit.load();
@@ -286,6 +311,7 @@ void main() {
         calls: [],
         loadProfileError: const ServerFailure('boom from the server'),
       ),
+      _FakePush(calls: []),
     );
 
     await cubit.load();
@@ -305,6 +331,7 @@ void main() {
     final cubit = SettingsCubit(
       _FakeSettings(calls: []),
       _FakeAuth(calls: [], loadProfileError: StateError('unexpected')),
+      _FakePush(calls: []),
     );
 
     await cubit.load();
@@ -324,6 +351,7 @@ void main() {
     final cubit = SettingsCubit(
       _FakeSettings(calls: calls),
       _FakeAuth(calls: calls),
+      _FakePush(calls: calls),
     );
 
     final first = cubit.signOut();
@@ -334,15 +362,24 @@ void main() {
   });
 }
 
-/// A [SettingsRepository] whose [deleteThisDeviceToken] always throws,
-/// isolated from [_FakeSettings] so its error path can be tested without
-/// giving every other test an error-prone deleteThisDeviceToken.
-class _FailingDeleteTokenSettings implements SettingsRepository {
-  @override
-  Future<void> setRemindersEnabled(bool enabled) async {}
-
+/// A [PushRepository] whose [deleteThisDeviceToken] always throws, isolated
+/// from [_FakePush] so its error path can be tested without giving every
+/// other test an error-prone deleteThisDeviceToken.
+class _FailingDeleteTokenPush implements PushRepository {
   @override
   Future<void> deleteThisDeviceToken() async {
     throw const ServerFailure('device token delete failed');
   }
+
+  @override
+  Future<bool> requestPermission() async => true;
+
+  @override
+  Future<void> registerThisDevice() async {}
+
+  @override
+  Stream<String> get notificationRoutes => const Stream.empty();
+
+  @override
+  Future<String?> initialRoute() async => null;
 }
