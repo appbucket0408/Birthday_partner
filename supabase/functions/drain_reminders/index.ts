@@ -6,6 +6,7 @@
 // the function runs in dry-run mode: it reports what it would have sent and
 // leaves the rows unsent, so the pipeline is exercisable before credentials.
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { reminderBody } from "./fcm.ts";
 
 type Reminder = {
   outbox_id: number;
@@ -17,11 +18,6 @@ type Reminder = {
   occasion_date: string;
 };
 
-function body(r: Reminder): string {
-  if (r.offset_days === 0) return `It's ${r.subject_name}'s birthday today.`;
-  if (r.offset_days === 1) return `${r.subject_name}'s birthday is tomorrow.`;
-  return `${r.subject_name}'s birthday is in ${r.offset_days} days.`;
-}
 
 Deno.serve(async (req: Request): Promise<Response> => {
   // This is a machine endpoint — cron calls it, never a user. The publishable
@@ -107,7 +103,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
           body: JSON.stringify({
             message: {
               token: r.token,
-              notification: { title: "Birthday reminder", body: body(r) },
+              notification: {
+                title: "Birthday reminder",
+                body: reminderBody(r.subject_name, r.offset_days),
+              },
+              data: { person_id: String(r.subject_person_id) },
             },
           }),
         },

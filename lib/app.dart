@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -42,6 +44,24 @@ class _BirthdayAppState extends State<BirthdayApp> {
       PushRepositoryImpl(ApiClient.instance, FirebaseMessaging.instance);
   late final SessionCubit _session = SessionCubit(_auth)..load();
   late final _router = buildRouter(_session);
+  late final StreamSubscription<String> _tapSub;
+
+  @override
+  void initState() {
+    super.initState();
+    // A tap that launched the app from terminated happened before anything
+    // could subscribe, so it is fetched rather than listened for.
+    _push.initialRoute().then((route) {
+      if (route != null) _router.go(route);
+    });
+    _tapSub = _push.notificationRoutes.listen(_router.go);
+  }
+
+  @override
+  void dispose() {
+    _tapSub.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
