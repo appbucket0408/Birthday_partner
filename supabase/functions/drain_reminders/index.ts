@@ -12,6 +12,7 @@ type Reminder = {
   token: string;
   platform: string;
   subject_name: string;
+  subject_person_id: number;
   offset_days: number;
   occasion_date: string;
 };
