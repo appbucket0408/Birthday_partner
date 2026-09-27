@@ -37,6 +37,8 @@ dependencies:
   phone_numbers_parser: ^9.0.0
   fluttertoast: ^8.2.8
   connectivity_plus: ^6.1.0
+  firebase_core: ^4.15.0
+  firebase_messaging: ^16.7.0
 
 dev_dependencies:
   flutter_test:
