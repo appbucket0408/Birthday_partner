@@ -1,5 +1,5 @@
 begin;
-select plan(6);
+select plan(9);
 
 select has_table('private', 'drain_config', 'the drain needs a config row');
 
@@ -30,6 +30,33 @@ select lives_ok(
 select ok(
   (select count(*) = 0 from net.http_request_queue),
   'and it must not have queued a request');
+
+
+-- Review finding I9. Everything above only ever reaches the `if not found`
+-- guard, so the net.http_post call itself -- its argument names, the header
+-- jsonb, the column references -- was executed by NOTHING. plpgsql binds
+-- late, so a renamed column or a wrong argument name would have failed
+-- first in production, on a cron whose failures are invisible because
+-- net.http_post never raises.
+insert into private.drain_config (function_url, drain_secret)
+values ('http://kong-test-host:8000/functions/v1/drain_reminders', 'test-secret');
+
+select lives_ok(
+  $$ select private.trigger_drain() $$,
+  'trigger_drain against a CONFIGURED drain_config must not raise');
+
+select is(
+  (select count(*)::int from net.http_request_queue
+   where url = 'http://kong-test-host:8000/functions/v1/drain_reminders'),
+  1,
+  'exactly one request was queued, at the configured URL');
+
+select is(
+  (select headers->>'x-drain-secret' from net.http_request_queue
+   where url = 'http://kong-test-host:8000/functions/v1/drain_reminders'),
+  'test-secret',
+  'and it carried the secret the function checks -- a drain that queued '
+  'without this header would 401 forever, invisibly');
 
 select * from finish();
 rollback;

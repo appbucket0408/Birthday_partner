@@ -37,6 +37,14 @@ Person _person(int id, {Birthday? birthday}) =>
 Celebration _celeb(int id, Person person) => Celebration(id: id, person: person);
 
 class _FakePush implements PushRepository {
+  /// notDetermined, not granted: this fake exists to prove the screen
+  /// actually ASKS, and a pre-granted fake would skip the prompt and make
+  /// the reachability assertion below vacuous.
+  PushPermission status = PushPermission.notDetermined;
+
+  @override
+  Future<PushPermission> currentPermission() async => status;
+
   int permissionCalls = 0;
   int registerCalls = 0;
 

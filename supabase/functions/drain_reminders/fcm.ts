@@ -1,14 +1,26 @@
 // Everything in drain_reminders that has logic worth testing. index.ts stays
 // transport and orchestration only.
 
-/// C0 and C1 control characters. Newlines are the dangerous ones: they let a
+/// C0 and C1 control characters, PLUS U+2028 LINE SEPARATOR and U+2029
+/// PARAGRAPH SEPARATOR. Line breaks are the dangerous ones: they let a
 /// display_name forge what looks like a second line of app-authored text.
-const CONTROL = /[\u0000-\u001F\u007F-\u009F]/g;
+/// U+2028/U+2029 are not control characters by category, but Android's ICU
+/// line breaker treats both as mandatory breaks, so omitting them left the
+/// exact attack this function exists to prevent wide open.
+const CONTROL = /[\u0000-\u001F\u007F-\u009F\u2028\u2029]/g;
 
-/// Unicode bidirectional overrides and isolates. These let a name visually
-/// reorder the sentence it is interpolated into without changing a byte of
-/// the surrounding template.
-const BIDI = /[‪-‮⁦-⁩]/g;
+/// Unicode bidirectional controls: the embeddings and overrides
+/// (U+202A-U+202E), the isolates (U+2066-U+2069), and the invisible marks
+/// LRM, RLM and ALM. All of them reorder rendered text without changing a
+/// byte of the surrounding template.
+const BIDI = /[\u202A-\u202E\u2066-\u2069\u200E\u200F\u061C]/g;
+
+/// Zero-width and invisible formatting characters, stripped for a different
+/// reason than the two above: `trim()` does NOT remove them (none is in
+/// category Zs), so a name made entirely of them survived as non-empty and
+/// defeated the "Someone" fallback, rendering as "It's 's birthday today."
+/// -- the very string the control-character case forbids.
+const INVISIBLE = /[\u200B\u200C\u200D\uFEFF\u00AD\u180E]/g;
 
 const MAX_NAME_POINTS = 64;
 
@@ -23,7 +35,11 @@ const MAX_NAME_POINTS = 64;
 /// name can still read as a sentence. Closing that needs a title/body split
 /// that never interpolates into app-authored prose -- spec section 10.1.
 export function safeName(raw: string): string {
-  const stripped = raw.replace(CONTROL, "").replace(BIDI, "").trim();
+  const stripped = raw
+    .replace(CONTROL, "")
+    .replace(BIDI, "")
+    .replace(INVISIBLE, "")
+    .trim();
   // Spread iterates CODE POINTS. `.slice(0, 64)` on the string would work on
   // UTF-16 units and cut an emoji or a Devanagari cluster in half, emitting a
   // lone surrogate.
@@ -56,12 +72,29 @@ const SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
 /// `attempts` on reminders that were perfectly deliverable.
 const EXPIRY_MARGIN_MS = 5 * 60 * 1000;
 
-let cached: { token: string; expiresAtMs: number } | null = null;
+/// Keyed on the service account's own identity. An unkeyed module-scope
+/// cache is correct only while one deployment has exactly one service
+/// account; rotate the key and the stale bearer is served for the new one.
+const cache = new Map<string, { token: string; expiresAtMs: number }>();
 
 /// Test seam. Module-scope cache survives between Deno.test cases in one
 /// process, so without this each test would see the previous one's token.
 export function resetTokenCache(): void {
-  cached = null;
+  cache.clear();
+}
+
+/// Drops one service account's cached bearer. Called when FCM rejects it,
+/// so a key revoked mid-life costs one failed batch rather than the ~55
+/// minutes the cache would otherwise keep serving it.
+export function invalidateToken(sa: ServiceAccount): void {
+  cache.delete(sa.client_email);
+}
+
+/// FCM rejecting the CREDENTIAL, as opposed to rejecting the token being
+/// sent to. Distinct from isDeadToken: this one must never delete a
+/// device_tokens row, because the device is fine and we are not.
+export function isRejectedBearer(status: number): boolean {
+  return status === 401 || status === 403;
 }
 
 /// FCM's 404 means UNREGISTERED: the token is permanently dead, not
@@ -103,8 +136,9 @@ export async function accessToken(
   now: number,
   fetchImpl: typeof fetch = fetch,
 ): Promise<string> {
-  if (cached && cached.expiresAtMs - now > EXPIRY_MARGIN_MS) {
-    return cached.token;
+  const hit = cache.get(sa.client_email);
+  if (hit && hit.expiresAtMs - now > EXPIRY_MARGIN_MS) {
+    return hit.token;
   }
 
   const iat = Math.floor(now / 1000);
@@ -151,10 +185,10 @@ export async function accessToken(
     throw new Error(`token exchange failed: ${res.status}`);
   }
   const json = await res.json() as { access_token: string; expires_in: number };
-  // Assigned only on success, so a failure is never cached.
-  cached = {
+  // Written only on success, so a failure is never cached.
+  cache.set(sa.client_email, {
     token: json.access_token,
     expiresAtMs: now + json.expires_in * 1000,
-  };
-  return cached.token;
+  });
+  return json.access_token;
 }

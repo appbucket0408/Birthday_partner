@@ -47,6 +47,24 @@ class PushRepositoryImpl implements PushRepository {
   late final StreamSubscription<RemoteMessage> _openedSub;
 
   @override
+  Future<PushPermission> currentPermission() async {
+    final s = await _messaging.getNotificationSettings();
+    return switch (s.authorizationStatus) {
+      AuthorizationStatus.authorized ||
+      AuthorizationStatus.provisional =>
+        PushPermission.granted,
+      // deniedPermanently is the state Android 13 puts the app in after a
+      // SECOND refusal. Treating it as anything but denied would have the
+      // cubit call requestPermission() forever against an OS that will
+      // never show a prompt again.
+      AuthorizationStatus.denied ||
+      AuthorizationStatus.deniedPermanently =>
+        PushPermission.denied,
+      AuthorizationStatus.notDetermined => PushPermission.notDetermined,
+    };
+  }
+
+  @override
   Future<bool> requestPermission() async {
     final settings = await _messaging.requestPermission();
     return settings.authorizationStatus == AuthorizationStatus.authorized ||

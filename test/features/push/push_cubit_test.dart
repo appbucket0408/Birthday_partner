@@ -1,6 +1,7 @@
 import 'package:birthday_app/core/result.dart';
 import 'package:birthday_app/features/push/push_cubit.dart';
 import 'package:birthday_app/features/push/push_state.dart';
+import 'package:birthday_app/repositories/push_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../repositories/push_repository_test.dart' show FakePush;
@@ -39,7 +40,8 @@ void main() {
     await cubit.enable();
     expect(cubit.state, isA<PushDenied>());
 
-    push.granted = true;
+    // The user turns notifications on in Android settings and comes back.
+    push.status = PushPermission.granted;
     await cubit.enable();
 
     expect(push.registerCalls, 1);
@@ -70,5 +72,33 @@ void main() {
     await Future.wait([first, second]);
 
     expect(push.permissionCalls, 1);
+  });
+
+  test('6. an ALREADY-DENIED user is never prompted a second time', () async {
+    // Review finding I10. Android 13 permanently auto-denies
+    // POST_NOTIFICATIONS after the SECOND refusal, and PushCubit is
+    // constructed fresh on every timeline arrival. Re-prompting
+    // unconditionally therefore spends the user's last strike within
+    // seconds of the first -- after which the only recovery is OS settings,
+    // which is exactly the state test 3 exists to escape.
+    final push = FakePush(granted: false, status: PushPermission.denied);
+    final cubit = PushCubit(push);
+
+    await cubit.enable();
+
+    expect(push.permissionCalls, 0, reason: 'no prompt may be shown');
+    expect(push.registerCalls, 0);
+    expect(cubit.state, isA<PushDenied>());
+  });
+
+  test('7. an ALREADY-GRANTED user registers without a prompt', () async {
+    final push = FakePush(status: PushPermission.granted);
+    final cubit = PushCubit(push);
+
+    await cubit.enable();
+
+    expect(push.permissionCalls, 0);
+    expect(push.registerCalls, 1);
+    expect(cubit.state, isA<PushEnabled>());
   });
 }

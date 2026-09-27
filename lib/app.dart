@@ -22,6 +22,7 @@ import 'repositories/profile_repository_impl.dart';
 import 'repositories/wish_repository.dart';
 import 'repositories/wish_repository_impl.dart';
 import 'router/app_router.dart';
+import 'router/deep_link.dart';
 import 'router/session_cubit.dart';
 
 class BirthdayApp extends StatefulWidget {
@@ -50,11 +51,28 @@ class _BirthdayAppState extends State<BirthdayApp> {
   void initState() {
     super.initState();
     // A tap that launched the app from terminated happened before anything
-    // could subscribe, so it is fetched rather than listened for.
-    _push.initialRoute().then((route) {
-      if (route != null) _router.go(route);
+    // could subscribe, so it is fetched rather than listened for -- and then
+    // held until the session resolves. Navigating the moment it arrives
+    // loses it: the session is still SessionUnknown, and the router bounces
+    // everything but '/splash' there, then on to '/timeline'.
+    unawaited(_openInitialRoute());
+    _tapSub = _push.notificationRoutes.listen((r) {
+      if (mounted) _router.go(r);
     });
-    _tapSub = _push.notificationRoutes.listen(_router.go);
+  }
+
+  /// Split out of initState so the await is expressible; see
+  /// [navigateWhenSessionResolves] for why it must not navigate immediately.
+  Future<void> _openInitialRoute() async {
+    final route = await _push.initialRoute();
+    if (route == null) return;
+    await navigateWhenSessionResolves(
+      route: route,
+      session: _session,
+      go: (r) {
+        if (mounted) _router.go(r);
+      },
+    );
   }
 
   @override

@@ -17,6 +17,10 @@ class _FakeSettings implements SettingsRepository {
 
 class _FakePush implements PushRepository {
   @override
+  Future<PushPermission> currentPermission() async =>
+      PushPermission.granted;
+
+  @override
   Future<void> deleteThisDeviceToken() async {}
 
   @override

@@ -2,7 +2,24 @@
 /// carried `deleteThisDeviceToken` together with a hardcoded
 /// `String? get _currentDeviceToken => null` -- settings triggers one end of
 /// this lifecycle but does not own it.
+/// What the OS currently reports, BEFORE any prompt is shown.
+enum PushPermission {
+  /// Never asked. The only state in which a prompt may be shown.
+  notDetermined,
+  granted,
+
+  /// Refused, either by the user or permanently by the OS. Asking again is
+  /// actively harmful on Android 13+: the SECOND refusal of
+  /// POST_NOTIFICATIONS makes the permission permanently auto-denied, and
+  /// the only recovery is OS settings.
+  denied,
+}
+
 abstract interface class PushRepository {
+  /// What the OS reports now, without prompting. Callers use this to decide
+  /// whether asking is even allowed.
+  Future<PushPermission> currentPermission();
+
   /// Asks the OS for notification permission. Android 13+ treats
   /// POST_NOTIFICATIONS as a runtime permission; below 13 this resolves true
   /// without a prompt. A false result is not an error: the app works, and

@@ -22,10 +22,24 @@ class PushCubit extends Cubit<PushState> {
     if (_inFlight) return;
     _inFlight = true;
     try {
-      final granted = await _push.requestPermission();
-      if (!granted) {
+      // Ask the OS what it already thinks BEFORE prompting. This cubit is
+      // constructed fresh on every arrival at the timeline, so prompting
+      // unconditionally would spend the user's second and final
+      // POST_NOTIFICATIONS refusal within seconds of the first, and Android
+      // 13+ then auto-denies permanently. Re-running enable() must be free.
+      final status = await _push.currentPermission();
+      if (status == PushPermission.denied) {
         emit(const PushDenied());
         return;
+      }
+      // Already granted -- typically the user turned it on in OS settings
+      // after refusing here. Register without showing anything.
+      if (status == PushPermission.notDetermined) {
+        final granted = await _push.requestPermission();
+        if (!granted) {
+          emit(const PushDenied());
+          return;
+        }
       }
       await _push.registerThisDevice();
       emit(const PushEnabled());

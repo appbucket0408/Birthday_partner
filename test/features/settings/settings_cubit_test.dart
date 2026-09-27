@@ -38,6 +38,10 @@ class _FakeSettings implements SettingsRepository {
 /// exists.
 class _FakePush implements PushRepository {
   _FakePush({required this.calls});
+  @override
+  Future<PushPermission> currentPermission() async =>
+      PushPermission.granted;
+
 
   final List<String> calls;
   int deleteThisDeviceTokenCalls = 0;
@@ -366,6 +370,10 @@ void main() {
 /// from [_FakePush] so its error path can be tested without giving every
 /// other test an error-prone deleteThisDeviceToken.
 class _FailingDeleteTokenPush implements PushRepository {
+  @override
+  Future<PushPermission> currentPermission() async =>
+      PushPermission.granted;
+
   @override
   Future<void> deleteThisDeviceToken() async {
     throw const ServerFailure('device token delete failed');

@@ -5,8 +5,17 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// A fake every later task reuses. Lives in the test tree, not lib/.
 class FakePush implements PushRepository {
-  FakePush({this.granted = true, this.onDelete});
+  FakePush({
+    this.granted = true,
+    this.status = PushPermission.notDetermined,
+    this.onDelete,
+  });
   bool granted;
+
+  /// What the OS reports BEFORE any prompt. Separate from [granted],
+  /// which is what a prompt would return, so a test can express
+  /// "already denied" and assert no prompt was shown at all.
+  PushPermission status;
 
   /// Lets a test record WHEN deletion happened relative to other calls, not
   /// merely that it did. The sign-out ordering test needs the order.
@@ -21,8 +30,12 @@ class FakePush implements PushRepository {
   String? initial;
 
   @override
+  Future<PushPermission> currentPermission() async => status;
+
+  @override
   Future<bool> requestPermission() async {
     permissionCalls++;
+    status = granted ? PushPermission.granted : PushPermission.denied;
     return granted;
   }
 

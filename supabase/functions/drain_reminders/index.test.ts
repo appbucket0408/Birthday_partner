@@ -3,7 +3,9 @@
 import { assertEquals, assertNotEquals } from "jsr:@std/assert@1";
 import {
   accessToken,
+  invalidateToken,
   isDeadToken,
+  isRejectedBearer,
   resetTokenCache,
   safeName,
 } from "./fcm.ts";
@@ -24,6 +26,36 @@ Deno.test("control characters are stripped", () => {
 Deno.test("bidi overrides are stripped", () => {
   const raw = "Priya‮reversed";
   assertEquals(safeName(raw).includes("‮"), false);
+});
+
+Deno.test("U+2028 and U+2029 are stripped -- they ARE line breaks", () => {
+  // Review finding I2. C0/C1 stripping misses these two entirely, and
+  // Android's ICU line breaker treats both as mandatory breaks. A name
+  // ending in U+2028 forges exactly the second line of app-authored text
+  // that this whole function exists to prevent.
+  for (const sep of ["\u2028", "\u2029"]) {
+    const forged = safeName(`Asha${sep}Your account was suspended.`);
+    assertEquals(forged.includes(sep), false, `U+${sep.codePointAt(0)!.toString(16)}`);
+  }
+});
+
+Deno.test("the remaining bidi controls are stripped too", () => {
+  // Review finding I2. LRM/RLM/ALM are not in U+202A-U+202E or U+2066-U+2069
+  // but reorder rendered text just the same.
+  for (const c of ["\u200E", "\u200F", "\u061C"]) {
+    assertEquals(safeName(`Asha${c} evil`).includes(c), false);
+  }
+});
+
+Deno.test("zero-width characters cannot defeat the Someone fallback", () => {
+  // Review finding I3. trim() does not remove U+200B (it is not Zs), so a
+  // name of nothing but zero-width joiners survived as non-empty and
+  // rendered as "It's 's birthday today." -- the exact string the
+  // control-character test was written to make impossible.
+  for (const c of ["\u200B", "\u200C", "\u200D", "\uFEFF"]) {
+    assertEquals(safeName(c.repeat(5)), "Someone");
+  }
+  assertEquals(safeName("\u200B\u0000\u202E"), "Someone");
 });
 
 Deno.test("a name of only control characters becomes Someone", () => {
@@ -204,4 +236,60 @@ Deno.test("a 404 is a dead token; a 503 is not", () => {
   assertEquals(isDeadToken(404), true);
   assertEquals(isDeadToken(503), false);
   assertEquals(isDeadToken(401), false);
+});
+
+Deno.test("the cache is keyed on the service account, not global", async () => {
+  // Review finding I7. A module-scope cache with no key is correct only by
+  // the accident that one deployment has one service account. Rotate the
+  // key (or run a second project) and the stale bearer is served for the
+  // other identity.
+  resetTokenCache();
+  const a = await testServiceAccount();
+  const b = { ...(await testServiceAccount()), client_email: "other@x.iam" };
+  let calls = 0;
+  const fakeFetch = (() => {
+    calls++;
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({ access_token: `tok-${calls}`, expires_in: 3600 }),
+      ),
+    );
+  }) as unknown as typeof fetch;
+
+  const now = Date.now();
+  assertEquals(await accessToken(a, now, fakeFetch), "tok-1");
+  assertEquals(await accessToken(b, now, fakeFetch), "tok-2");
+  // And the first identity still gets its own cached token, not b's.
+  assertEquals(await accessToken(a, now, fakeFetch), "tok-1");
+  assertEquals(calls, 2);
+});
+
+Deno.test("a rejected bearer can be invalidated and re-minted", async () => {
+  // Review finding I7. Without this, a key revoked mid-life means every
+  // message in every drain 401s for up to ~55 minutes while the cache keeps
+  // handing out the same dead bearer.
+  resetTokenCache();
+  const sa = await testServiceAccount();
+  let calls = 0;
+  const fakeFetch = (() => {
+    calls++;
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({ access_token: `tok-${calls}`, expires_in: 3600 }),
+      ),
+    );
+  }) as unknown as typeof fetch;
+
+  const now = Date.now();
+  assertEquals(await accessToken(sa, now, fakeFetch), "tok-1");
+  invalidateToken(sa);
+  assertEquals(await accessToken(sa, now, fakeFetch), "tok-2");
+  assertEquals(calls, 2);
+});
+
+Deno.test("a 401 or 403 from FCM means the bearer is dead", () => {
+  assertEquals(isRejectedBearer(401), true);
+  assertEquals(isRejectedBearer(403), true);
+  assertEquals(isRejectedBearer(404), false);
+  assertEquals(isRejectedBearer(503), false);
 });
