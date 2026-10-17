@@ -7,7 +7,7 @@ import '../../core/app_strings.dart';
 import '../../core/date_labels.dart';
 import '../../core/photo_picker.dart';
 import '../../core/profile_avatar.dart';
-import '../../models/wish.dart';
+import '../../core/wish_card.dart';
 import '../../repositories/auth_repository.dart';
 import '../../repositories/avatar_repository.dart';
 import '../../repositories/graph_repository.dart';
@@ -188,7 +188,11 @@ class ProfileView extends StatelessWidget {
             physics: const NeverScrollableScrollPhysics(),
             children: [
               for (final (i, w) in state.wall.indexed)
-                _WishCard(wish: w, index: i),
+                WishCard(
+                  wish: w,
+                  index: i,
+                  unknownAuthor: AppStrings.profileWishAuthorUnknown,
+                ),
             ],
           ),
         const SizedBox(height: AppSpacing.lg),
@@ -277,61 +281,6 @@ class _StatTile extends StatelessWidget {
             Text(label, textAlign: TextAlign.center),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// One wish: the message, and who sent it underneath. Cards cycle through
-/// the theme's three container colours so a grid of them reads as separate
-/// notes rather than one block.
-class _WishCard extends StatelessWidget {
-  const _WishCard({required this.wish, required this.index});
-
-  final Wish wish;
-  final int index;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final (background, foreground) = switch (index % 3) {
-      0 => (scheme.primaryContainer, scheme.onPrimaryContainer),
-      1 => (scheme.secondaryContainer, scheme.onSecondaryContainer),
-      _ => (scheme.tertiaryContainer, scheme.onTertiaryContainer),
-    };
-
-    return Container(
-      key: Key('profile_wish_${wish.id}'),
-      padding: const EdgeInsets.all(AppSpacing.md - AppSpacing.xs),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(AppSpacing.md),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Text(
-              wish.body,
-              overflow: TextOverflow.fade,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: foreground,
-                height: 1.3,
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            wish.authorName ?? AppStrings.profileWishAuthorUnknown,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: foreground,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
       ),
     );
   }

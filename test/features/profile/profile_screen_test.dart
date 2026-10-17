@@ -112,8 +112,8 @@ void main() {
       _loaded(wall: [_wish(1, author: 'Priya'), _wish(2)]),
     );
 
-    expect(find.byKey(const Key('profile_wish_1')), findsOneWidget);
-    expect(find.byKey(const Key('profile_wish_2')), findsOneWidget);
+    expect(find.byKey(const Key('wish_1')), findsOneWidget);
+    expect(find.byKey(const Key('wish_2')), findsOneWidget);
     expect(find.text('Happy birthday 1'), findsOneWidget);
     expect(find.text('Priya'), findsOneWidget);
     // An author outside the viewer's graph renders unattributed.
@@ -150,7 +150,7 @@ void main() {
       (tester) async {
     await _pump(tester, cubit, _loaded(wall: [_wish(1, author: 'Priya')]));
 
-    final card = find.byKey(const Key('profile_wish_1'));
+    final card = find.byKey(const Key('wish_1'));
     final author = find.descendant(of: card, matching: find.text('Priya'));
     final body =
         find.descendant(of: card, matching: find.text('Happy birthday 1'));

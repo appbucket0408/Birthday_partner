@@ -153,7 +153,13 @@ abstract final class AppStrings {
   // Person page
   static const personCelebratorCountTemplate = '%s people celebrate them';
   static const personCelebratorCountOne = '1 person celebrates them';
-  static const personNoBirthday = 'No birthday recorded yet';
+  static const personNoBirthday = 'Not on Birthday yet';
+  static const personNoBirthdayHint =
+      'Their birthday shows up here once they join.';
+  static const personToday = '🎉 Birthday today!';
+  static const personTomorrow = 'Tomorrow';
+  static const personInDaysTemplate = 'in %s days';
+  static const personWishesTitle = 'Wishes';
   static const personWallEmpty = 'No wishes yet. Be the first.';
   static const personWriteWish = 'Write a wish';
   static const wishAuthorUnknown = 'Someone who celebrates them';

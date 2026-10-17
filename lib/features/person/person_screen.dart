@@ -4,6 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
+import '../../core/date_labels.dart';
+import '../../core/initial_avatar.dart';
+import '../../core/wish_card.dart';
+import '../../models/birthday.dart';
 import '../../repositories/graph_repository.dart';
 import '../../repositories/person_repository.dart';
 import '../../repositories/wish_repository.dart';
@@ -39,7 +43,7 @@ class PersonScreen extends StatelessWidget {
         context.read<GraphRepository>(),
         now: _now,
       )..load(personId),
-      child: PersonView(personId: personId),
+      child: PersonView(personId: personId, now: _now),
     );
   }
 }
@@ -51,9 +55,14 @@ class PersonScreen extends StatelessWidget {
 /// the same reason `OtpScreen` expects an already-provided `PhoneCubit`
 /// rather than building its own.
 class PersonView extends StatelessWidget {
-  const PersonView({super.key, required this.personId});
+  const PersonView({
+    super.key,
+    required this.personId,
+    DateTime Function()? now,
+  }) : _now = now;
 
   final int personId;
+  final DateTime Function()? _now;
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +70,6 @@ class PersonView extends StatelessWidget {
       builder: (context, state) {
         return Scaffold(
           appBar: AppBar(
-            title: Text(state is PersonLoaded ? state.person.displayName : ''),
             // '/person/:personId' is reached with context.go, which REPLACES
             // the page stack -- Navigator.canPop() is false here and
             // automaticallyImplyLeading finds nothing to pop, so no back
@@ -93,91 +101,232 @@ class PersonView extends StatelessWidget {
               ),
             PersonLoaded() => _buildLoaded(context, state),
           },
-          floatingActionButton: state is PersonLoaded && _canComposeFor(state)
-              ? FloatingActionButton.extended(
-                  key: const Key('wish_write_button'),
-                  icon: const Icon(Icons.edit),
-                  label: const Text(AppStrings.personWriteWish),
-                  onPressed: () => showWishComposeSheet(context),
-                )
-              : null,
         );
       },
     );
   }
 
   Widget _buildLoaded(BuildContext context, PersonLoaded state) {
-    final person = state.person;
+    final theme = Theme.of(context);
     return ListView(
+      padding: const EdgeInsets.all(AppSpacing.md),
       children: [
-        ListTile(
-          key: const Key('person_birthday'),
-          title: Text(
-            person.birthday == null
-                ? AppStrings.personNoBirthday
-                : _formatBirthday(person.birthday!.month, person.birthday!.day),
-          ),
+        _Header(state: state, now: _now ?? DateTime.now),
+        const SizedBox(height: AppSpacing.lg),
+        Text(
+          state.wishes.isEmpty
+              ? AppStrings.personWishesTitle
+              : '${AppStrings.personWishesTitle} · ${state.wishes.length}',
+          style: theme.textTheme.titleSmall
+              ?.copyWith(fontWeight: FontWeight.w600),
         ),
-        ListTile(
-          key: const Key('person_celebrator_count'),
-          title: Text(
-            state.celebratorCount == 1
-                ? AppStrings.personCelebratorCountOne
-                : AppStrings.personCelebratorCountTemplate.replaceFirst(
-                    '%s',
-                    '${state.celebratorCount}',
-                  ),
-          ),
-        ),
-        if (_canComposeFor(state))
-          // Shown under the SAME condition as the compose FAB -- reusing
-          // _canComposeFor rather than restating it, per task-5-brief.md.
-          // The RPC (rpc_create_gift, via 45005) refuses without a
-          // celebration edge to the recipient, so offering this action when
-          // the viewer does not celebrate them would lead to an error the
-          // user cannot act on.
-          ListTile(
-            key: const Key('gift_send_cake_button'),
-            leading: const Icon(Icons.cake_outlined),
-            title: const Text(AppStrings.giftSendCake),
-            onTap: () => context.go('/gift/new/${person.id}'),
-          ),
-        const Divider(height: 1),
+        const SizedBox(height: AppSpacing.sm),
         if (state.wishes.isEmpty)
           Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
             child: Text(
               AppStrings.personWallEmpty,
               textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium,
             ),
           )
         else
-          for (final wish in state.wishes)
-            ListTile(
-              key: Key('wish_${wish.id}'),
-              title: Text(wish.body),
-              subtitle: Text(
-                '${wish.authorName ?? AppStrings.wishAuthorUnknown} · '
-                '${wish.occasionYear}',
-              ),
-            ),
-        // Leaves room for the FAB so the last wish is not hidden behind it.
-        const SizedBox(height: AppSpacing.xl * 2),
+          GridView.count(
+            crossAxisCount: 2,
+            mainAxisSpacing: AppSpacing.sm,
+            crossAxisSpacing: AppSpacing.sm,
+            childAspectRatio: 1.05,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              for (final (i, wish) in state.wishes.indexed)
+                WishCard(
+                  wish: wish,
+                  index: i,
+                  unknownAuthor: AppStrings.wishAuthorUnknown,
+                ),
+            ],
+          ),
       ],
     );
   }
-
-  static const _months = [
-    'January', 'February', 'March', 'April', 'May', 'June', // ignore: require_trailing_commas
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
-
-  String _formatBirthday(int month, int day) => '${_months[month - 1]} $day';
 }
 
-/// The compose FAB is shown only when there is something the user could
-/// actually do with it, and only when the write would not be pointlessly
-/// refused: the person has a birthday to derive an occasion year from
+/// The person at a glance: avatar, name, birthday with a countdown, how many
+/// people celebrate them, and the two things you can do for them.
+class _Header extends StatelessWidget {
+  const _Header({required this.state, required this.now});
+
+  final PersonLoaded state;
+  final DateTime Function() now;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final person = state.person;
+    final birthday = person.birthday;
+    final canAct = _canComposeFor(state);
+
+    return Card(
+      key: const Key('person_header'),
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          children: [
+            // A ring in the theme's primary colour: the avatar and the card
+            // share a tint, and without it the avatar dissolves into it.
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: scheme.primary, width: 2),
+              ),
+              child: InitialAvatar(name: person.displayName, radius: 40),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              person.displayName,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            if (birthday == null) ...[
+              Text(
+                AppStrings.personNoBirthday,
+                key: const Key('person_birthday'),
+                style: theme.textTheme.bodyLarge,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                AppStrings.personNoBirthdayHint,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: scheme.onSurfaceVariant),
+              ),
+            ] else ...[
+              Text(
+                '🎂 ${DateLabels.birthday(birthday)}',
+                key: const Key('person_birthday'),
+                style: theme.textTheme.bodyLarge,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              _CountdownPill(birthday: birthday, now: now()),
+            ],
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              key: const Key('person_celebrator_count'),
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.people_outline,
+                  size: 18,
+                  color: scheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  state.celebratorCount == 1
+                      ? AppStrings.personCelebratorCountOne
+                      : AppStrings.personCelebratorCountTemplate.replaceFirst(
+                          '%s',
+                          '${state.celebratorCount}',
+                        ),
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+            // Both actions appear under the same condition -- see
+            // _canComposeFor. rpc_create_gift (45005) and wishes_insert_own
+            // both refuse without a celebration edge and a birthday, so
+            // offering either otherwise would lead to an error the user
+            // cannot act on.
+            // Stacked, full width: side by side, each label wrapped onto two
+            // lines on a normal phone.
+            if (canAct) ...[
+              const SizedBox(height: AppSpacing.lg),
+              FilledButton.icon(
+                key: const Key('wish_write_button'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                ),
+                icon: const Icon(Icons.edit),
+                label: const Text(AppStrings.personWriteWish),
+                onPressed: () => showWishComposeSheet(context),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              FilledButton.tonalIcon(
+                key: const Key('gift_send_cake_button'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                ),
+                icon: const Icon(Icons.cake_outlined),
+                label: const Text(AppStrings.giftSendCake),
+                onPressed: () => context.go('/gift/new/${person.id}'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// How far off the birthday is, as a pill: "in 10 days", "Tomorrow", or --
+/// on the day -- a bold "🎉 Birthday today!" in the primary colour, since
+/// that is the moment the page exists for. Counted with the same
+/// next-occurrence rule (Feb 29 included) as the Dashboard's grouping.
+class _CountdownPill extends StatelessWidget {
+  const _CountdownPill({required this.birthday, required this.now});
+
+  final Birthday birthday;
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final today = DateTime(now.year, now.month, now.day);
+    final days = birthday.nextOccurrence(now).difference(today).inDays;
+    final (label, background, foreground) = switch (days) {
+      0 => (AppStrings.personToday, scheme.primary, scheme.onPrimary),
+      1 => (
+          AppStrings.personTomorrow,
+          scheme.tertiaryContainer,
+          scheme.onTertiaryContainer,
+        ),
+      _ => (
+          AppStrings.personInDaysTemplate.replaceFirst('%s', '$days'),
+          scheme.secondaryContainer,
+          scheme.onSecondaryContainer,
+        ),
+    };
+    return Container(
+      key: const Key('person_countdown'),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs + 2,
+      ),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(AppSpacing.lg),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelLarge?.copyWith(
+          color: foreground,
+          fontWeight: days == 0 ? FontWeight.w800 : FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+/// The wish and cake buttons are shown only when there is something the user
+/// could actually do with them, and only when the write would not be
+/// pointlessly refused: the person has a birthday to derive an occasion year from
 /// ([PersonCubit.postWish]), AND [PersonLoaded.viewerCelebrates] -- the
 /// signal that the viewer's own `celebrations()` list contains this person,
 /// which is the only client-visible stand-in for `wishes_insert_own`'s RLS

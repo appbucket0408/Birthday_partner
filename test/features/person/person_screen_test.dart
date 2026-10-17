@@ -35,6 +35,9 @@ Wish _wish(int id, {String? authorName, int occasionYear = 2026}) => Wish(
       authorName: authorName,
     );
 
+/// 15 Apr 2026, for the birthday countdown.
+DateTime _fixedNow() => DateTime(2026, 4, 15);
+
 Future<void> _pump(
   WidgetTester tester,
   _MockPersonCubit cubit,
@@ -45,7 +48,7 @@ Future<void> _pump(
     MaterialApp(
       home: BlocProvider<PersonCubit>.value(
         value: cubit,
-        child: const PersonView(personId: 1),
+        child: const PersonView(personId: 1, now: _fixedNow),
       ),
     ),
   );
@@ -275,5 +278,59 @@ void main() {
       find.byKey(const Key('person_back_button')),
     );
     expect(button.onPressed, isNotNull);
+  });
+
+  group('header', () {
+    PersonLoaded loaded(Birthday? birthday, {List<Wish> wishes = const []}) =>
+        PersonLoaded(
+          person: _person(1, birthday: birthday),
+          celebratorCount: 6,
+          wishes: wishes,
+          viewerCelebrates: true,
+        );
+
+    for (final (birthday, date, countdown) in [
+      (const Birthday(month: 4, day: 15), '🎂 15 April', AppStrings.personToday),
+      (const Birthday(month: 4, day: 16), '🎂 16 April', AppStrings.personTomorrow),
+      (const Birthday(month: 4, day: 25), '🎂 25 April', 'in 10 days'),
+    ]) {
+      testWidgets('shows "$date" with "$countdown"', (tester) async {
+        await _pump(tester, cubit, loaded(birthday));
+        expect(find.text(date), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('person_countdown')),
+            matching: find.text(countdown),
+          ),
+          findsOneWidget,
+        );
+      });
+    }
+
+    // The name is in the header card; the top bar must not repeat it.
+    testWidgets('the name appears once, in the header', (tester) async {
+      await _pump(tester, cubit, loaded(const Birthday(month: 4, day: 25)));
+      expect(find.text('Person 1'), findsOneWidget);
+    });
+
+    testWidgets('someone not on the app says so, and why', (tester) async {
+      await _pump(tester, cubit, loaded(null));
+      expect(find.text(AppStrings.personNoBirthday), findsOneWidget);
+      expect(find.text(AppStrings.personNoBirthdayHint), findsOneWidget);
+    });
+
+    testWidgets('the wishes heading carries the count', (tester) async {
+      await _pump(
+        tester,
+        cubit,
+        loaded(const Birthday(month: 4, day: 25),
+            wishes: [_wish(1), _wish(2)]),
+      );
+      expect(
+        find.text('${AppStrings.personWishesTitle} · 2'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('wish_1')), findsOneWidget);
+    });
   });
 }
