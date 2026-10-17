@@ -1,0 +1,12 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "adb reverse supabase",
+      "type": "shell",
+      "command": "adb reverse tcp:54321 tcp:54321",
+      "presentation": { "reveal": "silent" },
+      "problemMatcher": []
+    }
+  ]
+}
