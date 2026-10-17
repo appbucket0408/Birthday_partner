@@ -1,3 +1,4 @@
+import 'package:birthday_app/core/app_links.dart';
 import 'package:birthday_app/core/app_strings.dart';
 import 'package:birthday_app/features/timeline/timeline_screen.dart';
 import 'package:birthday_app/models/birthday.dart';
@@ -12,6 +13,7 @@ import 'package:birthday_app/router/session_state.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 /// A real GraphRepository fake, not a mock -- the screen is exercised
 /// through a real TimelineCubit, following the pattern in
@@ -28,8 +30,8 @@ class _FakeGraph implements GraphRepository {
   Future<void> stopCelebrating(int celebrationId) async {}
 }
 
-Person _person(int id, {Birthday? birthday}) =>
-    Person(id: id, displayName: 'Person $id', isClaimed: false,
+Person _person(int id, {Birthday? birthday, bool isClaimed = false}) =>
+    Person(id: id, displayName: 'Person $id', isClaimed: isClaimed,
         birthday: birthday);
 
 Celebration _celeb(int id, Person person) => Celebration(id: id, person: person);
@@ -134,16 +136,18 @@ void main() {
     expect(find.text(AppStrings.timelineLater), findsOneWidget);
     expect(find.text(AppStrings.timelineThisWeek), findsNothing);
     expect(find.text(AppStrings.timelineThisMonth), findsNothing);
-    expect(find.text(AppStrings.timelineNoBirthdayYet), findsNothing);
+    expect(find.text(AppStrings.timelineWaitingToJoin), findsNothing);
   });
 
-  // 2. A person with no birthday shows timelineNoBirthdayYet.
-  testWidgets('a person with no birthday shows timelineNoBirthdayYet', (
+  // 2. A person with no birthday -- someone not on the app yet -- is listed
+  //    under "Waiting to join", with the line explaining why.
+  testWidgets('a person with no birthday is under Waiting to join', (
     tester,
   ) async {
     await pump(tester, [_celeb(1, _person(1))]);
 
-    expect(find.text(AppStrings.timelineNoBirthdayYet), findsOneWidget);
+    expect(find.text(AppStrings.timelineWaitingToJoin), findsOneWidget);
+    expect(find.byKey(const Key('timeline_waiting_hint')), findsOneWidget);
     expect(find.text('Person 1'), findsOneWidget);
   });
 
@@ -241,5 +245,121 @@ void main() {
 
     expect(push.permissionCalls, 1);
     expect(push.registerCalls, 1);
+  });
+
+  group('Add people button', () {
+    // Always on screen, empty list or full: a user who already celebrates
+    // anyone never sees the empty state's import button again.
+    for (final (name, rows) in [
+      ('empty', <Celebration>[]),
+      ('loaded', [_celeb(1, _person(1))]),
+    ]) {
+      testWidgets('is shown on the $name Dashboard', (tester) async {
+        await pump(tester, rows);
+        expect(find.byKey(const Key('dashboard_add_people')), findsOneWidget);
+        expect(find.text(AppStrings.timelineAddPeople), findsOneWidget);
+      });
+    }
+
+    testWidgets('opens the contacts import', (tester) async {
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, __) => RepositoryProvider<PushRepository>.value(
+              value: _FakePush(),
+              child: TimelineScreen(
+                repository: _FakeGraph([_celeb(1, _person(1))]),
+                now: _fixedNow,
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/import',
+            builder: (_, __) => const Text('import screen'),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        _withSession(MaterialApp.router(routerConfig: router)),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('dashboard_add_people')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('import screen'), findsOneWidget);
+    });
+
+    testWidgets('drops its label while scrolling down, and keeps the icon',
+        (tester) async {
+      await pump(tester, [
+        for (var i = 1; i <= 30; i++)
+          _celeb(i, _person(i, birthday: Birthday(month: 1 + i % 12, day: 1))),
+      ]);
+      expect(find.text(AppStrings.timelineAddPeople), findsOneWidget);
+
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -400));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('dashboard_add_people')), findsOneWidget);
+      expect(find.text(AppStrings.timelineAddPeople), findsNothing);
+    });
+  });
+
+  group('Invite', () {
+    Future<List<String>> pumpWithShare(
+      WidgetTester tester,
+      List<Celebration> rows,
+    ) async {
+      final shared = <String>[];
+      await tester.pumpWidget(
+        _withSession(
+          MaterialApp(
+            home: RepositoryProvider<PushRepository>.value(
+              value: _FakePush(),
+              child: TimelineScreen(
+                repository: _FakeGraph(rows),
+                now: _fixedNow,
+                share: (text) async => shared.add(text),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return shared;
+    }
+
+    testWidgets('is offered for someone not on the app, not for a member',
+        (tester) async {
+      await pumpWithShare(tester, [
+        _celeb(1, _person(1)),
+        _celeb(2, _person(2,
+            isClaimed: true, birthday: const Birthday(month: 9, day: 1))),
+      ]);
+
+      expect(find.byKey(const Key('invite_1')), findsOneWidget);
+      expect(find.byKey(const Key('invite_2')), findsNothing);
+    });
+
+    testWidgets('shares a message addressed to them, with the download link',
+        (tester) async {
+      final shared = await pumpWithShare(tester, [
+        _celeb(1, Person(
+          id: 1,
+          displayName: 'Asha Sharma',
+          isClaimed: false,
+        )),
+      ]);
+
+      await tester.tap(find.byKey(const Key('invite_1')));
+      await tester.pump();
+
+      expect(shared, hasLength(1));
+      expect(shared.single, startsWith('Hi Asha!'));
+      expect(shared.single, contains(AppLinks.download));
+    });
   });
 }

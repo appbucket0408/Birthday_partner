@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
+import '../../core/app_text_styles.dart';
+import '../../repositories/contacts_repository.dart';
 import 'import_cubit.dart';
 import 'import_state.dart';
 import 'import_summary_screen.dart';
@@ -65,29 +67,52 @@ class ImportPickScreen extends StatelessWidget {
           }
 
           final picking = state;
+          // Split by whether the number already has an account. Only
+          // members have a birthday (only a person sets their own), so the
+          // two halves get different promises -- said here, at the moment
+          // of choosing, rather than discovered later on an empty Calendar.
+          final onAppPhones = {for (final r in picking.resolved) r.phone};
+          int byName(DeviceContact a, DeviceContact b) =>
+              a.name.toLowerCase().compareTo(b.name.toLowerCase());
+          final onApp = [
+            for (final c in picking.contacts)
+              if (onAppPhones.contains(c.phoneE164)) c,
+          ]..sort(byName);
+          final notOnApp = [
+            for (final c in picking.contacts)
+              if (!onAppPhones.contains(c.phoneE164)) c,
+          ]..sort(byName);
+
+          Widget tile(DeviceContact contact) => CheckboxListTile(
+                key: Key('contact_${contact.phoneE164}'),
+                value: picking.selected.contains(contact.phoneE164),
+                onChanged: (_) =>
+                    context.read<ImportCubit>().toggle(contact.phoneE164),
+                title: Text(contact.name),
+                subtitle: Text(contact.phoneE164),
+              );
+
           return Column(
             children: [
               Expanded(
                 child: ListView(
                   children: [
-                    for (final contact in picking.contacts)
-                      CheckboxListTile(
-                        key: Key('contact_${contact.phoneE164}'),
-                        value: picking.selected.contains(contact.phoneE164),
-                        onChanged: (_) => context
-                            .read<ImportCubit>()
-                            .toggle(contact.phoneE164),
-                        title: Text(contact.name),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(contact.phoneE164),
-                            if (picking.resolved
-                                .any((r) => r.phone == contact.phoneE164))
-                              const Text(AppStrings.importOnApp),
-                          ],
-                        ),
+                    if (onApp.isNotEmpty) ...[
+                      const _SectionHeader(
+                        key: Key('import_section_on_app'),
+                        title: AppStrings.importOnApp,
+                        hint: AppStrings.importOnAppHint,
                       ),
+                      for (final c in onApp) tile(c),
+                    ],
+                    if (notOnApp.isNotEmpty) ...[
+                      const _SectionHeader(
+                        key: Key('import_section_not_on_app'),
+                        title: AppStrings.importNotOnApp,
+                        hint: AppStrings.importNotOnAppHint,
+                      ),
+                      for (final c in notOnApp) tile(c),
+                    ],
                   ],
                 ),
               ),
@@ -104,6 +129,39 @@ class ImportPickScreen extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({super.key, required this.title, required this.hint});
+
+  final String title;
+  final String hint;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.xs,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: AppTextStyles.sectionHeader(context)),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            hint,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }

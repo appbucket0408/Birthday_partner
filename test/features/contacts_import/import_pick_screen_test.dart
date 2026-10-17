@@ -8,9 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// A real ImportCubit, not a mock: the screen is exercised through the real
-/// toggle()/state machinery, following the pattern in
-/// test/features/onboarding/phone_screen_test.dart.
 class _FakeContacts implements ContactsRepository {
   _FakeContacts(this.contacts, this.resolved);
 
@@ -97,30 +94,37 @@ void main() {
     expect(addButton().onPressed, isNotNull);
   });
 
-  // 3. A contact present in the resolved set shows the importOnApp badge
-  //    and one absent from it does not.
+  // 3. Contacts are split by whether they are already on the app, each
+  //    section saying what adding them will (and will not) give you.
   testWidgets(
-    'a resolved contact shows the on-app badge, an unresolved one does not',
+    'contacts on the app and not on it are in separate, explained sections',
     (tester) async {
       await pump(tester);
 
-      final onAppTile = find.byKey(Key('contact_${_onApp.phoneE164}'));
-      final offAppTile = find.byKey(Key('contact_${_offApp.phoneE164}'));
-
+      final onAppHeader = find.byKey(const Key('import_section_on_app'));
+      final offAppHeader = find.byKey(const Key('import_section_not_on_app'));
       expect(
         find.descendant(
-          of: onAppTile,
-          matching: find.text(AppStrings.importOnApp),
+          of: onAppHeader,
+          matching: find.text(AppStrings.importOnAppHint),
         ),
         findsOneWidget,
       );
       expect(
         find.descendant(
-          of: offAppTile,
-          matching: find.text(AppStrings.importOnApp),
+          of: offAppHeader,
+          matching: find.text(AppStrings.importNotOnAppHint),
         ),
-        findsNothing,
+        findsOneWidget,
       );
+
+      double top(Finder f) => tester.getTopLeft(f).dy;
+      final onAppTile = find.byKey(Key('contact_${_onApp.phoneE164}'));
+      final offAppTile = find.byKey(Key('contact_${_offApp.phoneE164}'));
+      // On-app first, each contact under its own section's header.
+      expect(top(onAppHeader), lessThan(top(onAppTile)));
+      expect(top(onAppTile), lessThan(top(offAppHeader)));
+      expect(top(offAppHeader), lessThan(top(offAppTile)));
     },
   );
 

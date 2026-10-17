@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../api/api_client.dart';
+import '../../core/app_links.dart';
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
 import '../../core/app_text_styles.dart';
@@ -36,7 +39,7 @@ String _headerFor(TimelineGroup? group) => switch (group) {
       TimelineGroup.thisWeek => AppStrings.timelineThisWeek,
       TimelineGroup.thisMonth => AppStrings.timelineThisMonth,
       TimelineGroup.later => AppStrings.timelineLater,
-      null => AppStrings.timelineNoBirthdayYet,
+      null => AppStrings.timelineWaitingToJoin,
     };
 
 /// The Celebrating timeline (spec §6.3): the first screen with a real payoff
@@ -48,17 +51,24 @@ String _headerFor(TimelineGroup? group) => switch (group) {
 /// same reason), and `now` has no production wiring at all -- it exists
 /// purely so a test can hand this screen a fixed clock instead of the real
 /// one, same reason [TimelineCubit] takes it directly rather than reading
-/// `DateTime.now()` itself.
+/// `DateTime.now()` itself. [share] is injectable for the same reason: a test
+/// cannot open the system share sheet, but can check what would be shared.
 class TimelineScreen extends StatelessWidget {
   const TimelineScreen({
     super.key,
     GraphRepository? repository,
     DateTime Function()? now,
+    Future<void> Function(String text)? share,
   })  : _repository = repository,
-        _now = now;
+        _now = now,
+        _share = share;
 
   final GraphRepository? _repository;
   final DateTime Function()? _now;
+  final Future<void> Function(String text)? _share;
+
+  static Future<void> _systemShare(String text) =>
+      SharePlus.instance.share(ShareParams(text: text));
 
   @override
   Widget build(BuildContext context) {
@@ -86,7 +96,7 @@ class TimelineScreen extends StatelessWidget {
           create: (c) => PushCubit(c.read<PushRepository>())..enable(),
         ),
       ],
-      child: const _TimelineView(),
+      child: _TimelineView(share: _share ?? _systemShare),
     );
   }
 }
@@ -96,8 +106,29 @@ class TimelineScreen extends StatelessWidget {
 /// earn a separate widget. The sole exception is [_SectionHeaderDelegate]
 /// below: `SliverPersistentHeader` requires a delegate object, so that much
 /// indirection is Flutter's API, not a style choice.
-class _TimelineView extends StatelessWidget {
-  const _TimelineView();
+class _TimelineView extends StatefulWidget {
+  const _TimelineView({required this.share});
+
+  final Future<void> Function(String text) share;
+
+  @override
+  State<_TimelineView> createState() => _TimelineViewState();
+}
+
+class _TimelineViewState extends State<_TimelineView> {
+  // The add button shows its label until the user scrolls down the list, so
+  // it never sits over a name for long, and comes back on the way up.
+  bool _fabExtended = true;
+
+  bool _onScroll(UserScrollNotification n) {
+    final extended = switch (n.direction) {
+      ScrollDirection.reverse => false,
+      ScrollDirection.forward => true,
+      ScrollDirection.idle => _fabExtended,
+    };
+    if (extended != _fabExtended) setState(() => _fabExtended = extended);
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -105,66 +136,89 @@ class _TimelineView extends StatelessWidget {
       // Profile and Settings used to be AppBar actions here. Profile is now a
       // bottom-bar tab, and Settings moved onto it.
       appBar: AppBar(title: const Text(AppStrings.timelineTitle)),
-      body: BlocConsumer<TimelineCubit, TimelineState>(
-        listenWhen: (previous, next) =>
-            next is TimelineLoaded && next.error != null,
-        listener: (context, state) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text((state as TimelineLoaded).error!)),
-          );
-        },
-        builder: (context, state) => switch (state) {
-          TimelineLoading() =>
-            const Center(child: CircularProgressIndicator()),
-          TimelineError() => Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(state.message),
-                  const SizedBox(height: AppSpacing.md),
-                  FilledButton(
-                    onPressed: () => context.read<TimelineCubit>().load(),
-                    child: const Text(AppStrings.retry),
-                  ),
-                ],
+      // Adding people is this screen's primary action, so it is always on
+      // screen -- not only in the empty state, which a user who already
+      // celebrates anyone never sees again.
+      floatingActionButton: FloatingActionButton.extended(
+        key: const Key('dashboard_add_people'),
+        onPressed: () => context.go('/import'),
+        isExtended: _fabExtended,
+        icon: const Icon(Icons.person_add_alt_1),
+        label: const Text(AppStrings.timelineAddPeople),
+        tooltip: AppStrings.timelineAddPeople,
+      ),
+      body: NotificationListener<UserScrollNotification>(
+        onNotification: _onScroll,
+        child: BlocConsumer<TimelineCubit, TimelineState>(
+          listenWhen: (previous, next) =>
+              next is TimelineLoaded && next.error != null,
+          listener: (context, state) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text((state as TimelineLoaded).error!)),
+            );
+          },
+          builder: (context, state) => switch (state) {
+            TimelineLoading() =>
+              const Center(child: CircularProgressIndicator()),
+            TimelineError() => Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(state.message),
+                    const SizedBox(height: AppSpacing.md),
+                    FilledButton(
+                      onPressed: () => context.read<TimelineCubit>().load(),
+                      child: const Text(AppStrings.retry),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          TimelineEmpty() => Column(
-              children: [
-                const _MeHeader(),
-                Expanded(
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            AppStrings.timelineEmptyTitle,
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
-                          const SizedBox(height: AppSpacing.sm),
-                          const Text(
-                            AppStrings.timelineEmptyBody,
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: AppSpacing.lg),
-                          FilledButton(
-                            key: const Key('timeline_import_cta'),
-                            onPressed: () => context.go('/import'),
-                            child: const Text(AppStrings.timelineImportCta),
-                          ),
-                        ],
+            TimelineEmpty() => Column(
+                children: [
+                  const _MeHeader(),
+                  Expanded(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              AppStrings.timelineEmptyTitle,
+                              style: Theme.of(context).textTheme.headlineSmall,
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            const Text(
+                              AppStrings.timelineEmptyBody,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: AppSpacing.lg),
+                            FilledButton(
+                              key: const Key('timeline_import_cta'),
+                              onPressed: () => context.go('/import'),
+                              child: const Text(AppStrings.timelineImportCta),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          TimelineLoaded() => _buildLoaded(context, state),
-        },
+                ],
+              ),
+            TimelineLoaded() => _buildLoaded(context, state),
+          },
+        ),
       ),
     );
+  }
+
+  /// Addressed by first name -- it reads as a message from a friend, not a
+  /// notification from an app.
+  static String _inviteMessage(String name) {
+    final first = name.trim().split(RegExp(r'\s+')).first;
+    return AppStrings.inviteMessageTemplate
+        .replaceFirst('%1', first)
+        .replaceFirst('%2', AppLinks.download);
   }
 
   Widget _buildLoaded(BuildContext context, TimelineLoaded state) {
@@ -177,6 +231,27 @@ class _TimelineView extends StatelessWidget {
             SliverPersistentHeader(
               delegate: _SectionHeaderDelegate(_headerFor(group)),
             ),
+            // Only people not on the app have no birthday (only a person sets
+            // their own), so this section is "waiting to join" -- said here,
+            // where its rows would otherwise look like missing data.
+            if (group == null)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    0,
+                    AppSpacing.md,
+                    AppSpacing.sm,
+                  ),
+                  child: Text(
+                    AppStrings.timelineWaitingToJoinHint,
+                    key: const Key('timeline_waiting_hint'),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ),
+              ),
             SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
@@ -191,14 +266,30 @@ class _TimelineView extends StatelessWidget {
                         : Text(DateLabels.birthday(birthday)),
                     onTap: () =>
                         context.go('/person/${celebration.person.id}'),
-                    trailing: PopupMenuButton<VoidCallback>(
-                      key: Key('menu_${celebration.id}'),
-                      onSelected: (action) => action(),
-                      itemBuilder: (context) => [
-                        PopupMenuItem(
-                          value: () => cubit.stopCelebrating(celebration.id),
-                          child:
-                              const Text(AppStrings.timelineStopCelebrating),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (!celebration.person.isClaimed)
+                          TextButton.icon(
+                            key: Key('invite_${celebration.id}'),
+                            onPressed: () => widget.share(
+                              _inviteMessage(celebration.person.displayName),
+                            ),
+                            icon: const Icon(Icons.send, size: 18),
+                            label: const Text(AppStrings.timelineInvite),
+                          ),
+                        PopupMenuButton<VoidCallback>(
+                          key: Key('menu_${celebration.id}'),
+                          onSelected: (action) => action(),
+                          itemBuilder: (context) => [
+                            PopupMenuItem(
+                              value: () =>
+                                  cubit.stopCelebrating(celebration.id),
+                              child: const Text(
+                                AppStrings.timelineStopCelebrating,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -208,6 +299,9 @@ class _TimelineView extends StatelessWidget {
               ),
             ),
           ],
+        // Room under the last row for the floating add button, so it never
+        // covers that row's menu.
+        const SliverToBoxAdapter(child: SizedBox(height: 96)),
       ],
     );
   }

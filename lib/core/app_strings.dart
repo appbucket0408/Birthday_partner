@@ -99,6 +99,11 @@ abstract final class AppStrings {
       'can turn it on in Settings.';
   static const importPickTitle = 'Who do you celebrate?';
   static const importOnApp = 'On Birthday';
+  static const importOnAppHint = "You'll get their birthday and reminders.";
+  static const importNotOnApp = 'Not on Birthday yet';
+  static const importNotOnAppHint =
+      'Their birthday shows up once they join. You can invite them from your '
+      'Dashboard.';
   static const importAddSelected = 'Add selected';
   static const importSummaryTitle = 'Import complete';
   static const importAddedTemplate = '%s added';
@@ -118,8 +123,18 @@ abstract final class AppStrings {
   static const timelineEmptyBody =
       'Import your contacts to start celebrating the people you know.';
   static const timelineImportCta = 'Import contacts';
+  static const timelineAddPeople = 'Add people';
   static const timelineStopCelebrating = 'Stop celebrating';
-  static const timelineNoBirthdayYet = 'No birthday yet';
+  static const timelineWaitingToJoin = 'Waiting to join';
+  static const timelineWaitingToJoinHint =
+      "They aren't on Birthday yet. Their birthday shows up here once they "
+      'join.';
+  static const timelineInvite = 'Invite';
+
+  /// %1 is their name, %2 the download link.
+  static const inviteMessageTemplate =
+      "Hi %1! I've added you on Birthday so I never miss your day 🎂 Join and "
+      'add your birthday: %2';
 
   // Settings
   static const settingsTitle = 'Settings';
