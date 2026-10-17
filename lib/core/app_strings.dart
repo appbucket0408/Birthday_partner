@@ -88,10 +88,20 @@ abstract final class AppStrings {
   // other skip and shown with no reason -- naming it would reveal to the
   // importer that the person asked to be removed. Do not add one.
   static const importDisclosureTitle = 'Find people you already know';
+  // Play's prominent disclosure: WHAT is read and WHY, stated on this screen
+  // before the permission prompt. Keep both halves in this sentence.
   static const importDisclosureBody =
       'Birthday reads the names and numbers in your contacts so you can pick '
-      'who you want to celebrate. Your contacts are never stored on our '
-      'servers and are never shared with anyone.';
+      'who you want to celebrate.';
+  static const importTrustStaysTitle = 'Stays on your phone';
+  static const importTrustStaysBody =
+      'Your contacts are never stored on our servers.';
+  static const importTrustSharedTitle = 'Never shared';
+  static const importTrustSharedBody =
+      'Nobody is messaged or told that you looked them up.';
+  static const importTrustChooseTitle = 'You choose';
+  static const importTrustChooseBody =
+      'Nobody is added until you pick them.';
   static const importDisclosureContinue = 'Continue';
   static const importDisclosureSkip = 'Not now';
   static const importPermissionDenied =

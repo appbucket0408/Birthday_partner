@@ -10,9 +10,7 @@ import 'import_cubit.dart';
 import 'import_pick_screen.dart';
 import 'import_state.dart';
 
-/// Play's prominent-disclosure screen. No permission API is touched until
-/// Continue is pressed -- ImportCubit is built here but [ImportCubit.start]
-/// is only called from the button handler below, never from build().
+
 class ImportDisclosureScreen extends StatelessWidget {
   const ImportDisclosureScreen({super.key});
 
@@ -20,13 +18,13 @@ class ImportDisclosureScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => ImportCubit(ContactsRepositoryImpl(ApiClient.instance)),
-      child: const _ImportDisclosureView(),
+      child: const ImportDisclosureView(),
     );
   }
 }
 
-class _ImportDisclosureView extends StatelessWidget {
-  const _ImportDisclosureView();
+class ImportDisclosureView extends StatelessWidget {
+  const ImportDisclosureView({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -50,77 +48,211 @@ class _ImportDisclosureView extends StatelessWidget {
         final requesting = state is ImportRequestingPermission ||
             state is ImportLoadingContacts;
 
+        final theme = Theme.of(context);
+        final error = switch (state) {
+          ImportPermissionDenied() => AppStrings.importPermissionDenied,
+          ImportFailed(:final message) => message,
+          _ => null,
+        };
+
         return Scaffold(
+          appBar: AppBar(
+            leading: IconButton(
+              key: const Key('import_close'),
+              icon: const Icon(Icons.close),
+              tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+              onPressed: () => context.go('/timeline'),
+            ),
+          ),
           body: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: AppSpacing.xl),
-                  Text(
-                    AppStrings.importDisclosureTitle,
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(AppStrings.importDisclosureBody),
-                  if (state is ImportPermissionDenied) ...[
-                    const SizedBox(height: AppSpacing.lg),
-                    Text(
-                      AppStrings.importPermissionDenied,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
+            top: false,
+            child: Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
                     ),
-                  ],
-                  // I1: start() previously had no error handling at all, so
-                  // a failure of requestPermission/readDeviceContacts/
-                  // resolve left the cubit stuck in ImportLoadingContacts --
-                  // which this screen rendered as a permanently-disabled
-                  // spinner behind Continue, with no error and no retry.
-                  // ImportFailed now carries a human-readable message and
-                  // the button below is what lets the user try again.
-                  if (state is ImportFailed) ...[
-                    const SizedBox(height: AppSpacing.lg),
-                    Text(
-                      state.message,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: AppSpacing.md),
+                        CircleAvatar(
+                          radius: 44,
+                          backgroundColor: theme.colorScheme.primaryContainer,
+                          foregroundColor: theme.colorScheme.onPrimaryContainer,
+                          child: const Icon(Icons.contacts_outlined, size: 40),
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        Text(
+                          AppStrings.importDisclosureTitle,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          AppStrings.importDisclosureBody,
+                          key: const Key('import_disclosure_body'),
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.xl),
+                        const _TrustPoint(
+                          icon: Icons.lock_outline,
+                          title: AppStrings.importTrustStaysTitle,
+                          body: AppStrings.importTrustStaysBody,
+                        ),
+                        const _TrustPoint(
+                          icon: Icons.visibility_off_outlined,
+                          title: AppStrings.importTrustSharedTitle,
+                          body: AppStrings.importTrustSharedBody,
+                        ),
+                        const _TrustPoint(
+                          icon: Icons.check_circle_outline,
+                          title: AppStrings.importTrustChooseTitle,
+                          body: AppStrings.importTrustChooseBody,
+                        ),
+                        if (error != null) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          _ErrorBox(message: error),
+                        ],
+                        const SizedBox(height: AppSpacing.lg),
+                      ],
                     ),
-                  ],
-                  const SizedBox(height: AppSpacing.lg),
-                  FilledButton(
-                    key: const Key('import_continue'),
-                    onPressed: requesting
-                        ? null
-                        : () => context.read<ImportCubit>().start(),
-                    child: requesting
-                        ? const SizedBox.square(
-                            dimension: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text(AppStrings.importDisclosureContinue),
                   ),
-                  const SizedBox(height: AppSpacing.sm),
-                  TextButton(
-                    key: const Key('import_skip'),
-                    // I2: '/import' is entered via context.go, which
-                    // *replaces* the location -- this disclosure screen is
-                    // the Navigator's only entry, so Navigator.pop() here
-                    // had nothing left to pop back to. There is no AppBar
-                    // or back button on this screen, so this and the
-                    // summary screen's Done button are the only two ways
-                    // out of the whole import flow.
-                    onPressed: () => context.go('/timeline'),
-                    child: const Text(AppStrings.importDisclosureSkip),
+                ),
+                // Pinned to the bottom, in thumb reach -- the same place as
+                // the sign-in screen's main button.
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg,
+                    AppSpacing.sm,
+                    AppSpacing.lg,
+                    AppSpacing.md,
                   ),
-                ],
-              ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      FilledButton(
+                        key: const Key('import_continue'),
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                        ),
+                        onPressed: requesting
+                            ? null
+                            : () => context.read<ImportCubit>().start(),
+                        child: requesting
+                            ? const SizedBox.square(
+                                dimension: 20,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text(AppStrings.importDisclosureContinue),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      TextButton(
+                        key: const Key('import_skip'),
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size.fromHeight(44),
+                        ),
+                        onPressed: () => context.go('/timeline'),
+                        child: const Text(AppStrings.importDisclosureSkip),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         );
       },
+    );
+  }
+}
+
+/// One privacy promise: an icon in a tinted circle, a bold line, and one
+/// line of detail -- scannable, where the old paragraph was not.
+class _TrustPoint extends StatelessWidget {
+  const _TrustPoint({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: theme.colorScheme.secondaryContainer,
+            foregroundColor: theme.colorScheme.onSecondaryContainer,
+            child: Icon(icon, size: 20),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  body,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorBox extends StatelessWidget {
+  const _ErrorBox({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      key: const Key('import_error'),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer,
+        borderRadius: BorderRadius.circular(AppSpacing.md),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, color: scheme.onErrorContainer),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: scheme.onErrorContainer),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
