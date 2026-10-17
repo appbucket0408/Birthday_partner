@@ -145,4 +145,27 @@ void main() {
       expect(button.tooltip, AppStrings.settingsTitle);
     });
   }
+
+  testWidgets('each wish card shows the sender below the message',
+      (tester) async {
+    await _pump(tester, cubit, _loaded(wall: [_wish(1, author: 'Priya')]));
+
+    final card = find.byKey(const Key('profile_wish_1'));
+    final author = find.descendant(of: card, matching: find.text('Priya'));
+    final body =
+        find.descendant(of: card, matching: find.text('Happy birthday 1'));
+    expect(
+      tester.getTopLeft(author).dy,
+      greaterThan(tester.getTopLeft(body).dy),
+    );
+  });
+
+  testWidgets('the wall heading carries the number of wishes', (tester) async {
+    await _pump(tester, cubit, _loaded(wall: [_wish(1), _wish(2)]));
+
+    expect(
+      find.text('${AppStrings.profileWishWall} · 2'),
+      findsOneWidget,
+    );
+  });
 }

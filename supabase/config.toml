@@ -340,6 +340,18 @@ max_frequency = "5s"
 919876543210 = "123456"
 917073039115 = "123456"
 917073039116 = "123456"
+# Dummy accounts b_02..b_08 for trying the app by hand, created and wired up
+# (everyone celebrates everyone) by supabase/seed_dummy_users.sh. Named after
+# their repeated digit. 1111111111 and 5555555555 are not here: no Indian
+# mobile starts with 1 or 5, so the app's own number check rejects them.
+# 9999999999 is not here either: it is already above, and
+# contacts_repository_test.dart relies on it having NO account.
+912222222222 = "123456"
+913333333333 = "123456"
+914444444444 = "123456"
+916666666666 = "123456"
+917777777777 = "123456"
+918888888888 = "123456"
 
 # Configure logged in session timeouts.
 # [auth.sessions]

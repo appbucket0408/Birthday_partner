@@ -17,12 +17,7 @@ import '../../router/session_cubit.dart';
 import 'profile_cubit.dart';
 import 'profile_state.dart';
 
-/// The Profile tab (spec §7.3), laid out like an Instagram profile: avatar
-/// and the two wish totals side by side, name and birthday under them, the
-/// celebrating counts, then a grid of the wishes received.
-///
-/// Every repository is read off context (all are registered in `app.dart`),
-/// never constructed here.
+
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
@@ -63,9 +58,6 @@ class ProfileView extends StatelessWidget {
                 : AppStrings.profileTitle,
           ),
           actions: [
-            // Settings' only entry point. It must render in every state,
-            // not just ProfileLoaded, or a failed load strands the user
-            // with no way to sign out.
             IconButton(
               key: const Key('settings_button'),
               icon: const Icon(Icons.settings),
@@ -116,32 +108,6 @@ class ProfileView extends StatelessWidget {
             _EditablePhoto(state: state),
             Expanded(
               child: _StatTile(
-                key: const Key('profile_wishes_received_tile'),
-                label: AppStrings.profileWishesReceived,
-                value: state.wishesReceived,
-              ),
-            ),
-            Expanded(
-              child: _StatTile(
-                key: const Key('profile_wishes_sent_tile'),
-                label: AppStrings.profileWishesSent,
-                value: state.wishesSent,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Text(profile.displayName, style: textTheme.titleMedium),
-        if (details.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.xs),
-            child: Text(details, style: textTheme.bodyMedium),
-          ),
-        const SizedBox(height: AppSpacing.sm),
-        Row(
-          children: [
-            Expanded(
-              child: _StatTile(
                 key: const Key('profile_celebrating_tile'),
                 label: AppStrings.profileCelebrating,
                 value: state.celebratingCount,
@@ -158,9 +124,32 @@ class ProfileView extends StatelessWidget {
             ),
           ],
         ),
-        // The gift list's entry point (spec §7: "reached from the profile").
-        // No count: GiftListCubit.load() fetches the gifts anyway, and a
-        // badge here would be a second round trip for the same number.
+        const SizedBox(height: AppSpacing.md),
+        Text(profile.displayName, style: textTheme.titleMedium),
+        if (details.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Text(details, style: textTheme.bodyMedium),
+          ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Expanded(
+              child: _StatTile(
+                key: const Key('profile_wishes_received_tile'),
+                label: AppStrings.profileWishesReceived,
+                value: state.wishesReceived,
+              ),
+            ),
+            Expanded(
+              child: _StatTile(
+                key: const Key('profile_wishes_sent_tile'),
+                label: AppStrings.profileWishesSent,
+                value: state.wishesSent,
+              ),
+            ),
+          ],
+        ),
         OutlinedButton.icon(
           key: const Key('profile_my_gifts_tile'),
           icon: const Icon(Icons.cake_outlined),
@@ -168,7 +157,13 @@ class ProfileView extends StatelessWidget {
           onPressed: () => context.go('/gifts'),
         ),
         const Divider(height: AppSpacing.xl),
-        Text(AppStrings.profileWishWall, style: textTheme.titleSmall),
+        Text(
+          state.wall.isEmpty
+              ? AppStrings.profileWishWall
+              : '${AppStrings.profileWishWall} · ${state.wall.length}',
+          key: const Key('profile_wall_title'),
+          style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: AppSpacing.sm),
         if (state.wall.isEmpty)
           Padding(
@@ -181,14 +176,20 @@ class ProfileView extends StatelessWidget {
             ),
           )
         else
+          // Two columns, not Instagram's three: these tiles carry text, and
+          // at a third of a phone's width a sentence wraps a word per line.
           GridView.count(
             key: const Key('profile_wall'),
-            crossAxisCount: 3,
-            mainAxisSpacing: AppSpacing.xs,
-            crossAxisSpacing: AppSpacing.xs,
+            crossAxisCount: 2,
+            mainAxisSpacing: AppSpacing.sm,
+            crossAxisSpacing: AppSpacing.sm,
+            childAspectRatio: 1.05,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            children: [for (final w in state.wall) _WishSquare(wish: w)],
+            children: [
+              for (final (i, w) in state.wall.indexed)
+                _WishCard(wish: w, index: i),
+            ],
           ),
         const SizedBox(height: AppSpacing.lg),
       ],
@@ -281,22 +282,31 @@ class _StatTile extends StatelessWidget {
   }
 }
 
-/// One wish as a square tile: the message, and who sent it underneath.
-class _WishSquare extends StatelessWidget {
-  const _WishSquare({required this.wish});
+/// One wish: the message, and who sent it underneath. Cards cycle through
+/// the theme's three container colours so a grid of them reads as separate
+/// notes rather than one block.
+class _WishCard extends StatelessWidget {
+  const _WishCard({required this.wish, required this.index});
 
   final Wish wish;
+  final int index;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final small = Theme.of(context).textTheme.bodySmall;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final (background, foreground) = switch (index % 3) {
+      0 => (scheme.primaryContainer, scheme.onPrimaryContainer),
+      1 => (scheme.secondaryContainer, scheme.onSecondaryContainer),
+      _ => (scheme.tertiaryContainer, scheme.onTertiaryContainer),
+    };
+
     return Container(
       key: Key('profile_wish_${wish.id}'),
-      padding: const EdgeInsets.all(AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md - AppSpacing.xs),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(AppSpacing.xs),
+        color: background,
+        borderRadius: BorderRadius.circular(AppSpacing.md),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -304,15 +314,22 @@ class _WishSquare extends StatelessWidget {
           Expanded(
             child: Text(
               wish.body,
-              style: small,
               overflow: TextOverflow.fade,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: foreground,
+                height: 1.3,
+              ),
             ),
           ),
+          const SizedBox(height: AppSpacing.sm),
           Text(
             wish.authorName ?? AppStrings.profileWishAuthorUnknown,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: small?.copyWith(color: scheme.onSurfaceVariant),
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: foreground,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),

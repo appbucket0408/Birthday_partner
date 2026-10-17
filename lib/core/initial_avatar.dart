@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// A round avatar showing the first letter of [name]. Nobody in the app has
-/// a photo yet, so this stands in wherever a face would go.
+/// A round avatar showing the first letter of [name]: for other people, who
+/// have no visible photo, and as `ProfileAvatar`'s fallback for your own.
 class InitialAvatar extends StatelessWidget {
   const InitialAvatar({super.key, required this.name, this.radius = 20});
 
