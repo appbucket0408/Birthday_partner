@@ -21,9 +21,17 @@ final class TimelineLoading extends TimelineState {
 /// blank the screen, since [groups] is still the last-known-good list. A
 /// later successful action clears it (see [TimelineCubit._emitGrouped]).
 final class TimelineLoaded extends TimelineState {
-  const TimelineLoaded(this.groups, {this.error});
+  const TimelineLoaded(
+    this.groups, {
+    this.error,
+    this.celebratesMe = const {},
+  });
 
   final Map<TimelineGroup?, List<Celebration>> groups;
+
+  /// Person ids of the people listed here who also celebrate the viewer --
+  /// marked "Celebrates you" so mutual relationships are visible.
+  final Set<int> celebratesMe;
   final String? error;
 }
 

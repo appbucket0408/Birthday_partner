@@ -51,12 +51,14 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
           final celebrations = await _graph.celebrations();
           final viewerCelebrates =
               celebrations.any((c) => c.person.id == personId);
+          final celebratesViewer = await _celebratesViewer(personId);
           emit(
             PersonLoaded(
               person: person,
               celebratorCount: count,
               wishes: wishes,
               viewerCelebrates: viewerCelebrates,
+              celebratesViewer: celebratesViewer,
             ),
           );
         } on AppFailure catch (f) {
@@ -92,6 +94,16 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
   /// then; reporting it as failed would invite a retry that double-posts
   /// it. That reload failure instead falls back to the wall already held in
   /// [current], stale but correct, with no error shown at all.
+  /// Only a label: failing to learn it must not fail the page, so a lookup
+  /// error reads as "no".
+  Future<bool> _celebratesViewer(int personId) async {
+    try {
+      return (await _graph.celebratesMe()).contains(personId);
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> postWish(String body) => guard('post', () async {
         final current = state;
         if (current is! PersonLoaded) return;
@@ -103,6 +115,7 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
               celebratorCount: current.celebratorCount,
               wishes: current.wishes,
               viewerCelebrates: current.viewerCelebrates,
+            celebratesViewer: current.celebratesViewer,
               postError: AppStrings.somethingWentWrong,
             ),
           );
@@ -114,6 +127,7 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
             celebratorCount: current.celebratorCount,
             wishes: current.wishes,
             viewerCelebrates: current.viewerCelebrates,
+            celebratesViewer: current.celebratesViewer,
             posting: true,
           ),
         );
@@ -131,6 +145,7 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
               celebratorCount: current.celebratorCount,
               wishes: current.wishes,
               viewerCelebrates: current.viewerCelebrates,
+            celebratesViewer: current.celebratesViewer,
               postError: f.message,
             ),
           );
@@ -142,6 +157,7 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
               celebratorCount: current.celebratorCount,
               wishes: current.wishes,
               viewerCelebrates: current.viewerCelebrates,
+            celebratesViewer: current.celebratesViewer,
               postError: AppStrings.somethingWentWrong,
             ),
           );
@@ -162,6 +178,7 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
               celebratorCount: current.celebratorCount,
               wishes: wishes,
               viewerCelebrates: current.viewerCelebrates,
+            celebratesViewer: current.celebratesViewer,
             ),
           );
         } catch (_) {
@@ -171,6 +188,7 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
               celebratorCount: current.celebratorCount,
               wishes: current.wishes,
               viewerCelebrates: current.viewerCelebrates,
+            celebratesViewer: current.celebratesViewer,
             ),
           );
         }

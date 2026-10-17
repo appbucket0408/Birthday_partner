@@ -13,6 +13,16 @@ import 'package:flutter_test/flutter_test.dart';
 /// its real celebrations()/stopCelebrating() calls, following the pattern in
 /// test/features/contacts_import/import_cubit_test.dart.
 class _FakeGraph implements GraphRepository {
+  Set<int> celebratesMeSet = const {};
+  final celebratedBack = <int>[];
+
+  @override
+  Future<Set<int>> celebratesMe() async => celebratesMeSet;
+
+  @override
+  Future<void> celebrateBack(int personId) async =>
+      celebratedBack.add(personId);
+
   _FakeGraph({
     this.celebrationsList = const [],
     this.celebrationsError,
@@ -236,5 +246,16 @@ void main() {
     await Future.wait([first, second]);
 
     expect(fake.stopCelebratingCalls, 1);
+  });
+
+  // Who celebrates the viewer rides along on the loaded state, for the
+  // "Celebrates you" label -- and a failure to learn it must not fail the
+  // timeline, it is only a label.
+  test('load carries who celebrates the viewer', () async {
+    final graph = _FakeGraph(celebrationsList: [_celeb(1, _person(1))])
+      ..celebratesMeSet = {1};
+    final cubit = TimelineCubit(graph, now: _fixedNow);
+    await cubit.load();
+    expect((cubit.state as TimelineLoaded).celebratesMe, {1});
   });
 }

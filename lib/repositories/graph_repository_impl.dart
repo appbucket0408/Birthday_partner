@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../api/api_endpoints.dart';
 import '../api/api_error_mapper.dart';
 import '../api/api_params.dart';
 import '../core/result.dart';
@@ -23,6 +24,35 @@ class GraphRepositoryImpl implements GraphRepository {
               '${ApiParams.birthDay}, ${ApiParams.birthYear})')
           .eq(ApiParams.celebratorProfileId, userId);
       return rows.map(Celebration.fromRow).toList();
+    } catch (e) {
+      throw mapError(e);
+    }
+  }
+
+  @override
+  Future<Set<int>> celebratesMe() async {
+    try {
+      final rows = await _client.rpc(ApiEndpoints.rpcMyCelebrates);
+      // celebrator_person_id is null for a celebrator who has not claimed
+      // their own row -- nobody to show or celebrate back.
+      return {
+        for (final r in rows as List)
+          if ((r as Map<String, dynamic>)[ApiParams.celebratorPersonId]
+              case final int id)
+            id,
+      };
+    } catch (e) {
+      throw mapError(e);
+    }
+  }
+
+  @override
+  Future<void> celebrateBack(int personId) async {
+    try {
+      await _client.rpc(
+        ApiEndpoints.rpcCelebrateBack,
+        params: {ApiParams.pPersonId: personId},
+      );
     } catch (e) {
       throw mapError(e);
     }

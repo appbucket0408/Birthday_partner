@@ -77,6 +77,16 @@ class _FakeAvatarRepository implements AvatarRepository {
 }
 
 class _FakeGraphRepository implements GraphRepository {
+  Set<int> celebratesMeSet = const {};
+  final celebratedBack = <int>[];
+
+  @override
+  Future<Set<int>> celebratesMe() async => celebratesMeSet;
+
+  @override
+  Future<void> celebrateBack(int personId) async =>
+      celebratedBack.add(personId);
+
   @override
   Future<List<Celebration>> celebrations() async => [];
 

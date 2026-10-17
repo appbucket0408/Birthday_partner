@@ -221,6 +221,16 @@ class _TimelineViewState extends State<_TimelineView> {
         .replaceFirst('%2', AppLinks.download);
   }
 
+  /// "18 March", "18 March · Celebrates you", or null when there is
+  /// neither -- someone not on the app cannot celebrate anyone yet.
+  static Widget? _subtitle(Birthday? birthday, {required bool celebratesYou}) {
+    final parts = [
+      if (birthday != null) DateLabels.birthday(birthday),
+      if (celebratesYou) AppStrings.celebratesYou,
+    ];
+    return parts.isEmpty ? null : Text(parts.join(' · '));
+  }
+
   Widget _buildLoaded(BuildContext context, TimelineLoaded state) {
     final cubit = context.read<TimelineCubit>();
     return CustomScrollView(
@@ -261,9 +271,11 @@ class _TimelineViewState extends State<_TimelineView> {
                     key: Key('celebration_${celebration.id}'),
                     leading: InitialAvatar(name: celebration.person.displayName),
                     title: Text(celebration.person.displayName),
-                    subtitle: birthday == null
-                        ? null
-                        : Text(DateLabels.birthday(birthday)),
+                    subtitle: _subtitle(
+                      birthday,
+                      celebratesYou: state.celebratesMe
+                          .contains(celebration.person.id),
+                    ),
                     onTap: () =>
                         context.go('/person/${celebration.person.id}'),
                     trailing: Row(

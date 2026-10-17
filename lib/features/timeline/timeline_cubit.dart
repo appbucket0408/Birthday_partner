@@ -26,6 +26,10 @@ class TimelineCubit extends Cubit<TimelineState> {
   // task brief.
   List<Celebration> _celebrations = const [];
 
+  // Who celebrates the viewer back. Only a label: a failed lookup leaves it
+  // empty rather than failing the timeline.
+  Set<int> _celebratesMe = const {};
+
   // Guards re-entrancy per (action, id) pair rather than with one flag for
   // the whole cubit: a double-tap on one row's "Stop celebrating" must not
   // fire two DELETEs, but that must not also block a legitimate edit on a
@@ -39,6 +43,11 @@ class TimelineCubit extends Cubit<TimelineState> {
     emit(const TimelineLoading());
     try {
       _celebrations = await _repo.celebrations();
+      try {
+        _celebratesMe = await _repo.celebratesMe();
+      } catch (_) {
+        _celebratesMe = const {};
+      }
       _emitGrouped();
     } on AppFailure catch (f) {
       emit(TimelineError(f.message));
@@ -92,6 +101,6 @@ class TimelineCubit extends Cubit<TimelineState> {
             .compareTo(b.person.birthday!.nextOccurrence(_now())),
       );
     }
-    emit(TimelineLoaded(groups, error: error));
+    emit(TimelineLoaded(groups, error: error, celebratesMe: _celebratesMe));
   }
 }

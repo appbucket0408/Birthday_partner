@@ -161,6 +161,11 @@ GoRouter buildRouter(SessionCubit session) {
           title: AppStrings.profileCelebrates,
           emptyMessage: AppStrings.profileCelebratesEmpty,
           fetchPeople: () => context.read<ProfileRepository>().celebrates(),
+          fetchAlreadyCelebrating: () async => {
+            for (final c in await context.read<GraphRepository>().celebrations())
+              c.person.id,
+          },
+          celebrateBack: (id) => context.read<GraphRepository>().celebrateBack(id),
         ),
       ),
     ],

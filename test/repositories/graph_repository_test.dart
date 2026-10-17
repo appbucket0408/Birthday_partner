@@ -2,6 +2,7 @@
 library;
 
 import 'package:birthday_app/api/api_client.dart';
+import 'package:birthday_app/core/result.dart';
 import 'package:birthday_app/models/birthday.dart';
 import 'package:birthday_app/repositories/auth_repository.dart';
 import 'package:birthday_app/repositories/auth_repository_impl.dart';
@@ -156,5 +157,44 @@ void main() {
     final row = (await graph.celebrations())
         .firstWhere((c) => c.person.id == personId);
     expect(row.person.displayName, 'Formal Name');
+  });
+
+  test('someone who celebrates me shows up in celebratesMe, and I can '
+      'celebrate them back without their number', () async {
+    // `second` (kept alive, see asSecondUsersPerson) adds `primary`.
+    final secondPersonId = await asSecondUsersPerson();
+    await auth.signOut();
+    await signIn(second);
+    await auth.claimProfile();
+    await contacts.addCelebrations([
+      const DeviceContact(name: 'Primary', phoneE164: primary),
+    ]);
+    await auth.signOut();
+    await signIn(primary);
+    await auth.claimProfile();
+
+    expect(await graph.celebratesMe(), contains(secondPersonId));
+
+    await graph.celebrateBack(secondPersonId);
+    await graph.celebrateBack(secondPersonId); // idempotent
+
+    final mine = await graph.celebrations();
+    expect(
+      mine.where((c) => c.person.id == secondPersonId),
+      hasLength(1),
+    );
+  }, timeout: const Timeout(Duration(seconds: 90)));
+
+  test('celebrating back someone who does not celebrate me is refused '
+      'with 45006', () async {
+    final summary = await contacts.addCelebrations([
+      const DeviceContact(name: 'Not A Fan', phoneE164: '+919999444406'),
+    ]);
+    final personId = summary.results.single.personId!;
+
+    await expectLater(
+      graph.celebrateBack(personId),
+      throwsA(isA<ServerFailure>().having((f) => f.code, 'code', '45006')),
+    );
   });
 }

@@ -12,6 +12,16 @@ import 'package:flutter_test/flutter_test.dart';
 /// A real fake, not a mock -- same pattern as the timeline and profile
 /// cubit tests.
 class _FakeGraph implements GraphRepository {
+  Set<int> celebratesMeSet = const {};
+  final celebratedBack = <int>[];
+
+  @override
+  Future<Set<int>> celebratesMe() async => celebratesMeSet;
+
+  @override
+  Future<void> celebrateBack(int personId) async =>
+      celebratedBack.add(personId);
+
   _FakeGraph([this.list = const [], this.error]);
 
   final List<Celebration> list;

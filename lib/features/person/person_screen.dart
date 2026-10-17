@@ -238,6 +238,32 @@ class _Header extends StatelessWidget {
                 ),
               ],
             ),
+            if (state.celebratesViewer) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Container(
+                key: const Key('person_celebrates_you'),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xs,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(color: scheme.primary),
+                  borderRadius: BorderRadius.circular(AppSpacing.lg),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.favorite, size: 16, color: scheme.primary),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      AppStrings.celebratesYou,
+                      style: theme.textTheme.labelLarge
+                          ?.copyWith(color: scheme.primary),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             // Both actions appear under the same condition -- see
             // _canComposeFor. rpc_create_gift (45005) and wishes_insert_own
             // both refuse without a celebration edge and a birthday, so

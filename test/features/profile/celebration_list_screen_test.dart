@@ -2,6 +2,8 @@ import 'package:birthday_app/features/profile/celebration_list_screen.dart';
 import 'package:birthday_app/models/person.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:birthday_app/core/app_strings.dart';
+import 'package:birthday_app/core/result.dart';
 
 Person _person(int id, {String? displayName}) => Person(
       id: id,
@@ -81,4 +83,66 @@ void main() {
       expect(tile.onTap, isNotNull);
     },
   );
+
+  group('Celebrate back', () {
+    Future<List<int>> pumpCelebrates(
+      WidgetTester tester, {
+      Set<int> alreadyCelebrating = const {},
+      Object? error,
+    }) async {
+      final calls = <int>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CelebrationListScreen(
+            title: AppStrings.profileCelebrates,
+            emptyMessage: AppStrings.profileCelebratesEmpty,
+            fetchPeople: () async => [_person(1), _person(2)],
+            fetchAlreadyCelebrating: () async => alreadyCelebrating,
+            celebrateBack: (id) async {
+              calls.add(id);
+              if (error != null) throw error;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return calls;
+    }
+
+    testWidgets('is offered only for people you do not celebrate yet',
+        (tester) async {
+      await pumpCelebrates(tester, alreadyCelebrating: {2});
+
+      expect(find.byKey(const Key('celebrate_back_1')), findsOneWidget);
+      expect(find.byKey(const Key('celebrate_back_2')), findsNothing);
+      expect(find.byKey(const Key('celebrating_2')), findsOneWidget);
+    });
+
+    testWidgets('tapping it celebrates them and turns into "Celebrating"',
+        (tester) async {
+      final calls = await pumpCelebrates(tester);
+
+      await tester.tap(find.byKey(const Key('celebrate_back_1')));
+      await tester.pumpAndSettle();
+
+      expect(calls, [1]);
+      expect(find.byKey(const Key('celebrate_back_1')), findsNothing);
+      expect(find.byKey(const Key('celebrating_1')), findsOneWidget);
+    });
+
+    testWidgets('a failure keeps the button and says why', (tester) async {
+      await pumpCelebrates(tester, error: const ServerFailure('nope'));
+
+      await tester.tap(find.byKey(const Key('celebrate_back_1')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('nope'), findsOneWidget);
+      expect(find.byKey(const Key('celebrate_back_1')), findsOneWidget);
+    });
+
+    testWidgets('the I-celebrate list has no such buttons', (tester) async {
+      await _pump(tester, people: [_person(1)], navigable: true);
+      expect(find.byKey(const Key('celebrate_back_1')), findsNothing);
+    });
+  });
 }

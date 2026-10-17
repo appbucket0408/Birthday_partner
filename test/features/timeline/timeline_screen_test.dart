@@ -19,6 +19,16 @@ import 'package:go_router/go_router.dart';
 /// through a real TimelineCubit, following the pattern in
 /// test/features/contacts_import/import_pick_screen_test.dart.
 class _FakeGraph implements GraphRepository {
+  Set<int> celebratesMeSet = const {};
+  final celebratedBack = <int>[];
+
+  @override
+  Future<Set<int>> celebratesMe() async => celebratesMeSet;
+
+  @override
+  Future<void> celebrateBack(int personId) async =>
+      celebratedBack.add(personId);
+
   _FakeGraph(this.celebrationsList);
 
   final List<Celebration> celebrationsList;
@@ -361,5 +371,30 @@ void main() {
       expect(shared.single, startsWith('Hi Asha!'));
       expect(shared.single, contains(AppLinks.download));
     });
+  });
+
+  testWidgets('a person who celebrates you back is labelled so',
+      (tester) async {
+    final graph = _FakeGraph([
+      _celeb(1, _person(1, birthday: const Birthday(month: 9, day: 1))),
+      _celeb(2, _person(2, birthday: const Birthday(month: 9, day: 2))),
+    ])..celebratesMeSet = {1};
+    await tester.pumpWidget(
+      _withSession(
+        MaterialApp(
+          home: RepositoryProvider<PushRepository>.value(
+            value: _FakePush(),
+            child: TimelineScreen(repository: graph, now: _fixedNow),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('1 September · ${AppStrings.celebratesYou}'),
+      findsOneWidget,
+    );
+    expect(find.text('2 September'), findsOneWidget);
   });
 }

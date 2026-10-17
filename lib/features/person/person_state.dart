@@ -35,6 +35,7 @@ final class PersonLoaded extends PersonState {
     required this.celebratorCount,
     required this.wishes,
     required this.viewerCelebrates,
+    this.celebratesViewer = false,
     this.posting = false,
     this.postError,
   });
@@ -43,6 +44,10 @@ final class PersonLoaded extends PersonState {
   final int celebratorCount;
   final List<Wish> wishes;
   final bool viewerCelebrates;
+
+  /// The other direction: this person celebrates the viewer. Shown as a
+  /// "Celebrates you" label, so a mutual relationship is visible.
+  final bool celebratesViewer;
   final bool posting;
   final String? postError;
 }

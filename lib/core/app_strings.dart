@@ -184,8 +184,11 @@ abstract final class AppStrings {
 
   // Profile
   static const profileTitle = 'You';
-  static const profileCelebrating = 'Celebrating';
-  static const profileCelebrates = 'Celebrates';
+  static const profileCelebrating = 'I celebrate';
+  static const profileCelebrates = 'Celebrate me';
+  static const celebratesYou = 'Celebrates you';
+  static const celebrateBack = 'Celebrate back';
+  static const celebratingAlready = 'Celebrating';
   static const profileWishesReceived = 'Wishes received';
   static const profileWishesSent = 'Wishes sent';
   static const profileWishWall = 'Wishes I received';

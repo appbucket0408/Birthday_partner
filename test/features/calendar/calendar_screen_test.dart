@@ -11,6 +11,16 @@ import 'package:flutter_test/flutter_test.dart';
 /// Exercised through a real CalendarCubit over a fake repository, the same
 /// way timeline_screen_test.dart drives TimelineScreen.
 class _FakeGraph implements GraphRepository {
+  Set<int> celebratesMeSet = const {};
+  final celebratedBack = <int>[];
+
+  @override
+  Future<Set<int>> celebratesMe() async => celebratesMeSet;
+
+  @override
+  Future<void> celebrateBack(int personId) async =>
+      celebratedBack.add(personId);
+
   _FakeGraph(this.list);
 
   final List<Celebration> list;

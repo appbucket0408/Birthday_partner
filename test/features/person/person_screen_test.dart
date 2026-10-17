@@ -333,4 +333,25 @@ void main() {
       expect(find.byKey(const Key('wish_1')), findsOneWidget);
     });
   });
+
+  for (final (celebratesViewer, matcher) in [
+    (true, findsOneWidget),
+    (false, findsNothing),
+  ]) {
+    testWidgets('"Celebrates you" badge when celebratesViewer=$celebratesViewer',
+        (tester) async {
+      await _pump(
+        tester,
+        cubit,
+        PersonLoaded(
+          person: _person(1, birthday: const Birthday(month: 4, day: 25)),
+          celebratorCount: 1,
+          wishes: const [],
+          viewerCelebrates: true,
+          celebratesViewer: celebratesViewer,
+        ),
+      );
+      expect(find.byKey(const Key('person_celebrates_you')), matcher);
+    });
+  }
 }

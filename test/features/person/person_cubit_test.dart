@@ -79,6 +79,16 @@ class _FakeWish implements WishRepository {
 /// list, not the loaded [Person] itself, is what `PersonCubit.load` reads
 /// to decide `PersonLoaded.viewerCelebrates`.
 class _FakeGraph implements GraphRepository {
+  Set<int> celebratesMeSet = const {};
+  final celebratedBack = <int>[];
+
+  @override
+  Future<Set<int>> celebratesMe() async => celebratesMeSet;
+
+  @override
+  Future<void> celebrateBack(int personId) async =>
+      celebratedBack.add(personId);
+
   _FakeGraph({this.celebrationsList = const []});
 
   List<Celebration> celebrationsList;
@@ -141,9 +151,8 @@ void main() {
     ],
   );
 
-  // 2. A person with no birthday still loads -- the page must render,
-  //    because the timeline's inline edit is how a missing birthday gets
-  //    fixed.
+  // 2. A person with no birthday (someone not on the app yet) still
+  //    loads -- the page must render, saying they have not joined.
   blocTest<PersonCubit, PersonState>(
     'a person with no birthday still loads',
     build: () => PersonCubit(
@@ -393,4 +402,24 @@ void main() {
     // The wall falls back to what load() already had -- stale, not wrong.
     expect(loaded.wishes.map((w) => w.id).toList(), [1]);
   });
+
+  // The other direction of the relationship, for the "Celebrates you"
+  // badge: on when this person is among those who celebrate the viewer.
+  for (final (name, celebratesMe, expected) in [
+    ('celebrates the viewer', {1}, true),
+    ('does not', <int>{}, false),
+  ]) {
+    test('celebratesViewer is $expected when the person $name', () async {
+      final graph = _FakeGraph(celebrationsList: [_celeb(1)])
+        ..celebratesMeSet = celebratesMe;
+      final cubit = PersonCubit(
+        _FakePerson(personToReturn: _person(1))..countToReturn = 1,
+        _FakeWish(),
+        graph,
+        now: _fixedNow,
+      );
+      await cubit.load(1);
+      expect((cubit.state as PersonLoaded).celebratesViewer, expected);
+    });
+  }
 }
