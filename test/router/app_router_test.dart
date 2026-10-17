@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:birthday_app/features/calendar/calendar_screen.dart';
-import 'package:birthday_app/features/gifting/catalog_screen.dart';
+import 'package:birthday_app/features/gifting/cake_coming_soon_screen.dart';
 import 'package:birthday_app/features/gifting/gift_list_screen.dart';
 import 'package:birthday_app/features/person/person_screen.dart';
 import 'package:birthday_app/core/app_strings.dart';
@@ -18,6 +18,7 @@ import 'package:birthday_app/models/service_area.dart';
 import 'package:birthday_app/models/wish.dart';
 import 'package:birthday_app/repositories/auth_repository.dart';
 import 'package:birthday_app/repositories/avatar_repository.dart';
+import 'package:birthday_app/repositories/gift_interest_repository.dart';
 import 'package:birthday_app/repositories/gift_repository.dart';
 import 'package:birthday_app/repositories/graph_repository.dart';
 import 'package:birthday_app/repositories/person_repository.dart';
@@ -75,6 +76,14 @@ class _FakeAvatarRepository implements AvatarRepository {
 
   @override
   Future<String> signedUrl(String path) async => 'https://example/$path';
+}
+
+class _FakeGiftInterestRepository implements GiftInterestRepository {
+  @override
+  Future<bool> isRegistered(int personId) async => false;
+
+  @override
+  Future<void> register(int personId) async {}
 }
 
 class _FakeGraphRepository implements GraphRepository {
@@ -223,6 +232,9 @@ Widget _appWith(
         ),
         RepositoryProvider<WishRepository>.value(value: _FakeWishRepository()),
         RepositoryProvider<GiftRepository>.value(value: _FakeGiftRepository()),
+        RepositoryProvider<GiftInterestRepository>.value(
+          value: _FakeGiftInterestRepository(),
+        ),
         // Needed by '/profile' (ProfileScreen -> ProfileCubit._auth), added
         // alongside the should-fix 5 arrival tests below -- no earlier test
         // in this file ever reached '/profile'.
@@ -358,7 +370,7 @@ void main() {
         );
 
         await tester.pumpAndSettle();
-        expect(find.byType(CatalogView), findsOneWidget);
+        expect(find.byType(CakeComingSoonView), findsOneWidget);
       },
     );
 
@@ -494,7 +506,7 @@ void main() {
           '/gift/new/$personId',
           reason: 'tapping "Send a cake" did not arrive at /gift/new/:personId',
         );
-        expect(find.byType(CatalogView), findsOneWidget);
+        expect(find.byType(CakeComingSoonView), findsOneWidget);
       },
     );
   });

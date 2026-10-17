@@ -259,6 +259,25 @@ abstract final class AppStrings {
       "They'll leave your Dashboard and Calendar, and you won't get reminders "
       'for their birthday. You can add them again any time.';
 
+  // Gifting -- "Send a cake" is a Coming soon screen until payments exist.
+  static const cakeComingSoonBadge = 'COMING SOON';
+  static const cakeTitleTemplate = 'Send %s a birthday cake';
+  static const cakeYourFriend = 'your friend';
+  static const cakeSubtitle =
+      "We're baking something special: a fresh cake at their door on their "
+      'birthday, ordered right here.';
+  static const cakeFeatureFreshTitle = 'Fresh from local bakeries';
+  static const cakeFeatureFreshBody = 'Baked the same day, never frozen.';
+  static const cakeFeatureDeliveryTitle = 'Delivered on the day';
+  static const cakeFeatureDeliveryBody =
+      'Pick a time slot; they share their address, you never need it.';
+  static const cakeFeatureNoteTitle = 'With your note';
+  static const cakeFeatureNoteBody = 'A personal message arrives with the cake.';
+  static const cakeNotifyMe = "Notify me when it's live";
+  static const cakeRegisteredTitle = "You're on the list";
+  static const cakeRegisteredBody =
+      "We'll let you know the moment cake gifting opens.";
+
   // Gifting
   static const giftSendCake = 'Send a cake';
   static const giftCatalogTitle = 'Choose a cake';

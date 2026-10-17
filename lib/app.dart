@@ -11,6 +11,8 @@ import 'repositories/auth_repository.dart';
 import 'repositories/auth_repository_impl.dart';
 import 'repositories/avatar_repository.dart';
 import 'repositories/avatar_repository_impl.dart';
+import 'repositories/gift_interest_repository.dart';
+import 'repositories/gift_interest_repository_impl.dart';
 import 'repositories/gift_repository.dart';
 import 'repositories/gift_repository_impl.dart';
 import 'repositories/graph_repository.dart';
@@ -45,6 +47,8 @@ class _BirthdayAppState extends State<BirthdayApp> {
       ProfileRepositoryImpl(ApiClient.instance);
   late final GraphRepository _graph = GraphRepositoryImpl(ApiClient.instance);
   late final GiftRepository _gift = GiftRepositoryImpl(ApiClient.instance);
+  late final GiftInterestRepository _giftInterest =
+      GiftInterestRepositoryImpl(ApiClient.instance);
   late final PushRepository _push =
       PushRepositoryImpl(ApiClient.instance, FirebaseMessaging.instance);
   late final SessionCubit _session = SessionCubit(_auth)..load();
@@ -96,6 +100,9 @@ class _BirthdayAppState extends State<BirthdayApp> {
         RepositoryProvider<ProfileRepository>.value(value: _profile),
         RepositoryProvider<GraphRepository>.value(value: _graph),
         RepositoryProvider<GiftRepository>.value(value: _gift),
+        RepositoryProvider<GiftInterestRepository>.value(
+          value: _giftInterest,
+        ),
         RepositoryProvider<PushRepository>.value(value: _push),
       ],
       child: BlocProvider.value(

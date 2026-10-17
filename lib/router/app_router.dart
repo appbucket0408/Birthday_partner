@@ -7,7 +7,7 @@ import '../core/app_strings.dart';
 import '../features/calendar/calendar_screen.dart';
 import '../features/connections/connections_screen.dart';
 import '../features/contacts_import/import_disclosure_screen.dart';
-import '../features/gifting/catalog_screen.dart';
+import '../features/gifting/cake_coming_soon_screen.dart';
 import '../features/gifting/gift_list_screen.dart';
 import '../features/onboarding/phone_screen.dart';
 import '../features/onboarding/profile_setup_screen.dart';
@@ -127,7 +127,9 @@ GoRouter buildRouter(SessionCubit session) {
       // real route: it carries nothing forward, so it can be.
       GoRoute(
         path: '/gift/new/:personId',
-        builder: (_, state) => CatalogScreen(
+        // Coming soon until payments exist; the catalog flow is kept for
+        // then (see CakeComingSoonScreen).
+        builder: (_, state) => CakeComingSoonScreen(
           personId: int.parse(state.pathParameters['personId']!),
         ),
       ),
