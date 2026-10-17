@@ -50,6 +50,14 @@ class Birthday {
     return DateTime(year, month, day);
   }
 
+  /// Whether [day] is this birthday -- the only day a wish can be written.
+  /// Uses [inYear], so a Feb 29 birthday is on Feb 28 in a non-leap year,
+  /// the same day the countdown and the reminders treat as the birthday.
+  bool isOn(DateTime day) {
+    final date = inYear(day.year);
+    return date.month == day.month && date.day == day.day;
+  }
+
   /// The year of the birthday occurrence this wish is *for*.
   ///
   /// The occurrence nearest to [from], with a tie going to the past. A

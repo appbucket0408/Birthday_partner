@@ -354,4 +354,36 @@ void main() {
       expect(find.byKey(const Key('person_celebrates_you')), matcher);
     });
   }
+
+  group('wishing opens on the birthday only', () {
+    PersonLoaded loadedOn(Birthday birthday) => PersonLoaded(
+          person: _person(1, birthday: birthday),
+          celebratorCount: 1,
+          wishes: const [],
+          viewerCelebrates: true,
+        );
+
+    testWidgets('on their birthday: Write a wish is there', (tester) async {
+      // _fixedNow is 15 April.
+      await _pump(tester, cubit, loadedOn(const Birthday(month: 4, day: 15)));
+
+      expect(find.byKey(const Key('wish_write_button')), findsOneWidget);
+      expect(find.byKey(const Key('wish_opens_on_birthday')), findsNothing);
+    });
+
+    testWidgets('any other day: hidden, with the reason, and the cake stays',
+        (tester) async {
+      await _pump(tester, cubit, loadedOn(const Birthday(month: 4, day: 25)));
+
+      expect(find.byKey(const Key('wish_write_button')), findsNothing);
+      expect(
+        find.text(
+          AppStrings.personWishOpensTemplate.replaceFirst('%s', '25 April'),
+        ),
+        findsOneWidget,
+      );
+      // A cake has to be ordered ahead, so it is offered every day.
+      expect(find.byKey(const Key('gift_send_cake_button')), findsOneWidget);
+    });
+  });
 }

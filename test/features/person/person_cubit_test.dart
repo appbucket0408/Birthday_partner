@@ -250,35 +250,25 @@ void main() {
   });
 
   // 4. postWish() derives occasionYear from the person's birthday rather
-  //    than taking it as an argument. This is the whole point of the
-  //    design: the user is never asked which year. A Dec 20 birthday
-  //    wished on 5 Jan 2026 is a BELATED wish for Dec 2025, not an early
-  //    one for Dec 2026.
-  test(
-      'postWish() derives occasionYear from Birthday.occasionYear, never '
-      'the current year', () async {
+  //    than taking it as an argument: the user is never asked which year.
+  //    Wishes are only possible on the birthday itself, so it is that day's
+  //    year -- 5 Jan 2026 files under 2026.
+  test('postWish() files the wish under the birthday being celebrated',
+      () async {
     final wish = _FakeWish();
-    final person = _FakePerson(
-      personToReturn:
-          _person(1, birthday: const Birthday(month: 12, day: 20)),
-    );
     final cubit = PersonCubit(
-      person,
+      _FakePerson(
+        personToReturn: _person(1, birthday: const Birthday(month: 1, day: 5)),
+      ),
       wish,
       _FakeGraph(celebrationsList: [_celeb(1)]),
       now: _fixedNow,
     );
     await cubit.load(1);
 
-    await cubit.postWish('Happy belated birthday!');
+    await cubit.postWish('Happy birthday!');
 
-    const expectedYear = 2025;
-    expect(
-      const Birthday(month: 12, day: 20).occasionYear(_fixedNow()),
-      expectedYear,
-      reason: 'sanity check on the fixture itself',
-    );
-    expect(wish.lastOccasionYear, expectedYear);
+    expect(wish.lastOccasionYear, 2026);
   });
 
   // 5. postWish() reloads the wall on success, so the new wish appears.
@@ -286,7 +276,7 @@ void main() {
     final wish = _FakeWish(wishesToReturn: [_wish(1)]);
     final person = _FakePerson(
       personToReturn:
-          _person(1, birthday: const Birthday(month: 12, day: 20)),
+          _person(1, birthday: const Birthday(month: 1, day: 5)),
     );
     final cubit = PersonCubit(
       person,
@@ -299,7 +289,7 @@ void main() {
     // The second load (post-write) returns a longer wall -- the freshly
     // posted wish plus the one already there.
     wish.wishesToReturn = [_wish(2), _wish(1)];
-    await cubit.postWish('Happy belated birthday!');
+    await cubit.postWish('Happy birthday!');
 
     final state = cubit.state as PersonLoaded;
     expect(state.wishes.map((w) => w.id).toList(), [2, 1]);
@@ -313,7 +303,7 @@ void main() {
     final wish = _FakeWish();
     final person = _FakePerson(
       personToReturn:
-          _person(1, birthday: const Birthday(month: 12, day: 20)),
+          _person(1, birthday: const Birthday(month: 1, day: 5)),
     );
     final cubit = PersonCubit(
       person,
@@ -343,7 +333,7 @@ void main() {
     );
     final person = _FakePerson(
       personToReturn:
-          _person(1, birthday: const Birthday(month: 12, day: 20)),
+          _person(1, birthday: const Birthday(month: 1, day: 5)),
     );
     final cubit = PersonCubit(
       person,
@@ -375,7 +365,7 @@ void main() {
     );
     final person = _FakePerson(
       personToReturn:
-          _person(1, birthday: const Birthday(month: 12, day: 20)),
+          _person(1, birthday: const Birthday(month: 1, day: 5)),
     );
     final cubit = PersonCubit(
       person,
@@ -409,7 +399,7 @@ void main() {
     final wish = _FakeWish(wishesToReturn: [existingWish]);
     final person = _FakePerson(
       personToReturn:
-          _person(1, birthday: const Birthday(month: 12, day: 20)),
+          _person(1, birthday: const Birthday(month: 1, day: 5)),
     );
     final cubit = PersonCubit(
       person,
@@ -422,7 +412,7 @@ void main() {
     // The write itself (post()) still succeeds -- only the RELOAD that
     // follows it (wishesFor()) throws.
     wish.wishesForError = StateError('reload boom');
-    await cubit.postWish('Happy belated birthday!');
+    await cubit.postWish('Happy birthday!');
 
     expect(wish.postCalls, 1, reason: 'the write itself must have gone through');
     final state = cubit.state;
@@ -452,4 +442,28 @@ void main() {
       expect((cubit.state as PersonLoaded).celebratesViewer, expected);
     });
   }
+
+  // Wishes open on the birthday only. A post on any other day -- a compose
+  // sheet left open past midnight -- is refused before reaching the server.
+  test('postWish() on a day that is not their birthday is refused locally',
+      () async {
+    final wish = _FakeWish();
+    final cubit = PersonCubit(
+      _FakePerson(
+        personToReturn: _person(1, birthday: const Birthday(month: 12, day: 20)),
+      )..countToReturn = 1,
+      wish,
+      _FakeGraph(celebrationsList: [_celeb(1)]),
+      now: _fixedNow, // 5 January
+    );
+    await cubit.load(1);
+
+    await cubit.postWish('Early or late');
+
+    expect(wish.postCalls, 0);
+    expect(
+      (cubit.state as PersonLoaded).postError,
+      AppStrings.personWishOnBirthday,
+    );
+  });
 }

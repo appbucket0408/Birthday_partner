@@ -121,6 +121,22 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
           );
           return;
         }
+        // Wishes open on the birthday only. The page hides the button on
+        // other days; this is the same rule for a sheet left open past
+        // midnight.
+        if (!birthday.isOn(_now())) {
+          emit(
+            PersonLoaded(
+              person: current.person,
+              celebratorCount: current.celebratorCount,
+              wishes: current.wishes,
+              viewerCelebrates: current.viewerCelebrates,
+              celebratesViewer: current.celebratesViewer,
+              postError: AppStrings.personWishOnBirthday,
+            ),
+          );
+          return;
+        }
         emit(
           PersonLoaded(
             person: current.person,

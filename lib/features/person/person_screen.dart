@@ -248,24 +248,70 @@ class _Header extends StatelessWidget {
                 ),
               ),
             ],
-            // Both actions appear under the same condition -- see
-            // _canComposeFor. rpc_create_gift (45005) and wishes_insert_own
-            // both refuse without a celebration edge and a birthday, so
-            // offering either otherwise would lead to an error the user
-            // cannot act on.
+            // Both actions need the same thing -- see _canComposeFor:
+            // rpc_create_gift (45005) and wishes_insert_own both refuse
+            // without a celebration edge and a birthday, so offering either
+            // otherwise would lead to an error the user cannot act on.
+            //
+            // A wish is further limited to the birthday itself: it is the
+            // day's message, not a note for any day. A cake is not -- it has
+            // to be ordered ahead, so it is offered every day.
+            //
             // Stacked, full width: side by side, each label wrapped onto two
             // lines on a normal phone.
             if (canAct) ...[
               const SizedBox(height: AppSpacing.lg),
-              FilledButton.icon(
-                key: const Key('wish_write_button'),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
+              if (birthday!.isOn(now()))
+                FilledButton.icon(
+                  key: const Key('wish_write_button'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                  icon: const Icon(Icons.edit),
+                  label: const Text(AppStrings.personWriteWish),
+                  onPressed: () => showWishComposeSheet(context),
+                )
+              else
+                // Says when wishing opens, in the slot the button will take:
+                // one compact bar, icon beside the text, the width of the
+                // cake button below -- not a disabled button, nothing to tap.
+                Container(
+                  key: const Key('wish_opens_on_birthday'),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm + 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(AppSpacing.lg),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.edit_calendar_outlined,
+                        size: 18,
+                        color: scheme.primary,
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Flexible(
+                        child: Text(
+                          AppStrings.personWishOpensTemplate.replaceFirst(
+                            '%s',
+                            DateLabels.birthday(birthday),
+                          ),
+                          maxLines: 2,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                icon: const Icon(Icons.edit),
-                label: const Text(AppStrings.personWriteWish),
-                onPressed: () => showWishComposeSheet(context),
-              ),
               const SizedBox(height: AppSpacing.sm),
               FilledButton.tonalIcon(
                 key: const Key('gift_send_cake_button'),

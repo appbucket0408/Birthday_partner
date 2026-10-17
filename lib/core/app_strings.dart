@@ -185,6 +185,9 @@ abstract final class AppStrings {
   static const personWishesTitle = 'Wishes';
   static const personWallEmpty = 'No wishes yet. Be the first.';
   static const personWriteWish = 'Write a wish';
+  static const personWishOnBirthday =
+      'You can write them a wish on their birthday.';
+  static const personWishOpensTemplate = 'Wishes open on %s';
   static const wishAuthorUnknown = 'Someone who celebrates them';
   static const wishHint = 'Say something nice';
   static const wishSheetTitleTemplate = 'Wish %s';
