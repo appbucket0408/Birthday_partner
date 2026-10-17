@@ -187,8 +187,19 @@ abstract final class AppStrings {
   static const personWriteWish = 'Write a wish';
   static const wishAuthorUnknown = 'Someone who celebrates them';
   static const wishHint = 'Say something nice';
-  static const wishPost = 'Post';
-  static const wishTooLong = 'A wish can be at most 500 characters.';
+  static const wishSheetTitleTemplate = 'Wish %s';
+  static const wishSheetSubtitle = 'Your wish shows on their wish wall.';
+  static const wishSuggestions = [
+    'Happy birthday! 🎂',
+    'Have an amazing year ahead ✨',
+    'Wishing you all the happiness 💛',
+    'Many happy returns of the day! 🎉',
+  ];
+  static const wishPost = 'Post wish';
+  static const wishTooLong = 'A wish can be at most 250 characters.';
+  // wishes_one_message_per_year: one typed wish per person per birthday year.
+  static const wishAlreadyThisYear =
+      'You have already wished them for this birthday.';
   static const wishEmpty = 'Write something first.';
   static const wishPostFailed = 'That wish could not be posted.';
 
@@ -251,43 +262,18 @@ abstract final class AppStrings {
   static const giftAreaLabel = 'Delivering to';
   static const giftNoAreas = 'No delivery areas are available yet.';
   static const giftNoProducts = 'Nothing available in this area yet.';
-
-  // A person reached cold via a deep link (or any context.go straight to
-  // '/gift/new/:personId') bypasses the person page's own gate entirely, so
-  // CatalogCubit.load must refuse a null birthday itself rather than trust
-  // the caller already checked. Task 7 derives the occasion date from
-  // Birthday.nextOccurrence, so a missing birthday cannot be worked around
-  // further down the flow either -- there is no date to fall back to.
   static const giftNeedsBirthday =
       'Add their birthday first — a cake needs a date to arrive on.';
-
-  // Gifting -- slot picker (Task 6). Slots are filtered to the occasion date
-  // client-side (spec §11 open question 1: a cake dated anything other than
-  // the birthday is a different product), so giftNoSlots is the expected,
-  // common outcome locally -- not a bug -- until the seed data carries a slot
-  // dated to a recipient's actual next birthday.
   static const giftSlotTitle = 'Pick a delivery window';
   static const giftSlotRemainingTemplate = '%s left';
   static const giftSlotFull = 'Full';
   static const giftNoSlots = 'No delivery windows are open for this area yet.';
-
-  // Gifting -- draft screen (Task 7). The occasion date shown here is
-  // handed down from the slot picker's own computation, never recomputed
-  // (Amendment B1) -- see draft_cubit.dart's class doc.
   static const giftDraftTitle = 'Confirm the details';
-  // The recipient's own displayName is threaded down verbatim from
-  // CatalogLoaded.person (fix round 1, item 1) -- through SlotPickerScreen
-  // and into DraftScreen -- never a PersonRepository re-fetch and never an
-  // id-based fallback. `%s` is the name, not the id.
   static const giftDraftRecipientTemplate = 'For %s';
   static const giftMessageHint = 'Add a message (optional)';
   static const giftCreate = 'Reserve this slot';
   static const giftSlotJustFilled =
       'That slot just filled. Please pick another window.';
-  // Whole-branch review §8 fold-in: DraftError.slotFull was set but never
-  // read -- draft_screen.dart rendered only `state.message`, which already
-  // says the slot filled, but gave no way back to a live one. This is the
-  // action that field now drives.
   static const giftPickAnotherSlot = 'Choose another time';
   static const giftNotCelebrating =
       'You can only send a cake to someone you celebrate.';
@@ -296,25 +282,11 @@ abstract final class AppStrings {
       'Checkout is not built yet, so this gift stays a draft and the slot is '
       'released when the hold expires. Nothing has been charged.';
   static const giftSeeMyGifts = 'See my gifts';
-
-  // Gifting -- gift list (Task 8). Reached from the profile (spec §7): the
-  // sender's own gifts and their status.
   static const giftListTitle = 'My gifts';
   static const giftListEmpty = 'You have not sent a cake yet.';
-  // Every gift in this phase has a null deliveryCity -- nothing confirms one
-  // yet (spec §6) -- so rendering nothing here would look like a bug rather
-  // than the honest state it is.
   static const giftCityPending = 'Address not confirmed yet';
   static const giftCityTemplate = 'Delivering to %s';
   static const giftHoldExpired = 'Slot hold expired';
-
-  // Not in the brief's Step-1 list; the brief describes each row as showing
-  // "the product" but neither GiftListCubit nor Gift carries a product NAME
-  // -- only Gift.productId, an int. Threading a name would need either a
-  // ProductRepository this cubit's interfaces don't authorize
-  // (`GiftListCubit(GiftRepository, {now})` per the brief) or a join added to
-  // GiftRepositoryImpl.myGifts(), which is out of this task's file list. The
-  // same shape as Task 7's F6 (recipient shown by id): disclosed, not hidden.
   static const giftProductTemplate = 'Product #%s';
 
   // GiftStatus carries eleven DB states plus an `unknown` fallback (Task 3);

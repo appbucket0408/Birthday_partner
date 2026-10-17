@@ -139,6 +139,9 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
             occasionYear: occasionYear,
           );
         } on AppFailure catch (f) {
+          // 23505 is wishes_one_message_per_year: the viewer already wished
+          // this person for this occasion year. Not a fault -- say so.
+          final alreadyWished = f is ServerFailure && f.code == '23505';
           emit(
             PersonLoaded(
               person: current.person,
@@ -146,7 +149,8 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
               wishes: current.wishes,
               viewerCelebrates: current.viewerCelebrates,
             celebratesViewer: current.celebratesViewer,
-              postError: f.message,
+              postError:
+                  alreadyWished ? AppStrings.wishAlreadyThisYear : f.message,
             ),
           );
           return;

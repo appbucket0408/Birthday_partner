@@ -330,6 +330,36 @@ void main() {
     expect(wish.postCalls, 1);
   });
 
+  // A second wish for the same birthday year hits
+  // wishes_one_message_per_year (23505). That is the intended anti-spam
+  // rule, so the user gets a plain explanation, not the raw server text.
+  test('a duplicate wish this year sets postError to wishAlreadyThisYear',
+      () async {
+    final wish = _FakeWish(
+      postError: const ServerFailure(
+        'duplicate key value violates unique constraint',
+        code: '23505',
+      ),
+    );
+    final person = _FakePerson(
+      personToReturn:
+          _person(1, birthday: const Birthday(month: 12, day: 20)),
+    );
+    final cubit = PersonCubit(
+      person,
+      wish,
+      _FakeGraph(celebrationsList: [_celeb(1)]),
+      now: _fixedNow,
+    );
+    await cubit.load(1);
+
+    await cubit.postWish('Happy birthday again!');
+
+    final state = cubit.state as PersonLoaded;
+    expect(state.postError, AppStrings.wishAlreadyThisYear);
+    expect(state.posting, isFalse);
+  });
+
   // 7 (fix round 1, ruling item 2). A failing postWish must NOT discard the
   // already-rendered wall by replacing the state with PersonError -- it
   // stays PersonLoaded, with the wishes still present and a transient
