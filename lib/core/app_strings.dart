@@ -114,9 +114,22 @@ abstract final class AppStrings {
   static const importNotOnAppHint =
       'Their birthday shows up once they join. You can invite them from your '
       'Dashboard.';
-  static const importAddSelected = 'Add selected';
-  static const importSummaryTitle = 'Import complete';
-  static const importAddedTemplate = '%s added';
+  static const importSelectPrompt = 'Select people to add';
+  static const importAddOne = 'Add 1 person';
+  static const importAddManyTemplate = 'Add %s people';
+  static const importSelectAll = 'Select all';
+  static const importClearAll = 'Clear';
+  static const importNoContacts = 'No contacts with a phone number found.';
+  static const importAddedOne = 'You added 1 person';
+  static const importAddedManyTemplate = 'You added %s people';
+  static const importAddedNone = 'Nobody new to add';
+  static const importAddedFailed = 'Nothing was added yet';
+  static const importAddedBody = "They're on your Dashboard now.";
+  static const importAddedNoneBody =
+      'Everyone you picked was already in your list.';
+  static const importFailedTemplate =
+      "%s couldn't be added just now. Try again in a moment.";
+  static const importInvalidTitle = "These numbers couldn't be added:";
   static const importSkippedTemplate = '%s skipped';
   static const importDuplicatesTemplate = '%s already in your list';
   static const importSelfSkipped = 'We skipped your own number.';

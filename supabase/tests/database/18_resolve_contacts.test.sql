@@ -1,5 +1,5 @@
 begin;
-select plan(9);
+select plan(10);
 
 select tests.as_postgres();
 
@@ -21,13 +21,21 @@ select is(
   'the match carries the name the app needs to show'
 );
 
--- F2: the import screen needs only WHETHER a birthday is missing, so it can
--- prompt -- never the birthday itself. A match for a person with a birthday
--- must report has_birthday = true without exposing birth_month/birth_day.
+-- "On Birthday" means a member: a person row someone CLAIMED. A row that
+-- exists only because another user imported the number is not one.
 select is(
-  (select has_birthday from private.resolve_contacts(array['+919120000001'])),
+  (select is_member from private.resolve_contacts(array['+919120000001'])),
+  false,
+  'an imported-only person is not reported as a member'
+);
+
+select tests.create_user('rc_member');
+select private.claim_person(
+  (select id from public.profiles where handle = 'rc_member'), '+919120000003');
+select is(
+  (select is_member from private.resolve_contacts(array['+919120000003'])),
   true,
-  'a resolved match with a known birthday reports has_birthday = true'
+  'a person who claimed their row is reported as a member'
 );
 
 -- The Edge Function calls the wrapper, never the private function. Signature
@@ -57,9 +65,6 @@ select is_empty(
   'a suppressed number never resolves, even though a hash once existed'
 );
 
--- The whole point: resolving is read-only. Count only this file's own
--- fixture rows -- counting every row in public.people would break for an
--- unrelated reason the day seed.sql grows another row.
 select is(
   (select count(*)::int from public.people
      where phone_e164_hash in (
@@ -71,12 +76,6 @@ select is(
   'resolving unknown numbers creates no people rows'
 );
 
--- The suppressions filter defends a real path: private.claim_person upserts into
--- public.people with no suppression check, so a suppressed hash can resurface
--- via signup. Reproduce that state directly — a people row co-existing with a
--- suppressions row — and prove resolution still refuses it. Without this, the
--- not-exists clause could be deleted from the migration and every test would
--- still pass.
 insert into public.people (phone_e164_hash, display_name)
 values (private.phone_hash('+919120000002'), 'Resurfaced');
 

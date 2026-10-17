@@ -38,20 +38,38 @@ class _FakeContacts implements ContactsRepository {
 
 const _onApp = DeviceContact(name: 'Ann On App', phoneE164: '+919999000010');
 const _offApp = DeviceContact(name: 'Bob Off App', phoneE164: '+919999000011');
+// Has a person row (someone else imported them) but never joined: NOT on
+// Birthday, whatever the lookup found.
+const _importedOnly =
+    DeviceContact(name: 'Cid Imported', phoneE164: '+919999000012');
 
 void main() {
-  Future<ImportCubit> pump(WidgetTester tester) async {
+  Future<ImportCubit> pump(
+    WidgetTester tester, {
+    Set<int> alreadyCelebrating = const {},
+  }) async {
     final fake = _FakeContacts(
-      const [_onApp, _offApp],
+      const [_onApp, _offApp, _importedOnly],
       const [
         ResolvedContact(
           phone: '+919999000010',
           personId: 1,
           displayName: 'Ann',
+          isMember: true,
+        ),
+        ResolvedContact(
+          phone: '+919999000012',
+          personId: 3,
+          displayName: 'Cid',
+          isMember: false,
         ),
       ],
     );
-    final cubit = ImportCubit(fake);
+    final cubit = ImportCubit(
+      fake,
+      currentUserPhone: () => null,
+      alreadyCelebrating: () async => alreadyCelebrating,
+    );
     await cubit.start();
 
     await tester.pumpWidget(
@@ -65,88 +83,96 @@ void main() {
     return cubit;
   }
 
-  // 1. Nothing is selected on first render.
+  FilledButton addButton(WidgetTester tester) =>
+      tester.widget<FilledButton>(find.byKey(const Key('add_selected')));
+
+  double top(WidgetTester tester, Finder f) => tester.getTopLeft(f).dy;
+
   testWidgets('nothing is selected on first render', (tester) async {
     await pump(tester);
 
-    final checkboxes = tester
-        .widgetList<CheckboxListTile>(find.byType(CheckboxListTile))
-        .toList();
-    expect(checkboxes, hasLength(2));
-    expect(checkboxes.every((c) => c.value == false), isTrue);
+    final boxes = tester.widgetList<Checkbox>(find.byType(Checkbox)).toList();
+    expect(boxes, hasLength(3));
+    expect(boxes.every((c) => c.value == false), isTrue);
   });
 
-  // 2. The Add button is disabled with an empty selection and enabled after
-  //    a tap.
-  testWidgets('the Add button is disabled empty, enabled after a tap', (
-    tester,
-  ) async {
+  testWidgets('the button says what it will do, and counts the selection',
+      (tester) async {
     await pump(tester);
-
-    FilledButton addButton() =>
-        tester.widget<FilledButton>(find.byKey(const Key('add_selected')));
-
-    expect(addButton().onPressed, isNull);
+    expect(addButton(tester).onPressed, isNull);
+    expect(find.text(AppStrings.importSelectPrompt), findsOneWidget);
 
     await tester.tap(find.byKey(Key('contact_${_onApp.phoneE164}')));
     await tester.pump();
+    expect(addButton(tester).onPressed, isNotNull);
+    expect(find.text(AppStrings.importAddOne), findsOneWidget);
 
-    expect(addButton().onPressed, isNotNull);
+    await tester.tap(find.byKey(Key('contact_${_offApp.phoneE164}')));
+    await tester.pump();
+    expect(
+      find.text(AppStrings.importAddManyTemplate.replaceFirst('%s', '2')),
+      findsOneWidget,
+    );
   });
 
-  // 3. Contacts are split by whether they are already on the app, each
-  //    section saying what adding them will (and will not) give you.
   testWidgets(
-    'contacts on the app and not on it are in separate, explained sections',
-    (tester) async {
-      await pump(tester);
+      'only members are "On Birthday"; an imported-only number is not',
+      (tester) async {
+    await pump(tester);
 
-      final onAppHeader = find.byKey(const Key('import_section_on_app'));
-      final offAppHeader = find.byKey(const Key('import_section_not_on_app'));
-      expect(
-        find.descendant(
-          of: onAppHeader,
-          matching: find.text(AppStrings.importOnAppHint),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: offAppHeader,
-          matching: find.text(AppStrings.importNotOnAppHint),
-        ),
-        findsOneWidget,
-      );
+    final onAppHeader = find.byKey(const Key('import_section_on_app'));
+    final offAppHeader = find.byKey(const Key('import_section_not_on_app'));
+    Finder row(DeviceContact c) => find.byKey(Key('contact_${c.phoneE164}'));
 
-      double top(Finder f) => tester.getTopLeft(f).dy;
-      final onAppTile = find.byKey(Key('contact_${_onApp.phoneE164}'));
-      final offAppTile = find.byKey(Key('contact_${_offApp.phoneE164}'));
-      // On-app first, each contact under its own section's header.
-      expect(top(onAppHeader), lessThan(top(onAppTile)));
-      expect(top(onAppTile), lessThan(top(offAppHeader)));
-      expect(top(offAppHeader), lessThan(top(offAppTile)));
-    },
-  );
+    expect(top(tester, onAppHeader), lessThan(top(tester, row(_onApp))));
+    expect(top(tester, row(_onApp)), lessThan(top(tester, offAppHeader)));
+    expect(top(tester, offAppHeader), lessThan(top(tester, row(_offApp))));
+    expect(top(tester, offAppHeader), lessThan(top(tester, row(_importedOnly))));
+  });
 
-  // 4. Tapping a row calls toggle() with that contact's phone.
+  testWidgets('someone already celebrated is marked, not offered again',
+      (tester) async {
+    await pump(tester, alreadyCelebrating: {1});
+
+    expect(find.byKey(Key('already_${_onApp.phoneE164}')), findsOneWidget);
+    expect(find.byType(Checkbox), findsNWidgets(2));
+  });
+
+  testWidgets('Select all picks every addable contact in that section',
+      (tester) async {
+    final cubit = await pump(tester);
+
+    await tester.tap(find.byKey(const Key('import_select_all_not_on_app')));
+    await tester.pump();
+
+    expect(
+      (cubit.state as ImportPicking).selected,
+      {_offApp.phoneE164, _importedOnly.phoneE164},
+    );
+    expect(find.text(AppStrings.importClearAll), findsOneWidget);
+  });
+
+  testWidgets('numbers are shown readably', (tester) async {
+    await pump(tester);
+    expect(find.text('+91 99990 00010'), findsOneWidget);
+  });
+
+  testWidgets('search narrows the list by name', (tester) async {
+    await pump(tester);
+
+    await tester.enterText(find.byKey(const Key('import_search')), 'bob');
+    await tester.pump();
+
+    expect(find.text('Bob Off App'), findsOneWidget);
+    expect(find.text('Ann On App'), findsNothing);
+  });
+
   testWidgets('tapping a row toggles that contact\'s phone', (tester) async {
     final cubit = await pump(tester);
 
     await tester.tap(find.byKey(Key('contact_${_offApp.phoneE164}')));
     await tester.pump();
 
-    final state = cubit.state;
-    expect(state, isA<ImportPicking>());
-    expect(
-      (state as ImportPicking).selected,
-      {_offApp.phoneE164},
-    );
-
-    // Tapping the same row again calls toggle() a second time, removing it
-    // -- confirming the row is wired to toggle() and not to a one-way
-    // "select" action.
-    await tester.tap(find.byKey(Key('contact_${_offApp.phoneE164}')));
-    await tester.pump();
-    expect((cubit.state as ImportPicking).selected, isEmpty);
+    expect((cubit.state as ImportPicking).selected, {_offApp.phoneE164});
   });
 }

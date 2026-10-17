@@ -12,15 +12,8 @@ class ContactsRepositoryImpl implements ContactsRepository {
   const ContactsRepositoryImpl(this._client);
   final SupabaseClient _client;
 
-  /// Both Edge Functions cap at MAX_BATCH = 500 and answer 413 above it.
   static const _maxBatch = 500;
 
-  // readonly: true -- the app only ever reads the address book (see
-  // ContactsRepositoryImpl.readDeviceContacts) and the disclosure screen's
-  // own copy says "reads". The default is readonly: false, which requests
-  // WRITE_CONTACTS on Android and full read/write on iOS for access this
-  // app never uses -- over-scoped contacts access is a known store-review
-  // trigger.
   @override
   Future<bool> requestPermission() =>
       fc.FlutterContacts.requestPermission(readonly: true);
@@ -80,6 +73,7 @@ class ContactsRepositoryImpl implements ContactsRepository {
             phone: row['phone'] as String,
             personId: row['person_id'] as int,
             displayName: row['display_name'] as String,
+            isMember: row['is_member'] as bool,
           );
         }));
       } catch (e) {

@@ -6,6 +6,7 @@ import '../../api/api_client.dart';
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
 import '../../repositories/contacts_repository_impl.dart';
+import '../../repositories/graph_repository.dart';
 import 'import_cubit.dart';
 import 'import_pick_screen.dart';
 import 'import_state.dart';
@@ -17,7 +18,13 @@ class ImportDisclosureScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => ImportCubit(ContactsRepositoryImpl(ApiClient.instance)),
+      create: (c) => ImportCubit(
+        ContactsRepositoryImpl(ApiClient.instance),
+        alreadyCelebrating: () async => {
+          for (final e in await c.read<GraphRepository>().celebrations())
+            e.person.id,
+        },
+      ),
       child: const ImportDisclosureView(),
     );
   }

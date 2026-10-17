@@ -92,6 +92,7 @@ void main() {
     phone: '+919999000001',
     personId: 7,
     displayName: 'Ann',
+    isMember: true,
   );
   blocTest<ImportCubit, ImportState>(
     'a granted permission loads contacts and lands on Picking unselected',

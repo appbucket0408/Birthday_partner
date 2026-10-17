@@ -1,26 +1,22 @@
 import '../models/import_outcome.dart';
 
-/// A contact as it exists on the device, already normalised to E.164. Name
-/// and number only: the address book's birthday is never read, because only
-/// a person sets their own.
 class DeviceContact {
   const DeviceContact({required this.name, required this.phoneE164});
-
   final String name;
   final String phoneE164;
 }
-
-/// A number that already belongs to a person row on the server.
 class ResolvedContact {
   const ResolvedContact({
     required this.phone,
     required this.personId,
     required this.displayName,
+    required this.isMember,
   });
 
   final String phone;
   final int personId;
   final String displayName;
+  final bool isMember;
 }
 
 abstract interface class ContactsRepository {

@@ -20,22 +20,34 @@ final class ImportPermissionDenied extends ImportState {
 final class ImportLoadingContacts extends ImportState {
   const ImportLoadingContacts();
 }
-
-/// The pick screen's state.
 final class ImportPicking extends ImportState {
   const ImportPicking({
     required this.contacts,
     required this.resolved,
     required this.selected,
+    this.celebrating = const {},
   });
 
   final List<DeviceContact> contacts;
   final List<ResolvedContact> resolved;
   final Set<String> selected;
+  final Set<int> celebrating;
+
+  ResolvedContact? resolvedFor(String phoneE164) {
+    for (final r in resolved) {
+      if (r.phone == phoneE164) return r;
+    }
+    return null;
+  }
+
+  bool isMember(String phoneE164) => resolvedFor(phoneE164)?.isMember ?? false;
+
+  bool isCelebrating(String phoneE164) {
+    final r = resolvedFor(phoneE164);
+    return r != null && celebrating.contains(r.personId);
+  }
 }
 
-/// [done]/[total] mirror the repository's chunk progress, not a per-contact
-/// count -- see ContactsRepository.addCelebrations.
 final class ImportCommitting extends ImportState {
   const ImportCommitting(this.done, this.total);
   final int done;

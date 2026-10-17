@@ -98,6 +98,11 @@ void main() {
     final resolved =
         await contacts.resolve(['+919999000003', '+919999999999']);
     expect(resolved.any((r) => r.phone == '+919999000003'), isTrue);
+    // 0003 is this suite's own signed-in, claimed account: a member.
+    expect(
+      resolved.firstWhere((r) => r.phone == '+919999000003').isMember,
+      isTrue,
+    );
     expect(resolved.any((r) => r.phone == '+919999999999'), isFalse);
   });
 
