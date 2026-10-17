@@ -529,4 +529,44 @@ void main() {
       expect((cubit.state as ProfileLoaded).error, AppStrings.photoUnsupported);
     });
   });
+
+  test('refresh updates the counts without a loading state', () async {
+    final graph = _FakeGraph(celebrationsList: [_celeb(1), _celeb(2)]);
+    final cubit = ProfileCubit(
+      _FakeProfileRepo(),
+      graph,
+      _FakeAuth(profileToReturn: _profile()),
+      _FakeWishes(),
+      _FakeAvatars(),
+    );
+    await cubit.load();
+    expect((cubit.state as ProfileLoaded).celebratingCount, 2);
+
+    graph.celebrationsList = [_celeb(1)];
+    final states = <ProfileState>[];
+    final sub = cubit.stream.listen(states.add);
+    await cubit.refresh();
+    await sub.cancel();
+
+    expect(states.whereType<ProfileLoading>(), isEmpty);
+    expect((cubit.state as ProfileLoaded).celebratingCount, 1);
+  });
+
+  test('a failed refresh keeps the page as it was', () async {
+    final graph = _FakeGraph(celebrationsList: [_celeb(1)]);
+    final cubit = ProfileCubit(
+      _FakeProfileRepo(),
+      graph,
+      _FakeAuth(profileToReturn: _profile()),
+      _FakeWishes(),
+      _FakeAvatars(),
+    );
+    await cubit.load();
+
+    graph.celebrationsError = const ServerFailure('offline');
+    await cubit.refresh();
+
+    expect(cubit.state, isA<ProfileLoaded>());
+    expect((cubit.state as ProfileLoaded).celebratingCount, 1);
+  });
 }

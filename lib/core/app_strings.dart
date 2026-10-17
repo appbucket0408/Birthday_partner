@@ -204,6 +204,13 @@ abstract final class AppStrings {
   static const calendarNoBirthdays = 'No birthdays on this day.';
   static const calendarTurnsTemplate = 'turns %s';
   static const calendarYearUnknown = 'year unknown';
+  static const calendarToday = 'Today';
+  static const calendarNoneThisMonth = 'No birthdays this month';
+  static const calendarOneThisMonth = '1 birthday this month';
+  static const calendarManyThisMonthTemplate = '%s birthdays this month';
+  static const calendarNextTemplate = 'Next: %1 · %2';
+  static const calendarNobodyYet =
+      'Birthdays of the people you celebrate show up here.';
 
   // Profile
   static const profileTitle = 'You';

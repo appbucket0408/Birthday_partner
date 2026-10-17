@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/app_strings.dart';
+import 'active_tab.dart';
 
 /// The bottom navigation bar around the three signed-in tabs: Dashboard
 /// ('/timeline'), Calendar ('/calendar') and Profile ('/profile').
@@ -16,10 +17,17 @@ class HomeShell extends StatelessWidget {
 
   final StatefulNavigationShell shell;
 
+  // Branch order in app_router.dart's StatefulShellRoute.
+  static const dashboardTab = 0;
+  static const calendarTab = 1;
+  static const profileTab = 2;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: shell,
+      // Tells each tab which one is showing, so Calendar and Profile can
+      // refresh when the user comes back to them.
+      body: ActiveTab(index: shell.currentIndex, child: shell),
       bottomNavigationBar: NavigationBar(
         key: const Key('home_nav_bar'),
         selectedIndex: shell.currentIndex,

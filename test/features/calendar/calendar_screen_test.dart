@@ -111,4 +111,59 @@ void main() {
     expect(find.byKey(const Key('calendar_dot_2')), findsOneWidget);
     expect(find.byKey(const Key('calendar_dot_21')), findsNothing);
   });
+
+  testWidgets('the month says how many birthdays it holds', (tester) async {
+    await _pump(tester, people);
+    expect(
+      find.text(AppStrings.calendarManyThisMonthTemplate.replaceFirst('%s', '2')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a day two people share shows a count', (tester) async {
+    await _pump(tester, people);
+    expect(find.byKey(const Key('calendar_count_21')), findsOneWidget);
+    expect(find.byKey(const Key('calendar_count_2')), findsNothing);
+  });
+
+  testWidgets('an empty day offers a jump to the next birthday',
+      (tester) async {
+    await _pump(tester, people);
+
+    // 17 October is empty; the next birthday after it is 21 October.
+    expect(find.text(AppStrings.calendarNoBirthdays), findsOneWidget);
+    await tester.tap(find.byKey(const Key('calendar_next_birthday')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Wednesday, 21 October'), findsOneWidget);
+    expect(find.byKey(const Key('calendar_person_1')), findsOneWidget);
+  });
+
+  testWidgets('"Today" appears on another month and comes back',
+      (tester) async {
+    await _pump(tester, people);
+    expect(find.byKey(const Key('calendar_today')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('calendar_next_month')));
+    await tester.pumpAndSettle();
+    expect(find.text('November 2026'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('calendar_today')));
+    await tester.pumpAndSettle();
+    expect(find.text('October 2026'), findsOneWidget);
+    expect(find.text('Saturday, 17 October'), findsOneWidget);
+  });
+
+  testWidgets('swiping left goes to the next month', (tester) async {
+    await _pump(tester, people);
+
+    await tester.fling(
+      find.byKey(const Key('calendar_day_15')),
+      const Offset(-300, 0),
+      1000,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('November 2026'), findsOneWidget);
+  });
 }

@@ -24,7 +24,7 @@ class _FakeGraph implements GraphRepository {
 
   _FakeGraph([this.list = const [], this.error]);
 
-  final List<Celebration> list;
+  List<Celebration> list;
   final Object? error;
   int calls = 0;
 
@@ -169,5 +169,30 @@ void main() {
     await cubit.load();
 
     expect((cubit.state as CalendarLoaded).birthdayDays, {29});
+  });
+
+  // Coming back to the tab: fresh people, same month and day on screen,
+  // and no loading flash in between.
+  test('refresh picks up changes but keeps the month and day', () async {
+    final graph = _FakeGraph([
+      _celeb(1, 'A', birthday: const Birthday(month: 12, day: 3)),
+    ]);
+    final cubit = CalendarCubit(graph, now: _now);
+    await cubit.load();
+    cubit
+      ..changeMonth(1)
+      ..select(DateTime(2027, 1, 9));
+
+    graph.list = [];
+    final states = <CalendarState>[];
+    final sub = cubit.stream.listen(states.add);
+    await cubit.refresh();
+    await sub.cancel();
+
+    expect(states.whereType<CalendarLoading>(), isEmpty);
+    final s = cubit.state as CalendarLoaded;
+    expect(s.celebrations, isEmpty);
+    expect(s.month, DateTime(2027, 1));
+    expect(s.selected, DateTime(2027, 1, 9));
   });
 }

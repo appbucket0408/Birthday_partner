@@ -13,6 +13,8 @@ import '../../repositories/avatar_repository.dart';
 import '../../repositories/graph_repository.dart';
 import '../../repositories/profile_repository.dart';
 import '../../repositories/wish_repository.dart';
+import '../../router/active_tab.dart';
+import '../../router/home_shell.dart';
 import '../../router/session_cubit.dart';
 import 'profile_cubit.dart';
 import 'profile_state.dart';
@@ -31,7 +33,11 @@ class ProfileScreen extends StatelessWidget {
         context.read<WishRepository>(),
         context.read<AvatarRepository>(),
       )..load(),
-      child: const ProfileView(),
+      child: RefreshWhenShown(
+        tab: HomeShell.profileTab,
+        onShown: (c) => c.read<ProfileCubit>().refresh(),
+        child: const ProfileView(),
+      ),
     );
   }
 }

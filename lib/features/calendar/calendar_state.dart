@@ -38,6 +38,35 @@ final class CalendarLoaded extends CalendarState {
         c,
   ]..sort((a, b) => a.person.displayName.compareTo(b.person.displayName));
 
+  /// How many people have a birthday on each day of [month] -- for the
+  /// grid's markers and the "N birthdays this month" line.
+  Map<int, int> get birthdaysPerDay {
+    final counts = <int, int>{};
+    for (final c in celebrations) {
+      final date = c.person.birthday?.inYear(month.year);
+      if (date != null && date.month == month.month) {
+        counts[date.day] = (counts[date.day] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }
+
+  /// The first birthday strictly after [selected], with its date -- what an
+  /// empty day points to, so it is never a dead end. Null when nobody has
+  /// a birthday at all.
+  ({Celebration celebration, DateTime date})? get nextAfterSelected {
+    final from = selected.add(const Duration(days: 1));
+    ({Celebration celebration, DateTime date})? best;
+    for (final c in celebrations) {
+      final date = c.person.birthday?.nextOccurrence(from);
+      if (date == null) continue;
+      if (best == null || date.isBefore(best.date)) {
+        best = (celebration: c, date: date);
+      }
+    }
+    return best;
+  }
+
   CalendarLoaded copyWith({DateTime? month, DateTime? selected}) =>
       CalendarLoaded(
         celebrations: celebrations,

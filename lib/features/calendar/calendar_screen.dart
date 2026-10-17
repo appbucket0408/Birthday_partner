@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
+import '../../core/countdown_pill.dart';
 import '../../core/date_labels.dart';
 import '../../core/initial_avatar.dart';
 import '../../models/celebration.dart';
 import '../../repositories/graph_repository.dart';
+import '../../router/active_tab.dart';
+import '../../router/home_shell.dart';
 import 'calendar_cubit.dart';
 import 'calendar_state.dart';
 
@@ -23,7 +27,11 @@ class CalendarScreen extends StatelessWidget {
     return BlocProvider(
       create: (context) =>
           CalendarCubit(context.read<GraphRepository>(), now: _now)..load(),
-      child: const CalendarView(),
+      child: RefreshWhenShown(
+        tab: HomeShell.calendarTab,
+        onShown: (c) => c.read<CalendarCubit>().refresh(),
+        child: CalendarView(now: _now ?? DateTime.now),
+      ),
     );
   }
 }
@@ -31,7 +39,10 @@ class CalendarScreen extends StatelessWidget {
 /// Split out from [CalendarScreen] so a widget test can drive it with a
 /// mocked [CalendarCubit], same as `ProfileView`.
 class CalendarView extends StatelessWidget {
-  const CalendarView({super.key});
+  const CalendarView({super.key, this.now = DateTime.now});
+
+  /// For "today": the ring on its cell and the countdowns.
+  final DateTime Function() now;
 
   @override
   Widget build(BuildContext context) {
@@ -56,16 +67,18 @@ class CalendarView extends StatelessWidget {
           CalendarLoaded() => RefreshIndicator(
               onRefresh: () => context.read<CalendarCubit>().load(),
               child: ListView(
-                padding: const EdgeInsets.all(AppSpacing.md),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.xs,
+                  AppSpacing.md,
+                  AppSpacing.lg,
+                ),
                 children: [
-                  _MonthHeader(month: state.month),
+                  _MonthHeader(state: state, now: now()),
                   const SizedBox(height: AppSpacing.sm),
-                  _MonthGrid(state: state),
+                  _MonthCard(state: state, now: now()),
                   const SizedBox(height: AppSpacing.md),
-                  _DayList(
-                    day: state.selected,
-                    people: state.onSelected,
-                  ),
+                  _DayCard(state: state, now: now()),
                 ],
               ),
             ),
@@ -75,31 +88,67 @@ class CalendarView extends StatelessWidget {
   }
 }
 
-class _MonthHeader extends StatelessWidget {
-  const _MonthHeader({required this.month});
+bool _sameDay(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month && a.day == b.day;
 
-  final DateTime month;
+/// Month name and how many birthdays it holds, the arrows, and -- when the
+/// grid is on another month -- a way straight back to today.
+class _MonthHeader extends StatelessWidget {
+  const _MonthHeader({required this.state, required this.now});
+
+  final CalendarLoaded state;
+  final DateTime now;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final cubit = context.read<CalendarCubit>();
+    final total = state.birthdaysPerDay.values.fold(0, (a, b) => a + b);
+    final summary = switch (total) {
+      0 => AppStrings.calendarNoneThisMonth,
+      1 => AppStrings.calendarOneThisMonth,
+      _ => AppStrings.calendarManyThisMonthTemplate.replaceFirst('%s', '$total'),
+    };
+    final onThisMonth =
+        state.month.year == now.year && state.month.month == now.month;
+
     return Row(
       children: [
-        IconButton(
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(left: AppSpacing.xs),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  DateLabels.monthYear(state.month),
+                  key: const Key('calendar_month_label'),
+                  style: theme.textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  summary,
+                  key: const Key('calendar_month_summary'),
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (!onThisMonth)
+          TextButton(
+            key: const Key('calendar_today'),
+            onPressed: cubit.goToToday,
+            child: const Text(AppStrings.calendarToday),
+          ),
+        IconButton.filledTonal(
           key: const Key('calendar_prev_month'),
           icon: const Icon(Icons.chevron_left),
           tooltip: AppStrings.calendarPreviousMonth,
           onPressed: () => cubit.changeMonth(-1),
         ),
-        Expanded(
-          child: Text(
-            DateLabels.monthYear(month),
-            key: const Key('calendar_month_label'),
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-        ),
-        IconButton(
+        IconButton.filledTonal(
           key: const Key('calendar_next_month'),
           icon: const Icon(Icons.chevron_right),
           tooltip: AppStrings.calendarNextMonth,
@@ -110,93 +159,61 @@ class _MonthHeader extends StatelessWidget {
   }
 }
 
-/// A Monday-first month grid. Days with a birthday carry a dot; the selected
-/// day is filled.
-class _MonthGrid extends StatelessWidget {
-  const _MonthGrid({required this.state});
+/// The month grid on a card. Swipe sideways to change month.
+class _MonthCard extends StatelessWidget {
+  const _MonthCard({required this.state, required this.now});
 
   final CalendarLoaded state;
+  final DateTime now;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final cubit = context.read<CalendarCubit>();
     final month = state.month;
     final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
     final leadingBlanks = month.weekday - 1; // Monday = 1
-    final marked = state.birthdayDays;
-    final selected = state.selected;
+    final counts = state.birthdaysPerDay;
 
-    return GridView.count(
-      crossAxisCount: 7,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      children: [
-        for (final d in DateLabels.weekdays)
-          Center(
-            child: Text(
-              d.substring(0, 1),
-              style: TextStyle(color: scheme.onSurfaceVariant),
-            ),
-          ),
-        for (var i = 0; i < leadingBlanks; i++) const SizedBox.shrink(),
-        for (var day = 1; day <= daysInMonth; day++)
-          _DayCell(
-            day: day,
-            hasBirthday: marked.contains(day),
-            isSelected: selected.year == month.year &&
-                selected.month == month.month &&
-                selected.day == day,
-            onTap: () => context
-                .read<CalendarCubit>()
-                .select(DateTime(month.year, month.month, day)),
-          ),
-      ],
-    );
-  }
-}
-
-class _DayCell extends StatelessWidget {
-  const _DayCell({
-    required this.day,
-    required this.hasBirthday,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final int day;
-  final bool hasBirthday;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final fg = isSelected ? scheme.onPrimary : scheme.onSurface;
-    return Padding(
-      padding: const EdgeInsets.all(2),
-      child: Material(
-        color: isSelected ? scheme.primary : Colors.transparent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          key: Key('calendar_day_$day'),
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+    return GestureDetector(
+      onHorizontalDragEnd: (d) {
+        final v = d.primaryVelocity ?? 0;
+        if (v.abs() < 200) return;
+        HapticFeedback.selectionClick();
+        cubit.changeMonth(v < 0 ? 1 : -1);
+      },
+      child: Card(
+        margin: EdgeInsets.zero,
+        elevation: 0,
+        color: scheme.surfaceContainerLow,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          child: GridView.count(
+            crossAxisCount: 7,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
             children: [
-              Text('$day', style: TextStyle(color: fg)),
-              const SizedBox(height: 2),
-              Container(
-                key: hasBirthday ? Key('calendar_dot_$day') : null,
-                width: 5,
-                height: 5,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: hasBirthday
-                      ? (isSelected ? scheme.onPrimary : scheme.primary)
-                      : Colors.transparent,
+              for (final d in DateLabels.weekdays)
+                Center(
+                  child: Text(
+                    d.substring(0, 1),
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
                 ),
-              ),
+              for (var i = 0; i < leadingBlanks; i++) const SizedBox.shrink(),
+              for (var day = 1; day <= daysInMonth; day++)
+                _DayCell(
+                  day: day,
+                  birthdays: counts[day] ?? 0,
+                  isToday: _sameDay(DateTime(month.year, month.month, day), now),
+                  isSelected:
+                      _sameDay(DateTime(month.year, month.month, day), state.selected),
+                  onTap: () =>
+                      cubit.select(DateTime(month.year, month.month, day)),
+                ),
             ],
           ),
         ),
@@ -205,61 +222,253 @@ class _DayCell extends StatelessWidget {
   }
 }
 
-class _DayList extends StatelessWidget {
-  const _DayList({required this.day, required this.people});
+/// A day: tinted when someone has a birthday (with a count when it is more
+/// than one), ringed when it is today, filled when selected.
+class _DayCell extends StatelessWidget {
+  const _DayCell({
+    required this.day,
+    required this.birthdays,
+    required this.isToday,
+    required this.isSelected,
+    required this.onTap,
+  });
 
-  final DateTime day;
-  final List<Celebration> people;
+  final int day;
+  final int birthdays;
+  final bool isToday;
+  final bool isSelected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final hasBirthday = birthdays > 0;
+    final (background, foreground) = isSelected
+        ? (scheme.primary, scheme.onPrimary)
+        : hasBirthday
+            ? (scheme.primaryContainer, scheme.onPrimaryContainer)
+            : (Colors.transparent, scheme.onSurface);
+
+    return Padding(
+      padding: const EdgeInsets.all(3),
+      child: InkWell(
+        key: Key('calendar_day_$day'),
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Stack(
+          clipBehavior: Clip.none,
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
-              ),
-              child: Text(
-                DateLabels.dayHeading(day),
-                key: const Key('calendar_selected_heading'),
-                style: Theme.of(context).textTheme.titleMedium,
+            Positioned.fill(
+              child: Container(
+                key: hasBirthday ? Key('calendar_dot_$day') : null,
+                decoration: BoxDecoration(
+                  color: background,
+                  shape: BoxShape.circle,
+                  border: isToday && !isSelected
+                      ? Border.all(color: scheme.primary, width: 2)
+                      : null,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '$day',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: foreground,
+                    fontWeight: hasBirthday || isToday || isSelected
+                        ? FontWeight.w700
+                        : FontWeight.w400,
+                  ),
+                ),
               ),
             ),
-            if (people.isEmpty)
-              const Padding(
-                padding: EdgeInsets.fromLTRB(
-                  AppSpacing.md,
-                  0,
-                  AppSpacing.md,
-                  AppSpacing.sm,
+            if (birthdays > 1)
+              Positioned(
+                right: -2,
+                top: -2,
+                child: Container(
+                  key: Key('calendar_count_$day'),
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                  decoration: BoxDecoration(
+                    color: scheme.tertiary,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '$birthdays',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onTertiary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
-                child: Text(AppStrings.calendarNoBirthdays),
-              )
-            else
-              for (final c in people)
-                ListTile(
-                  key: Key('calendar_person_${c.person.id}'),
-                  leading: InitialAvatar(name: c.person.displayName),
-                  title: Text(c.person.displayName),
-                  subtitle: Text(_ageLine(c)),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.go('/person/${c.person.id}'),
-                ),
+              ),
           ],
         ),
       ),
     );
   }
+}
 
-  String _ageLine(Celebration c) {
-    final born = c.person.birthday?.year;
-    if (born == null) return AppStrings.calendarYearUnknown;
-    return AppStrings.calendarTurnsTemplate.replaceFirst('%s', '${day.year - born}');
+/// The selected day: who has a birthday on it, or -- when nobody does --
+/// when the next one is, one tap away.
+class _DayCard extends StatelessWidget {
+  const _DayCard({required this.state, required this.now});
+
+  final CalendarLoaded state;
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final day = state.selected;
+    final people = state.onSelected;
+    final next = state.nextAfterSelected;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      color: scheme.surfaceContainerLow,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.md,
+              AppSpacing.md,
+              AppSpacing.sm,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    DateLabels.dayHeading(day),
+                    key: const Key('calendar_selected_heading'),
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                if (_sameDay(day, now))
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: scheme.primary,
+                      borderRadius: BorderRadius.circular(AppSpacing.sm),
+                    ),
+                    child: Text(
+                      AppStrings.calendarToday,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: scheme.onPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (people.isNotEmpty)
+            for (final (i, c) in people.indexed) ...[
+              if (i > 0)
+                Divider(
+                  height: 1,
+                  indent: 72,
+                  color: scheme.outlineVariant.withValues(alpha: 0.5),
+                ),
+              _PersonRow(celebration: c, day: day, now: now),
+            ]
+          else
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                0,
+                AppSpacing.md,
+                AppSpacing.md,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    state.celebrations.any((c) => c.person.birthday != null)
+                        ? AppStrings.calendarNoBirthdays
+                        : AppStrings.calendarNobodyYet,
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                  if (next != null) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    FilledButton.tonalIcon(
+                      key: const Key('calendar_next_birthday'),
+                      onPressed: () =>
+                          context.read<CalendarCubit>().show(next.date),
+                      icon: const Icon(Icons.arrow_forward, size: 18),
+                      label: Text(
+                        AppStrings.calendarNextTemplate
+                            .replaceFirst(
+                              '%1',
+                              next.celebration.person.displayName,
+                            )
+                            .replaceFirst(
+                              '%2',
+                              DateLabels.birthday(
+                                next.celebration.person.birthday!,
+                              ),
+                            ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PersonRow extends StatelessWidget {
+  const _PersonRow({
+    required this.celebration,
+    required this.day,
+    required this.now,
+  });
+
+  final Celebration celebration;
+  final DateTime day;
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final person = celebration.person;
+    final born = person.birthday?.year;
+    return ListTile(
+      key: Key('calendar_person_${person.id}'),
+      leading: InitialAvatar(name: person.displayName, radius: 22),
+      title: Text(
+        person.displayName,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style:
+            theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+      ),
+      subtitle: Text(
+        born == null
+            ? AppStrings.calendarYearUnknown
+            : AppStrings.calendarTurnsTemplate
+                .replaceFirst('%s', '${day.year - born}'),
+        style: theme.textTheme.bodySmall
+            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      ),
+      trailing: person.birthday == null
+          ? null
+          : CountdownPill(birthday: person.birthday!, now: now, compact: true),
+      onTap: () => context.go('/person/${person.id}'),
+    );
   }
 }

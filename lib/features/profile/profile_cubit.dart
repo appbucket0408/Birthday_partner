@@ -38,30 +38,43 @@ class ProfileCubit extends Cubit<ProfileState> with ReentrancyGuard {
   Future<void> load() => guard('load', () async {
         emit(const ProfileLoading());
         try {
-          final profile = await _auth.loadProfile();
-          final stats = await _profile.stats();
-          final celebrates = await _profile.celebrates();
-          final celebrations = await _graph.celebrations();
-          final wall = await _loadWall();
-
-          emit(
-            ProfileLoaded(
-              profile: profile,
-              celebratingCount: celebrations.length,
-              celebratesCount: celebrates.length,
-              wishesReceived:
-                  stats.fold(0, (sum, s) => sum + s.wishesReceived),
-              wishesSent: stats.fold(0, (sum, s) => sum + s.wishesSent),
-              stats: stats,
-              wall: wall,
-            ),
-          );
+          emit(await _fetch());
         } on AppFailure catch (f) {
           emit(ProfileError(f.message));
         } catch (_) {
           emit(const ProfileError(AppStrings.somethingWentWrong));
         }
       });
+
+  /// Re-reads everything without the loading state, for when the tab is
+  /// opened again: the page stays as it is until fresh numbers arrive. A
+  /// failure keeps what is on screen -- the user did not ask for this.
+  Future<void> refresh() => guard('load', () async {
+        if (state is! ProfileLoaded) return;
+        try {
+          final fresh = await _fetch();
+          if (state is ProfileLoaded) emit(fresh);
+        } catch (_) {
+          // Keep the last good page.
+        }
+      });
+
+  Future<ProfileLoaded> _fetch() async {
+    final profile = await _auth.loadProfile();
+    final stats = await _profile.stats();
+    final celebrates = await _profile.celebrates();
+    final celebrations = await _graph.celebrations();
+    final wall = await _loadWall();
+    return ProfileLoaded(
+      profile: profile,
+      celebratingCount: celebrations.length,
+      celebratesCount: celebrates.length,
+      wishesReceived: stats.fold(0, (sum, s) => sum + s.wishesReceived),
+      wishesSent: stats.fold(0, (sum, s) => sum + s.wishesSent),
+      stats: stats,
+      wall: wall,
+    );
+  }
 
   /// Uploads or removes the photo, then re-reads the profile so the page
   /// shows the new one. Returns whether it changed, so the screen knows to
