@@ -3,8 +3,12 @@ import 'package:birthday_app/features/timeline/timeline_screen.dart';
 import 'package:birthday_app/models/birthday.dart';
 import 'package:birthday_app/models/celebration.dart';
 import 'package:birthday_app/models/person.dart';
+import 'package:birthday_app/models/profile.dart';
+import 'package:birthday_app/repositories/auth_repository.dart';
 import 'package:birthday_app/repositories/graph_repository.dart';
 import 'package:birthday_app/repositories/push_repository.dart';
+import 'package:birthday_app/router/session_cubit.dart';
+import 'package:birthday_app/router/session_state.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -69,17 +73,48 @@ class _FakePush implements PushRepository {
 
 DateTime _fixedNow() => DateTime(2026, 4, 15);
 
+/// The Dashboard header reads the signed-in profile off [SessionCubit].
+/// Same stub shape as test/router/app_router_test.dart's: emit a state
+/// directly, never call load().
+class _StubSessionCubit extends SessionCubit {
+  _StubSessionCubit(SessionState initial) : super(_UnusedAuth()) {
+    emit(initial);
+  }
+}
+
+class _UnusedAuth implements AuthRepository {
+  @override
+  noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+const _me = Profile(
+  id: 'user-1',
+  handle: 'sachin',
+  displayName: 'Sachin',
+  remindersEnabled: true,
+  city: 'Jaipur',
+  birthday: Birthday(month: 3, day: 12),
+);
+
+/// Wraps [child] the way app.dart does: the session above everything else.
+Widget _withSession(Widget child) => BlocProvider<SessionCubit>(
+      create: (_) => _StubSessionCubit(const SessionReady(_me)),
+      child: child,
+    );
+
 Future<void> pump(WidgetTester tester, List<Celebration> celebrations) async {
   // TimelineScreen creates a PushCubit eagerly (lazy: false), so this
   // provider is required now -- arriving at the timeline is what asks for
   // notification permission.
   await tester.pumpWidget(
-    MaterialApp(
-      home: RepositoryProvider<PushRepository>.value(
-        value: _FakePush(),
-        child: TimelineScreen(
-          repository: _FakeGraph(celebrations),
-          now: _fixedNow,
+    _withSession(
+      MaterialApp(
+        home: RepositoryProvider<PushRepository>.value(
+          value: _FakePush(),
+          child: TimelineScreen(
+            repository: _FakeGraph(celebrations),
+            now: _fixedNow,
+          ),
         ),
       ),
     ),
@@ -137,18 +172,39 @@ void main() {
     );
   });
 
-  // B1: Settings is otherwise unreachable -- nothing in lib/ navigates to
-  // '/settings' except this button. It must exist on every TimelineState,
-  // not just the loaded one, so it is asserted here against the empty
-  // state, which every fresh sign-in hits first.
-  testWidgets('an AppBar settings button is always present', (tester) async {
-    await pump(tester, []);
+  // The Dashboard header shows the signed-in user on both the empty and
+  // the loaded timeline -- a fresh sign-in sees the empty one first.
+  for (final (name, rows) in [
+    ('empty', <Celebration>[]),
+    ('loaded', [_celeb(1, _person(1))]),
+  ]) {
+    testWidgets('the header shows the signed-in user on the $name timeline',
+        (tester) async {
+      await pump(tester, rows);
 
-    final button = tester.widget<IconButton>(
-      find.byKey(const Key('settings_button')),
-    );
-    expect(button.onPressed, isNotNull);
-    expect(button.tooltip, AppStrings.settingsTitle);
+      final header = find.byKey(const Key('dashboard_me_header'));
+      expect(header, findsOneWidget);
+      expect(
+        find.descendant(of: header, matching: find.text('Sachin')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: header,
+          matching: find.text('@sachin · 🎂 12 March · Jaipur'),
+        ),
+        findsOneWidget,
+      );
+    });
+  }
+
+  testWidgets('each row shows the person\'s birthday under their name',
+      (tester) async {
+    await pump(tester, [
+      _celeb(1, _person(1, birthday: const Birthday(month: 9, day: 1))),
+    ]);
+
+    expect(find.text('1 September'), findsOneWidget);
   });
 
   // 4. The overflow menu offers exactly the three actions.
@@ -179,10 +235,12 @@ void main() {
       (tester) async {
     final push = _FakePush();
     await tester.pumpWidget(
-      MaterialApp(
-        home: RepositoryProvider<PushRepository>.value(
-          value: push,
-          child: TimelineScreen(repository: _FakeGraph([]), now: _fixedNow),
+      _withSession(
+        MaterialApp(
+          home: RepositoryProvider<PushRepository>.value(
+            value: push,
+            child: TimelineScreen(repository: _FakeGraph([]), now: _fixedNow),
+          ),
         ),
       ),
     );

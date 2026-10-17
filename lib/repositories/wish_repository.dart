@@ -6,6 +6,10 @@ abstract interface class WishRepository {
   /// viewer is connected to the author and null where they are not.
   Future<List<Wish>> wishesFor(int personId);
 
+  /// The signed-in user's own wall: [wishesFor] their own `people` row, or
+  /// empty when they have none yet (it is created when they claim it).
+  Future<List<Wish>> wishesToMe();
+
   /// Posts a wish. RLS refuses unless the caller celebrates [personId].
   /// [occasionYear] comes from `Birthday.occasionYear`, never from the user.
   Future<void> post({

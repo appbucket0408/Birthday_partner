@@ -3,8 +3,8 @@ import 'package:birthday_app/features/profile/profile_cubit.dart';
 import 'package:birthday_app/features/profile/profile_screen.dart';
 import 'package:birthday_app/features/profile/profile_state.dart';
 import 'package:birthday_app/models/birthday.dart';
-import 'package:birthday_app/models/birthday_stat.dart';
 import 'package:birthday_app/models/profile.dart';
+import 'package:birthday_app/models/wish.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -20,7 +20,40 @@ Profile _profile() => const Profile(
       handle: 'u1',
       displayName: 'Me',
       remindersEnabled: true,
+      city: 'Jaipur',
       birthday: Birthday(month: 6, day: 1),
+    );
+
+ProfileLoaded _loaded({
+  int celebrating = 0,
+  int celebrates = 0,
+  int received = 0,
+  int sent = 0,
+  List<Wish> wall = const [],
+}) =>
+    ProfileLoaded(
+      profile: _profile(),
+      celebratingCount: celebrating,
+      celebratesCount: celebrates,
+      wishesReceived: received,
+      wishesSent: sent,
+      stats: const [],
+      wall: wall,
+    );
+
+Wish _wish(int id, {String? author}) => Wish(
+      id: id,
+      authorProfileId: 'friend-$id',
+      subjectPersonId: 99,
+      body: 'Happy birthday $id',
+      occasionYear: 2026,
+      createdAt: DateTime(2026, 6, 1),
+      authorName: author,
+    );
+
+Finder _inTile(String key, String text) => find.descendant(
+      of: find.byKey(Key(key)),
+      matching: find.text(text),
     );
 
 Future<void> _pump(
@@ -47,131 +80,69 @@ void main() {
     cubit = _MockProfileCubit();
   });
 
-  // 1. All three header counts render their values.
-  testWidgets('all three header counts render their values', (tester) async {
+  testWidgets('all four counts render their values', (tester) async {
     await _pump(
       tester,
       cubit,
-      ProfileLoaded(
-        profile: _profile(),
-        celebratingCount: 3,
-        celebratesCount: 5,
-        wishesReceived: 7,
-        stats: const [],
-      ),
+      _loaded(celebrating: 3, celebrates: 5, received: 7, sent: 9),
     );
 
-    expect(
-      find.descendant(
-        of: find.byKey(const Key('profile_celebrating_tile')),
-        matching: find.text('3'),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: find.byKey(const Key('profile_celebrates_tile')),
-        matching: find.text('5'),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: find.byKey(const Key('profile_wishes_received_tile')),
-        matching: find.text('7'),
-      ),
-      findsOneWidget,
-    );
-    expect(find.text(AppStrings.profileCelebrating), findsOneWidget);
-    expect(find.text(AppStrings.profileCelebrates), findsOneWidget);
+    expect(_inTile('profile_celebrating_tile', '3'), findsOneWidget);
+    expect(_inTile('profile_celebrates_tile', '5'), findsOneWidget);
+    expect(_inTile('profile_wishes_received_tile', '7'), findsOneWidget);
+    expect(_inTile('profile_wishes_sent_tile', '9'), findsOneWidget);
     expect(find.text(AppStrings.profileWishesReceived), findsOneWidget);
+    expect(find.text(AppStrings.profileWishesSent), findsOneWidget);
   });
 
-  // 2. The track record renders one row per year, newest first.
-  testWidgets('the track record renders one row per year, newest first',
+  testWidgets('the header shows the handle, name, birthday and city',
+      (tester) async {
+    await _pump(tester, cubit, _loaded());
+
+    expect(find.text('@u1'), findsOneWidget);
+    expect(find.text('Me'), findsOneWidget);
+    expect(find.text('🎂 1 June · Jaipur'), findsOneWidget);
+  });
+
+  testWidgets('the wall renders one square per wish, with its author',
       (tester) async {
     await _pump(
       tester,
       cubit,
-      ProfileLoaded(
-        profile: _profile(),
-        celebratingCount: 0,
-        celebratesCount: 0,
-        wishesReceived: 0,
-        stats: const [
-          BirthdayStat(
-            year: 2026,
-            wishesSent: 2,
-            wishesReceived: 3,
-            birthdaysCelebrated: 2,
-          ),
-          BirthdayStat(
-            year: 2025,
-            wishesSent: 4,
-            wishesReceived: 6,
-            birthdaysCelebrated: 3,
-          ),
-        ],
-      ),
+      _loaded(wall: [_wish(1, author: 'Priya'), _wish(2)]),
     );
 
-    expect(find.byKey(const Key('profile_stat_2026')), findsOneWidget);
-    expect(find.byKey(const Key('profile_stat_2025')), findsOneWidget);
-
-    // "newest first" means the 2026 row renders above the 2025 row.
-    final y2026Top = tester.getTopLeft(find.text('2026')).dy;
-    final y2025Top = tester.getTopLeft(find.text('2025')).dy;
-    expect(y2026Top, lessThan(y2025Top));
+    expect(find.byKey(const Key('profile_wish_1')), findsOneWidget);
+    expect(find.byKey(const Key('profile_wish_2')), findsOneWidget);
+    expect(find.text('Happy birthday 1'), findsOneWidget);
+    expect(find.text('Priya'), findsOneWidget);
+    // An author outside the viewer's graph renders unattributed.
+    expect(find.text(AppStrings.profileWishAuthorUnknown), findsOneWidget);
   });
 
-  // 3. The empty track record shows profileTrackRecordEmpty.
-  testWidgets('the empty track record shows profileTrackRecordEmpty',
-      (tester) async {
-    await _pump(
-      tester,
-      cubit,
-      ProfileLoaded(
-        profile: _profile(),
-        celebratingCount: 0,
-        celebratesCount: 0,
-        wishesReceived: 0,
-        stats: const [],
-      ),
-    );
+  testWidgets('an empty wall shows the empty message', (tester) async {
+    await _pump(tester, cubit, _loaded());
 
-    expect(find.text(AppStrings.profileTrackRecordEmpty), findsOneWidget);
+    expect(find.byKey(const Key('profile_wall_empty')), findsOneWidget);
+    expect(find.byKey(const Key('profile_wall')), findsNothing);
   });
 
-  // 4. The back affordance is present and enabled.
-  testWidgets('the back affordance is present and enabled', (tester) async {
-    await _pump(
-      tester,
-      cubit,
-      ProfileLoaded(
-        profile: _profile(),
-        celebratingCount: 0,
-        celebratesCount: 0,
-        wishesReceived: 0,
-        stats: const [],
-      ),
-    );
+  // Settings' only entry point is this button, so it must survive every
+  // state -- a failed or slow load must not strand the user without a way
+  // to sign out.
+  for (final (name, state) in [
+    ('loaded', _loaded()),
+    ('loading', const ProfileLoading()),
+    ('error', const ProfileError('boom')),
+  ]) {
+    testWidgets('the settings button is present while $name', (tester) async {
+      await _pump(tester, cubit, state);
 
-    final button = tester.widget<IconButton>(
-      find.byKey(const Key('profile_back_button')),
-    );
-    expect(button.onPressed, isNotNull);
-  });
-
-  // The back affordance must also survive the loading state -- '/profile'
-  // is reached with context.go regardless of what the cubit ends up
-  // emitting, so it must not depend on ProfileLoaded.
-  testWidgets('the back affordance is present during ProfileLoading too',
-      (tester) async {
-    await _pump(tester, cubit, const ProfileLoading());
-
-    final button = tester.widget<IconButton>(
-      find.byKey(const Key('profile_back_button')),
-    );
-    expect(button.onPressed, isNotNull);
-  });
+      final button = tester.widget<IconButton>(
+        find.byKey(const Key('settings_button')),
+      );
+      expect(button.onPressed, isNotNull);
+      expect(button.tooltip, AppStrings.settingsTitle);
+    });
+  }
 }

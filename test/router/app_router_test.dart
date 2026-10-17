@@ -1,3 +1,4 @@
+import 'package:birthday_app/features/calendar/calendar_screen.dart';
 import 'package:birthday_app/features/gifting/catalog_screen.dart';
 import 'package:birthday_app/features/gifting/gift_list_screen.dart';
 import 'package:birthday_app/features/person/person_screen.dart';
@@ -156,6 +157,9 @@ class _CelebratingGraphRepository extends _FakeGraphRepository {
 class _FakeWishRepository implements WishRepository {
   @override
   Future<List<Wish>> wishesFor(int personId) async => [];
+
+  @override
+  Future<List<Wish>> wishesToMe() async => [];
 
   @override
   Future<void> post({
@@ -479,6 +483,51 @@ void main() {
         expect(find.byType(CatalogView), findsOneWidget);
       },
     );
+  });
+
+  // The bottom bar wraps exactly the three tabs. '/timeline' is never
+  // pumped here for the reason _routerAt's doc gives (it reaches for a real
+  // Supabase client), so the tab tests start from Profile and Calendar.
+  group('bottom navigation', () {
+    testWidgets('/calendar is reachable and shows the bottom bar',
+        (tester) async {
+      final fixture = _routerAt('/calendar');
+      addTearDown(() => _disposeFixture(fixture));
+
+      await tester.pumpWidget(_appWith(fixture.router));
+      await tester.pumpAndSettle();
+
+      expect(_locationOf(fixture.router), '/calendar');
+      expect(find.byType(CalendarView), findsOneWidget);
+      expect(find.byKey(const Key('home_nav_bar')), findsOneWidget);
+    });
+
+    testWidgets('tapping the Calendar tab on Profile arrives at /calendar',
+        (tester) async {
+      final fixture = _routerAt('/profile');
+      addTearDown(() => _disposeFixture(fixture));
+
+      await tester.pumpWidget(_appWith(fixture.router));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('home_nav_bar')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('nav_calendar')));
+      await tester.pumpAndSettle();
+
+      expect(_locationOf(fixture.router), '/calendar');
+      expect(find.byType(CalendarView), findsOneWidget);
+    });
+
+    testWidgets('full-screen pages like /gifts do not show the bottom bar',
+        (tester) async {
+      final fixture = _routerAt('/gifts');
+      addTearDown(() => _disposeFixture(fixture));
+
+      await tester.pumpWidget(_appWith(fixture.router));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('home_nav_bar')), findsNothing);
+    });
   });
 
   // Whole-branch review §8 should-fix 4: app.dart configured NO errorBuilder

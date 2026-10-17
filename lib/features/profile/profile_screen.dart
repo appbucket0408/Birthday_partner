@@ -4,23 +4,24 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
-import '../../models/birthday_stat.dart';
+import '../../core/date_labels.dart';
+import '../../core/initial_avatar.dart';
+import '../../models/wish.dart';
 import '../../repositories/auth_repository.dart';
 import '../../repositories/graph_repository.dart';
 import '../../repositories/profile_repository.dart';
+import '../../repositories/wish_repository.dart';
 import 'profile_cubit.dart';
 import 'profile_state.dart';
 
-/// The profile page (spec §7.3): the signed-in user's own standing in the
-/// loop -- the three header counts and the per-year track record below.
+/// The Profile tab (spec §7.3), laid out like an Instagram profile: avatar
+/// and the two wish totals side by side, name and birthday under them, the
+/// celebrating counts, then a grid of the wishes received.
 ///
-/// [ProfileRepository], [GraphRepository] and [AuthRepository] are all read
-/// off context (all three are registered in `app.dart`), never constructed
-/// here.
+/// Every repository is read off context (all are registered in `app.dart`),
+/// never constructed here.
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key, DateTime Function()? now}) : _now = now;
-
-  final DateTime Function()? _now;
+  const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +30,7 @@ class ProfileScreen extends StatelessWidget {
         context.read<ProfileRepository>(),
         context.read<GraphRepository>(),
         context.read<AuthRepository>(),
-        now: _now,
+        context.read<WishRepository>(),
       )..load(),
       child: const ProfileView(),
     );
@@ -48,18 +49,22 @@ class ProfileView extends StatelessWidget {
     return BlocBuilder<ProfileCubit, ProfileState>(
       builder: (context, state) => Scaffold(
         appBar: AppBar(
-          title: const Text(AppStrings.profileTitle),
-          // '/profile' is reached with context.go, which REPLACES the page
-          // stack -- Navigator.canPop() is false here and
-          // automaticallyImplyLeading finds nothing to pop, so no back
-          // arrow renders without this. Same trap as '/import', '/settings'
-          // and '/person/:personId'.
-          leading: IconButton(
-            key: const Key('profile_back_button'),
-            icon: const Icon(Icons.arrow_back),
-            tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-            onPressed: () => context.go('/timeline'),
+          title: Text(
+            state is ProfileLoaded
+                ? '@${state.profile.handle}'
+                : AppStrings.profileTitle,
           ),
+          actions: [
+            // Settings' only entry point. It must render in every state,
+            // not just ProfileLoaded, or a failed load strands the user
+            // with no way to sign out.
+            IconButton(
+              key: const Key('settings_button'),
+              icon: const Icon(Icons.settings),
+              tooltip: AppStrings.settingsTitle,
+              onPressed: () => context.go('/settings'),
+            ),
+          ],
         ),
         body: switch (state) {
           ProfileLoading() =>
@@ -77,28 +82,54 @@ class ProfileView extends StatelessWidget {
                 ],
               ),
             ),
-          ProfileLoaded() => _buildLoaded(context, state),
+          ProfileLoaded() => RefreshIndicator(
+              onRefresh: () => context.read<ProfileCubit>().load(),
+              child: _buildLoaded(context, state),
+            ),
         },
       ),
     );
   }
 
   Widget _buildLoaded(BuildContext context, ProfileLoaded state) {
+    final profile = state.profile;
+    final textTheme = Theme.of(context).textTheme;
+    final details = [
+      if (profile.birthday case final b?) '🎂 ${DateLabels.birthday(b)}',
+      if (profile.city case final c? when c.isNotEmpty) c,
+    ].join(' · ');
+
     return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       children: [
-        // The gift list's entry point (spec §7: "reached from the profile").
-        // A plain ListTile, not a fourth _StatTile -- there is no count to
-        // show here that GiftListCubit.load() has not already fetched, and
-        // duplicating that fetch just to render a badge would be a second
-        // network round trip for a number the destination screen shows
-        // anyway.
-        ListTile(
-          key: const Key('profile_my_gifts_tile'),
-          leading: const Icon(Icons.cake_outlined),
-          title: const Text(AppStrings.giftListTitle),
-          onTap: () => context.go('/gifts'),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          children: [
+            InitialAvatar(name: profile.displayName, radius: 40),
+            Expanded(
+              child: _StatTile(
+                key: const Key('profile_wishes_received_tile'),
+                label: AppStrings.profileWishesReceived,
+                value: state.wishesReceived,
+              ),
+            ),
+            Expanded(
+              child: _StatTile(
+                key: const Key('profile_wishes_sent_tile'),
+                label: AppStrings.profileWishesSent,
+                value: state.wishesSent,
+              ),
+            ),
+          ],
         ),
-        const Divider(height: 1),
+        const SizedBox(height: AppSpacing.md),
+        Text(profile.displayName, style: textTheme.titleMedium),
+        if (details.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Text(details, style: textTheme.bodyMedium),
+          ),
+        const SizedBox(height: AppSpacing.sm),
         Row(
           children: [
             Expanded(
@@ -117,34 +148,40 @@ class ProfileView extends StatelessWidget {
                 onTap: () => context.go('/profile/celebrates'),
               ),
             ),
-            Expanded(
-              // Not tappable: M1 has no per-wish list to send this to.
-              child: _StatTile(
-                key: const Key('profile_wishes_received_tile'),
-                label: AppStrings.profileWishesReceived,
-                value: state.wishesReceived,
-              ),
-            ),
           ],
         ),
-        const Divider(height: 1),
-        Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Text(
-            AppStrings.profileTrackRecord,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+        // The gift list's entry point (spec §7: "reached from the profile").
+        // No count: GiftListCubit.load() fetches the gifts anyway, and a
+        // badge here would be a second round trip for the same number.
+        OutlinedButton.icon(
+          key: const Key('profile_my_gifts_tile'),
+          icon: const Icon(Icons.cake_outlined),
+          label: const Text(AppStrings.giftListTitle),
+          onPressed: () => context.go('/gifts'),
         ),
-        if (state.stats.isEmpty)
+        const Divider(height: AppSpacing.xl),
+        Text(AppStrings.profileWishWall, style: textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.sm),
+        if (state.wall.isEmpty)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
             child: Text(
-              AppStrings.profileTrackRecordEmpty,
+              AppStrings.profileWishWallEmpty,
+              key: const Key('profile_wall_empty'),
               textAlign: TextAlign.center,
+              style: textTheme.bodyMedium,
             ),
           )
         else
-          for (final stat in state.stats) _TrackRecordRow(stat: stat),
+          GridView.count(
+            key: const Key('profile_wall'),
+            crossAxisCount: 3,
+            mainAxisSpacing: AppSpacing.xs,
+            crossAxisSpacing: AppSpacing.xs,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [for (final w in state.wall) _WishSquare(wish: w)],
+          ),
         const SizedBox(height: AppSpacing.lg),
       ],
     );
@@ -167,11 +204,12 @@ class _StatTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSpacing.sm),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
         child: Column(
           children: [
-            Text('$value', style: Theme.of(context).textTheme.headlineSmall),
+            Text('$value', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: AppSpacing.xs),
             Text(label, textAlign: TextAlign.center),
           ],
@@ -181,20 +219,40 @@ class _StatTile extends StatelessWidget {
   }
 }
 
-class _TrackRecordRow extends StatelessWidget {
-  const _TrackRecordRow({required this.stat});
+/// One wish as a square tile: the message, and who sent it underneath.
+class _WishSquare extends StatelessWidget {
+  const _WishSquare({required this.wish});
 
-  final BirthdayStat stat;
+  final Wish wish;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      key: Key('profile_stat_${stat.year}'),
-      title: Text('${stat.year}'),
-      subtitle: Text(
-        '${stat.wishesSent} ${AppStrings.profileStatSent} · '
-        '${stat.wishesReceived} ${AppStrings.profileStatReceived} · '
-        '${stat.birthdaysCelebrated} ${AppStrings.profileStatCelebrated}',
+    final scheme = Theme.of(context).colorScheme;
+    final small = Theme.of(context).textTheme.bodySmall;
+    return Container(
+      key: Key('profile_wish_${wish.id}'),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppSpacing.xs),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              wish.body,
+              style: small,
+              overflow: TextOverflow.fade,
+            ),
+          ),
+          Text(
+            wish.authorName ?? AppStrings.profileWishAuthorUnknown,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: small?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+        ],
       ),
     );
   }

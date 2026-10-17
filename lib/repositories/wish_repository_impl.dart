@@ -52,6 +52,25 @@ class WishRepositoryImpl implements WishRepository {
   }
 
   @override
+  Future<List<Wish>> wishesToMe() async {
+    final me = _client.auth.currentUser?.id;
+    if (me == null) throw const AuthFailure('no session');
+    final int? myPersonId;
+    try {
+      final row = await _client
+          .from(ApiParams.people)
+          .select(ApiParams.id)
+          .eq(ApiParams.profileId, me)
+          .maybeSingle();
+      myPersonId = row?[ApiParams.id] as int?;
+    } catch (e) {
+      throw mapError(e);
+    }
+    if (myPersonId == null) return const [];
+    return wishesFor(myPersonId);
+  }
+
+  @override
   Future<void> post({
     required int personId,
     required String body,

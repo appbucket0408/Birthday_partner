@@ -7,9 +7,11 @@ import 'package:birthday_app/models/birthday_stat.dart';
 import 'package:birthday_app/models/celebration.dart';
 import 'package:birthday_app/models/person.dart';
 import 'package:birthday_app/models/profile.dart';
+import 'package:birthday_app/models/wish.dart';
 import 'package:birthday_app/repositories/auth_repository.dart';
 import 'package:birthday_app/repositories/graph_repository.dart';
 import 'package:birthday_app/repositories/profile_repository.dart';
+import 'package:birthday_app/repositories/wish_repository.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -139,9 +141,40 @@ Profile _profile() => const Profile(
       birthday: Birthday(month: 6, day: 1),
     );
 
-/// Fixed at 5 Jan 2026 -- same fixture shape as
-/// test/features/person/person_cubit_test.dart's `_fixedNow`.
-DateTime _fixedNow() => DateTime(2026, 1, 5);
+class _FakeWishes implements WishRepository {
+  _FakeWishes({this.wall = const [], this.error});
+
+  final List<Wish> wall;
+  final Object? error;
+
+  @override
+  Future<List<Wish>> wishesToMe() async {
+    if (error != null) throw error!;
+    return wall;
+  }
+
+  @override
+  Future<List<Wish>> wishesFor(int personId) async =>
+      throw UnimplementedError('not used by ProfileCubit');
+
+  @override
+  Future<void> post({
+    required int personId,
+    required String body,
+    required int occasionYear,
+  }) async =>
+      throw UnimplementedError('not used by ProfileCubit');
+}
+
+Wish _wish(int id) => Wish(
+      id: id,
+      authorProfileId: 'friend-$id',
+      subjectPersonId: 99,
+      body: 'Happy birthday $id',
+      occasionYear: 2026,
+      createdAt: DateTime(2026, 6, 1),
+      authorName: 'Friend $id',
+    );
 
 void main() {
   // 1. load() emits ProfileLoading then ProfileLoaded with all three header
@@ -163,7 +196,7 @@ void main() {
       ),
       _FakeGraph(celebrationsList: [_celeb(1), _celeb(2), _celeb(3)]),
       _FakeAuth(profileToReturn: _profile()),
-      now: _fixedNow,
+      _FakeWishes(),
     ),
     act: (c) => c.load(),
     expect: () => [
@@ -172,22 +205,25 @@ void main() {
           .having((s) => s.celebratingCount, 'celebratingCount', 3)
           .having((s) => s.celebratesCount, 'celebratesCount', 2)
           .having((s) => s.wishesReceived, 'wishesReceived', 5)
+          .having((s) => s.wishesSent, 'wishesSent', 2)
           .having((s) => s.stats.map((s) => s.year).toList(), 'stat years',
               [2026]),
     ],
   );
 
-  // 2. wishesReceived comes from the CURRENT year's stat row, or 0 when
-  //    there is no row for this year. `now` is fixed at 2026 above, so a
-  //    stats list whose most RECENT row is a past year (2025) must yield 0,
-  //    not that past row's wishesReceived -- this is the assertion that
-  //    would still pass if the Cubit read the newest row regardless of year.
+  // 2. Both header wish counts are all-time totals, summed across every
+  //    year's stat row -- not just the current or newest year.
   blocTest<ProfileCubit, ProfileState>(
-    'wishesReceived is 0 when there is no stat row for the current year, '
-    'even though a past year has one',
+    'wishesReceived and wishesSent are summed across every year',
     build: () => ProfileCubit(
       _FakeProfileRepo(
         statsList: [
+          const BirthdayStat(
+            year: 2026,
+            wishesSent: 2,
+            wishesReceived: 5,
+            birthdaysCelebrated: 2,
+          ),
           const BirthdayStat(
             year: 2025,
             wishesSent: 9,
@@ -198,29 +234,63 @@ void main() {
       ),
       _FakeGraph(),
       _FakeAuth(profileToReturn: _profile()),
-      now: _fixedNow, // year 2026 -- no row for 2026 above
+      _FakeWishes(),
     ),
     act: (c) => c.load(),
     expect: () => [
       isA<ProfileLoading>(),
-      isA<ProfileLoaded>().having(
-        (s) => s.wishesReceived,
-        'wishesReceived',
-        0,
-      ),
+      isA<ProfileLoaded>()
+          .having((s) => s.wishesReceived, 'wishesReceived', 45)
+          .having((s) => s.wishesSent, 'wishesSent', 11),
     ],
   );
 
-  // 3. An empty stats list still loads, with all counts zero and an empty
-  //    track record. A brand-new account must not see an error screen.
+  // The wall carries the wishes sent to the user, in repository order.
   blocTest<ProfileCubit, ProfileState>(
-    'an empty stats list still loads, with all counts zero and an empty '
-    'track record',
+    'load() carries the wishes sent to the user as the wall',
     build: () => ProfileCubit(
       _FakeProfileRepo(),
       _FakeGraph(),
       _FakeAuth(profileToReturn: _profile()),
-      now: _fixedNow,
+      _FakeWishes(wall: [_wish(2), _wish(1)]),
+    ),
+    act: (c) => c.load(),
+    expect: () => [
+      isA<ProfileLoading>(),
+      isA<ProfileLoaded>()
+          .having((s) => s.wall.map((w) => w.id).toList(), 'wall ids', [2, 1]),
+    ],
+  );
+
+  // The wall is secondary: if it fails to load, the profile still loads
+  // with an empty wall instead of turning into an error screen.
+  blocTest<ProfileCubit, ProfileState>(
+    'a failing wall still loads the profile, with an empty wall',
+    build: () => ProfileCubit(
+      _FakeProfileRepo(),
+      _FakeGraph(celebrationsList: [_celeb(1)]),
+      _FakeAuth(profileToReturn: _profile()),
+      _FakeWishes(error: const ServerFailure('wall broke')),
+    ),
+    act: (c) => c.load(),
+    expect: () => [
+      isA<ProfileLoading>(),
+      isA<ProfileLoaded>()
+          .having((s) => s.celebratingCount, 'celebratingCount', 1)
+          .having((s) => s.wall, 'wall', isEmpty),
+    ],
+  );
+
+  // 3. An empty stats list still loads, with all counts zero and an empty
+  //    wall. A brand-new account must not see an error screen.
+  blocTest<ProfileCubit, ProfileState>(
+    'an empty stats list still loads, with all counts zero and an empty '
+    'wall',
+    build: () => ProfileCubit(
+      _FakeProfileRepo(),
+      _FakeGraph(),
+      _FakeAuth(profileToReturn: _profile()),
+      _FakeWishes(),
     ),
     act: (c) => c.load(),
     expect: () => [
@@ -229,6 +299,7 @@ void main() {
           .having((s) => s.celebratingCount, 'celebratingCount', 0)
           .having((s) => s.celebratesCount, 'celebratesCount', 0)
           .having((s) => s.wishesReceived, 'wishesReceived', 0)
+          .having((s) => s.wishesSent, 'wishesSent', 0)
           .having((s) => s.stats, 'stats', isEmpty),
     ],
   );
@@ -247,7 +318,7 @@ void main() {
       ),
       _FakeGraph(),
       _FakeAuth(profileToReturn: _profile()),
-      now: _fixedNow,
+      _FakeWishes(),
     );
 
     await cubit.load();
@@ -266,7 +337,7 @@ void main() {
       _FakeProfileRepo(celebratesError: StateError('unexpected')),
       _FakeGraph(),
       _FakeAuth(profileToReturn: _profile()),
-      now: _fixedNow,
+      _FakeWishes(),
     );
 
     await cubit.load();
@@ -283,7 +354,7 @@ void main() {
       _FakeProfileRepo(),
       _FakeGraph(celebrationsError: StateError('unexpected')),
       _FakeAuth(profileToReturn: _profile()),
-      now: _fixedNow,
+      _FakeWishes(),
     );
 
     await cubit.load();
@@ -300,7 +371,7 @@ void main() {
       _FakeProfileRepo(),
       _FakeGraph(),
       _FakeAuth(loadProfileError: StateError('unexpected')),
-      now: _fixedNow,
+      _FakeWishes(),
     );
 
     await cubit.load();
@@ -318,7 +389,7 @@ void main() {
       _FakeProfileRepo(),
       _FakeGraph(),
       auth,
-      now: _fixedNow,
+      _FakeWishes(),
     );
 
     final first = cubit.load();

@@ -50,6 +50,10 @@ class _FakeWish implements WishRepository {
   int? lastOccasionYear;
 
   @override
+  Future<List<Wish>> wishesToMe() async =>
+      throw UnimplementedError('not used by PersonCubit');
+
+  @override
   Future<List<Wish>> wishesFor(int personId) async {
     wishesForCalls++;
     if (wishesForError != null) throw wishesForError!;

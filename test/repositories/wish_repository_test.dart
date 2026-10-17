@@ -222,6 +222,40 @@ void main() {
   }, timeout: const Timeout(Duration(seconds: 90)));
 
   test(
+      "wishesToMe() is empty for a new account, then returns a wish posted "
+      "to the caller's own person by someone who celebrates them", () async {
+    expect(await wish.wishesToMe(), isEmpty);
+
+    // `second` adds `primary` by phone, which resolves to primary's own
+    // claimed person row, and wishes them.
+    await signIn(second);
+    await auth.claimProfile();
+    final summary = await contacts.addCelebrations([
+      const DeviceContact(name: 'Primary', phoneE164: primary),
+    ]);
+    await wish.post(
+      personId: summary.results.single.personId!,
+      body: 'happy birthday, primary',
+      occasionYear: 2026,
+    );
+    // Signed out, not deleted: deleteAccount cascades the wish.
+    await auth.signOut();
+
+    await signIn(primary);
+    await auth.claimProfile();
+
+    final wall = await wish.wishesToMe();
+    expect(wall.map((w) => w.body), ['happy birthday, primary']);
+    // `second` celebrates `primary`, so can_see_person resolves the name.
+    expect(wall.single.authorName, isNotNull);
+
+    await signIn(second);
+    await auth.deleteAccount();
+    await signIn(primary);
+    await auth.claimProfile();
+  }, timeout: const Timeout(Duration(seconds: 90)));
+
+  test(
       'a body over 500 characters is refused by the DB check constraint '
       "wishes_body_length, ServerFailure code '23514'", () async {
     final summary = await contacts.addCelebrations([

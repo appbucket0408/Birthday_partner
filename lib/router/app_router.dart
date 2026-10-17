@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/app_strings.dart';
+import '../features/calendar/calendar_screen.dart';
 import '../features/contacts_import/import_disclosure_screen.dart';
 import '../features/gifting/catalog_screen.dart';
 import '../features/gifting/gift_list_screen.dart';
@@ -17,6 +18,7 @@ import '../features/settings/settings_screen.dart';
 import '../features/timeline/timeline_screen.dart';
 import '../repositories/graph_repository.dart';
 import '../repositories/profile_repository.dart';
+import 'home_shell.dart';
 import 'session_cubit.dart';
 import 'session_state.dart';
 
@@ -75,7 +77,38 @@ GoRouter buildRouter(SessionCubit session) {
       // signed-out user landing on '#/otp' being redirected back to '/phone'
       // by the guard below is correct, not a missing route.
       GoRoute(path: '/setup', builder: (_, __) => const ProfileSetupScreen()),
-      GoRoute(path: '/timeline', builder: (_, __) => const TimelineScreen()),
+      // The three bottom-bar tabs. Every other signed-in screen stays a
+      // top-level route, so it opens full screen over the bar rather than
+      // inside a tab.
+      StatefulShellRoute.indexedStack(
+        builder: (_, __, shell) => HomeShell(shell: shell),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/timeline',
+                builder: (_, __) => const TimelineScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/calendar',
+                builder: (_, __) => const CalendarScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/profile',
+                builder: (_, __) => const ProfileScreen(),
+              ),
+            ],
+          ),
+        ],
+      ),
       GoRoute(
         path: '/import',
         builder: (_, __) => const ImportDisclosureScreen(),
@@ -101,7 +134,6 @@ GoRouter buildRouter(SessionCubit session) {
           personId: int.parse(state.pathParameters['personId']!),
         ),
       ),
-      GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
       // Parameterless and genuinely addressable -- unlike the slot picker and
       // draft screens that precede it, it only loads the signed-in user's
       // own gifts, so it needs nothing carried forward from another screen.
@@ -146,6 +178,7 @@ GoRouter buildRouter(SessionCubit session) {
       // back to '/timeline' -- checked separately, by prefix, for that reason.
       const signedIn = {
         '/timeline',
+        '/calendar',
         '/import',
         '/settings',
         '/profile',

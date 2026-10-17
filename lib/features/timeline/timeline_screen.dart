@@ -6,11 +6,16 @@ import '../../api/api_client.dart';
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
 import '../../core/app_text_styles.dart';
+import '../../core/date_labels.dart';
+import '../../core/initial_avatar.dart';
 import '../../models/birthday.dart';
 import '../../models/celebration.dart';
+import '../../models/profile.dart';
 import '../../repositories/graph_repository.dart';
 import '../../repositories/graph_repository_impl.dart';
 import '../../repositories/push_repository.dart';
+import '../../router/session_cubit.dart';
+import '../../router/session_state.dart';
 import '../push/push_cubit.dart';
 import 'timeline_cubit.dart';
 import 'timeline_state.dart';
@@ -97,23 +102,9 @@ class _TimelineView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(AppStrings.timelineTitle),
-        actions: [
-          IconButton(
-            key: const Key('profile_button'),
-            icon: const Icon(Icons.person),
-            tooltip: AppStrings.profileTitle,
-            onPressed: () => context.go('/profile'),
-          ),
-          IconButton(
-            key: const Key('settings_button'),
-            icon: const Icon(Icons.settings),
-            tooltip: AppStrings.settingsTitle,
-            onPressed: () => context.go('/settings'),
-          ),
-        ],
-      ),
+      // Profile and Settings used to be AppBar actions here. Profile is now a
+      // bottom-bar tab, and Settings moved onto it.
+      appBar: AppBar(title: const Text(AppStrings.timelineTitle)),
       body: BlocConsumer<TimelineCubit, TimelineState>(
         listenWhen: (previous, next) =>
             next is TimelineLoaded && next.error != null,
@@ -138,30 +129,37 @@ class _TimelineView extends StatelessWidget {
                 ],
               ),
             ),
-          TimelineEmpty() => Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      AppStrings.timelineEmptyTitle,
-                      style: Theme.of(context).textTheme.headlineSmall,
+          TimelineEmpty() => Column(
+              children: [
+                const _MeHeader(),
+                Expanded(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            AppStrings.timelineEmptyTitle,
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          const Text(
+                            AppStrings.timelineEmptyBody,
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                          FilledButton(
+                            key: const Key('timeline_import_cta'),
+                            onPressed: () => context.go('/import'),
+                            child: const Text(AppStrings.timelineImportCta),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: AppSpacing.sm),
-                    const Text(
-                      AppStrings.timelineEmptyBody,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    FilledButton(
-                      key: const Key('timeline_import_cta'),
-                      onPressed: () => context.go('/import'),
-                      child: const Text(AppStrings.timelineImportCta),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
           TimelineLoaded() => _buildLoaded(context, state),
         },
@@ -173,6 +171,7 @@ class _TimelineView extends StatelessWidget {
     final cubit = context.read<TimelineCubit>();
     return CustomScrollView(
       slivers: [
+        const SliverToBoxAdapter(child: _MeHeader()),
         for (final group in _sectionOrder)
           if (state.groups[group] case final rows? when rows.isNotEmpty) ...[
             SliverPersistentHeader(
@@ -182,9 +181,14 @@ class _TimelineView extends StatelessWidget {
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   final celebration = rows[index];
+                  final birthday = celebration.person.birthday;
                   return ListTile(
                     key: Key('celebration_${celebration.id}'),
+                    leading: InitialAvatar(name: celebration.label),
                     title: Text(celebration.label),
+                    subtitle: birthday == null
+                        ? null
+                        : Text(DateLabels.birthday(birthday)),
                     onTap: () =>
                         context.go('/person/${celebration.person.id}'),
                     trailing: PopupMenuButton<VoidCallback>(
@@ -267,6 +271,66 @@ class _TimelineView extends StatelessWidget {
     if (result == null) return;
     final trimmed = result.trim();
     await cubit.editNickname(celebration.id, trimmed.isEmpty ? null : trimmed);
+  }
+}
+
+/// The signed-in user's own card at the top of the Dashboard: avatar, name,
+/// handle, birthday and city. Read from the session, which already holds the
+/// profile -- the router only shows this screen once the session is
+/// [SessionReady], so no second fetch is needed.
+class _MeHeader extends StatelessWidget {
+  const _MeHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = context.select<SessionCubit, Profile?>(
+      (cubit) => switch (cubit.state) {
+        SessionReady(:final profile) => profile,
+        _ => null,
+      },
+    );
+    if (profile == null) return const SizedBox.shrink();
+
+    final details = [
+      '@${profile.handle}',
+      if (profile.birthday case final b?) '🎂 ${DateLabels.birthday(b)}',
+      if (profile.city case final c? when c.isNotEmpty) c,
+    ].join(' · ');
+
+    return Card(
+      key: const Key('dashboard_me_header'),
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.md,
+        AppSpacing.md,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Row(
+          children: [
+            InitialAvatar(name: profile.displayName, radius: 26),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    profile.displayName,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    details,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -127,17 +127,28 @@ abstract final class AppStrings {
   static const wishEmpty = 'Write something first.';
   static const wishPostFailed = 'That wish could not be posted.';
 
+  // Bottom navigation
+  static const navDashboard = 'Dashboard';
+  static const navCalendar = 'Calendar';
+  static const navProfile = 'Profile';
+
+  // Calendar
+  static const calendarTitle = 'Calendar';
+  static const calendarPreviousMonth = 'Previous month';
+  static const calendarNextMonth = 'Next month';
+  static const calendarNoBirthdays = 'No birthdays on this day.';
+  static const calendarTurnsTemplate = 'turns %s';
+  static const calendarYearUnknown = 'year unknown';
+
   // Profile
   static const profileTitle = 'You';
   static const profileCelebrating = 'Celebrating';
   static const profileCelebrates = 'Celebrates';
   static const profileWishesReceived = 'Wishes received';
-  static const profileTrackRecord = 'Track record';
-  static const profileTrackRecordEmpty =
-      'Your track record starts with your first wish.';
-  static const profileStatSent = 'sent';
-  static const profileStatReceived = 'received';
-  static const profileStatCelebrated = 'birthdays';
+  static const profileWishesSent = 'Wishes sent';
+  static const profileWishWall = 'Wishes I received';
+  static const profileWishWallEmpty = 'Wishes people send you show up here.';
+  static const profileWishAuthorUnknown = 'Someone';
   static const profileCelebratingEmpty = 'You are not celebrating anyone yet.';
   static const profileCelebratesEmpty = 'Nobody celebrates you yet.';
 

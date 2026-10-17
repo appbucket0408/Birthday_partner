@@ -36,11 +36,14 @@ class Birthday {
   /// same rule the pg_cron reminder fan-out uses -- the two must not disagree.
   DateTime nextOccurrence(DateTime from) {
     final today = DateTime(from.year, from.month, from.day);
-    final thisYear = _inYear(today.year);
-    return thisYear.isBefore(today) ? _inYear(today.year + 1) : thisYear;
+    final thisYear = inYear(today.year);
+    return thisYear.isBefore(today) ? inYear(today.year + 1) : thisYear;
   }
 
-  DateTime _inYear(int year) {
+  /// The date this birthday is celebrated on in [year], with the Feb 29 rule
+  /// above applied. Public so the calendar marks a leap-day birthday on the
+  /// same day the timeline and the reminder fan-out treat as the birthday.
+  DateTime inYear(int year) {
     if (month == 2 && day == 29 && !isLeapYear(year)) {
       return DateTime(year, 2, 28);
     }
@@ -56,15 +59,15 @@ class Birthday {
   /// they would not understand.
   ///
   /// Ties resolve backwards because a wish is far more often belated than six
-  /// months early. [_inYear]'s Feb 29 rule applies unchanged, so this agrees
+  /// months early. [inYear]'s Feb 29 rule applies unchanged, so this agrees
   /// with the reminder fan-out.
   int occasionYear(DateTime from) {
     final today = DateTime(from.year, from.month, from.day);
     final next = nextOccurrence(from);
 
-    final thisYear = _inYear(today.year);
+    final thisYear = inYear(today.year);
     final previous =
-        thisYear.isAfter(today) ? _inYear(today.year - 1) : thisYear;
+        thisYear.isAfter(today) ? inYear(today.year - 1) : thisYear;
 
     final daysToNext = next.difference(today).inDays;
     final daysSincePrevious = today.difference(previous).inDays;

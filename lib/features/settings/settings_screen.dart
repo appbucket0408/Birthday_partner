@@ -62,12 +62,13 @@ class _SettingsView extends StatelessWidget {
         // screen was a reachable dead-end: no back arrow, no other
         // navigation anywhere in the settings feature, and on Android
         // hardware back would pop an empty stack and exit the app. Fixed
-        // exactly as I2 fixed the import screens' exits.
+        // exactly as I2 fixed the import screens' exits. Back goes to the
+        // Profile tab, which is where the only settings button lives.
         leading: IconButton(
           key: const Key('settings_back_button'),
           icon: const Icon(Icons.arrow_back),
           tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-          onPressed: () => context.go('/timeline'),
+          onPressed: () => context.go('/profile'),
         ),
       ),
       body: BlocConsumer<SettingsCubit, SettingsState>(
