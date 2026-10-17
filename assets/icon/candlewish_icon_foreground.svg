@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#EF6D57"/>
+    <stop offset="1" stop-color="#D4473A"/>
+  </linearGradient>
+  <radialGradient id="glow" cx="512" cy="400" r="340" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#FFB27A" stop-opacity="0.55"/>
+    <stop offset="1" stop-color="#FFB27A" stop-opacity="0"/>
+  </radialGradient>
+  <clipPath id="clipL"><path transform="translate(490 446) rotate(-11)" d="M0,-200 C26,-150 76,-80 76,6 A76,76 0 0 1 -76,6 C-76,-80 -26,-150 0,-200 Z"/></clipPath>
+</defs>
+  <g transform="translate(512 512) scale(0.8) translate(-512 -528)">
+    <circle cx="512" cy="400" r="340" fill="url(#glow)"/>
+    <rect x="448" y="560" width="128" height="250" rx="36" fill="#FFF7EE"/>
+    <path transform="translate(490 446) rotate(-11)" d="M0,-200 C26,-150 76,-80 76,6 A76,76 0 0 1 -76,6 C-76,-80 -26,-150 0,-200 Z" fill="#FFD27A"/>
+    <path transform="translate(534 446) rotate(11)" d="M0,-200 C26,-150 76,-80 76,6 A76,76 0 0 1 -76,6 C-76,-80 -26,-150 0,-200 Z" fill="#FFF7EE"/>
+    <g clip-path="url(#clipL)"><path transform="translate(534 446) rotate(11)" d="M0,-200 C26,-150 76,-80 76,6 A76,76 0 0 1 -76,6 C-76,-80 -26,-150 0,-200 Z" fill="#FFB04A"/></g>
+  </g></svg>
