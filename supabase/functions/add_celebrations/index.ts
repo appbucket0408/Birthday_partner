@@ -10,12 +10,11 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 const MAX_BATCH = 500;
 const MAX_NAME_LENGTH = 128;
 
+// No birthday: only a person sets their own (20261017000003). Any birth_*
+// fields an older app still sends are ignored, never forwarded.
 type Contact = {
   phone: string;
   name: string;
-  birth_month?: number | null;
-  birth_day?: number | null;
-  birth_year?: number | null;
 };
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -149,9 +148,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       p_celebrator: userData.user.id,
       p_phone: c.phone,
       p_name: trimmedName,
-      p_birth_month: c.birth_month ?? null,
-      p_birth_day: c.birth_day ?? null,
-      p_birth_year: c.birth_year ?? null,
     });
 
     if (error) {

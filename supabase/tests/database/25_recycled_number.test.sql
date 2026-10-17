@@ -70,7 +70,7 @@ select 'friend', private.claim_person((select friend from ids), '+919770000008')
 -- The bystander celebrates alice by number, and wishes her a happy birthday.
 insert into setup
 select 'via_bystander', private.add_celebration((select bystander from ids),
-  '+919770000001', 'Alice', null::smallint, null::smallint, null::smallint);
+  '+919770000001', 'Alice');
 
 insert into public.wishes (subject_person_id, author_profile_id, body, occasion_year)
 select (select person_id from setup where label = 'alice'),
@@ -191,7 +191,7 @@ select is(
 -- upsert_person used to refill.
 create temporary table reimported as
 select private.add_celebration((select friend from ids), '+919770000002',
-  'Ghost From My Contacts', 6::smallint, 20::smallint, null::smallint) as person_id;
+  'Ghost From My Contacts') as person_id;
 
 select is(
   (select display_name || '|' || coalesce(birth_month::text, 'NULL') || '|' ||

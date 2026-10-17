@@ -15,7 +15,7 @@
 -- 20260827000006 closes it three ways, and each is asserted separately so a
 -- future migration that undoes any one of them fails by name.
 begin;
-select plan(16);
+select plan(15);
 
 select tests.as_postgres();
 
@@ -49,7 +49,7 @@ select 'blocker', private.claim_person((select blocker from ids), '+919760000003
 -- can be minted now: private.add_celebration, keyed on a phone number.
 insert into setup
 select 'owned', private.add_celebration((select attacker from ids), '+919760000009',
-  'A Contact', null::smallint, null::smallint, null::smallint);
+  'A Contact');
 
 grant select on ids, setup to authenticated;
 
@@ -102,30 +102,16 @@ select throws_ok(
   'authenticated cannot hand an edge it owns to another profile'
 );
 
--- The one column that stays writable. nickname is the celebrator's own
--- private label for someone they already celebrate: it is never shown to the
--- subject (20260824000002 exists to keep nickname and source out of the
--- incoming list) and it takes no part in any visibility predicate, so a user
--- rewriting it can learn nothing and reveal nothing.
--- Both statements name the edge by person_id as well as by owner. Filtering
--- on the owner alone would return more than one row the moment the insert
--- lockdown regressed, and `(select nickname from ...)` would then die with
--- "more than one row returned by a subquery" -- aborting the transaction and
--- taking every later assertion in this file down with it, which reports as a
--- crash rather than as the one failure that actually happened.
-select lives_ok(
-  $$ update public.celebrations set nickname = 'Bestie'
+-- No column is writable any more. nickname was the last one, and it was
+-- dropped (20261017000002): nobody renames anybody. A row-level UPDATE that
+-- names no column a user may write still has to fail, not silently no-op.
+select throws_ok(
+  $$ update public.celebrations set source = source
       where celebrator_profile_id = (select auth.uid())
         and person_id = (select person_id from setup where label = 'owned') $$,
-  'authenticated can still rename an edge it owns'
-);
-
-select is(
-  (select nickname from public.celebrations
-    where celebrator_profile_id = (select auth.uid())
-      and person_id = (select person_id from setup where label = 'owned')),
-  'Bestie',
-  'that rename actually landed'
+  '42501',
+  null,
+  'authenticated cannot update any column of an edge it owns'
 );
 
 -- ------------------------------------------------- the enumeration is shut
@@ -179,8 +165,8 @@ select is(
     where a.attrelid = 'public.celebrations'::regclass
       and a.attnum > 0 and not a.attisdropped
       and has_column_privilege('authenticated', a.attrelid, a.attnum, 'UPDATE')),
-  'nickname',
-  'nickname is the only column authenticated may update'
+  '',
+  'authenticated may update no column of celebrations'
 );
 
 select is(

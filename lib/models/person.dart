@@ -1,9 +1,8 @@
 import '../api/api_params.dart';
 import 'birthday.dart';
 
-/// A row in public.people. `isClaimed` decides whether this person's birthday
-/// is editable: a claimed person owns their own date of birth, and
-/// rpc_update_person_birthday refuses with 45003.
+/// A row in public.people. `isClaimed` is whether the person has joined the
+/// app. Only a claimed person has a birthday: nobody sets someone else's.
 class Person {
   const Person({
     required this.id,

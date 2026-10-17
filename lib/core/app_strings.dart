@@ -99,12 +99,7 @@ abstract final class AppStrings {
       'can turn it on in Settings.';
   static const importPickTitle = 'Who do you celebrate?';
   static const importOnApp = 'On Birthday';
-  static const importNoBirthday = 'No birthday';
   static const importAddSelected = 'Add selected';
-  static const importFillTitle = 'Add their birthdays';
-  static const importFillBody =
-      'Your address book did not have a birthday for these people. You can '
-      'add them now or later.';
   static const importSummaryTitle = 'Import complete';
   static const importAddedTemplate = '%s added';
   static const importSkippedTemplate = '%s skipped';
@@ -123,13 +118,8 @@ abstract final class AppStrings {
   static const timelineEmptyBody =
       'Import your contacts to start celebrating the people you know.';
   static const timelineImportCta = 'Import contacts';
-  static const timelineEditBirthday = 'Edit birthday';
-  static const timelineEditNickname = 'Edit nickname';
   static const timelineStopCelebrating = 'Stop celebrating';
   static const timelineNoBirthdayYet = 'No birthday yet';
-  static const timelineBirthdayNotEditable =
-      'They are on Birthday, so only they can change their birthday.';
-  static const timelineNicknameBlocked = 'You can no longer edit this person.';
 
   // Settings
   static const settingsTitle = 'Settings';

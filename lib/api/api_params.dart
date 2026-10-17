@@ -40,14 +40,9 @@ abstract final class ApiParams {
   // celebrations
   static const celebratorProfileId = 'celebrator_profile_id';
   static const personId = 'person_id';
-  static const nickname = 'nickname';
   static const source = 'source';
 
-  // rpc_update_person_birthday
   static const pPersonId = 'p_person_id';
-  static const pBirthMonth = 'p_birth_month';
-  static const pBirthDay = 'p_birth_day';
-  static const pBirthYear = 'p_birth_year';
 
   // wishes
   static const wishes = 'wishes';

@@ -10,7 +10,6 @@ import '../../core/date_labels.dart';
 import '../../core/initial_avatar.dart';
 import '../../core/profile_avatar.dart';
 import '../../models/birthday.dart';
-import '../../models/celebration.dart';
 import '../../models/profile.dart';
 import '../../repositories/graph_repository.dart';
 import '../../repositories/graph_repository_impl.dart';
@@ -185,8 +184,8 @@ class _TimelineView extends StatelessWidget {
                   final birthday = celebration.person.birthday;
                   return ListTile(
                     key: Key('celebration_${celebration.id}'),
-                    leading: InitialAvatar(name: celebration.label),
-                    title: Text(celebration.label),
+                    leading: InitialAvatar(name: celebration.person.displayName),
+                    title: Text(celebration.person.displayName),
                     subtitle: birthday == null
                         ? null
                         : Text(DateLabels.birthday(birthday)),
@@ -196,16 +195,6 @@ class _TimelineView extends StatelessWidget {
                       key: Key('menu_${celebration.id}'),
                       onSelected: (action) => action(),
                       itemBuilder: (context) => [
-                        PopupMenuItem(
-                          value: () =>
-                              _pickBirthday(context, cubit, celebration),
-                          child: const Text(AppStrings.timelineEditBirthday),
-                        ),
-                        PopupMenuItem(
-                          value: () =>
-                              _editNickname(context, cubit, celebration),
-                          child: const Text(AppStrings.timelineEditNickname),
-                        ),
                         PopupMenuItem(
                           value: () => cubit.stopCelebrating(celebration.id),
                           child:
@@ -221,57 +210,6 @@ class _TimelineView extends StatelessWidget {
           ],
       ],
     );
-  }
-
-  Future<void> _pickBirthday(
-    BuildContext context,
-    TimelineCubit cubit,
-    Celebration celebration,
-  ) async {
-    final existing = celebration.person.birthday;
-    final seed = existing == null
-        ? DateTime(2000, 1, 1)
-        : DateTime(existing.year ?? 2000, existing.month, existing.day);
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: seed,
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
-    );
-    if (picked == null) return;
-    await cubit.editBirthday(
-      celebration.person.id,
-      Birthday(month: picked.month, day: picked.day, year: picked.year),
-    );
-  }
-
-  Future<void> _editNickname(
-    BuildContext context,
-    TimelineCubit cubit,
-    Celebration celebration,
-  ) async {
-    final controller = TextEditingController(text: celebration.nickname ?? '');
-    final result = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text(AppStrings.timelineEditNickname),
-        content: TextField(controller: controller, autofocus: true),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text(AppStrings.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
-            child: const Text(AppStrings.save),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (result == null) return;
-    final trimmed = result.trim();
-    await cubit.editNickname(celebration.id, trimmed.isEmpty ? null : trimmed);
   }
 }
 

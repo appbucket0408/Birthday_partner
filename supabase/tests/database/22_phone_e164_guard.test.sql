@@ -79,8 +79,7 @@ select private.claim_person(
 -- ever runs.
 select throws_ok(
   format(
-    $$ select private.add_celebration(%L::uuid, '919330000001', 'Me',
-         null::smallint, null::smallint, null::smallint) $$,
+    $$ select private.add_celebration(%L::uuid, '919330000001', 'Me') $$,
     (select id from public.profiles where handle = 'selfguard')
   ),
   '22023',
@@ -90,8 +89,7 @@ select throws_ok(
 
 select throws_ok(
   format(
-    $$ select private.add_celebration(%L::uuid, '+91 93300 00001', 'Me',
-         null::smallint, null::smallint, null::smallint) $$,
+    $$ select private.add_celebration(%L::uuid, '+91 93300 00001', 'Me') $$,
     (select id from public.profiles where handle = 'selfguard')
   ),
   '22023',

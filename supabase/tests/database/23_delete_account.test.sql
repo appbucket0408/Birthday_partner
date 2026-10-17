@@ -57,7 +57,7 @@ create temporary table setup as
 select
   private.claim_person((select deleter from ids), '+919280000099') as deleter_person,
   private.add_celebration((select deleter from ids), '+919280000001',
-    'Cascade Contact', null::smallint, null::smallint, null::smallint) as contact_person;
+    'Cascade Contact') as contact_person;
 
 insert into public.wishes (author_profile_id, subject_person_id, body, occasion_year)
 select (select deleter from ids), (select contact_person from setup),
@@ -81,7 +81,7 @@ select (select bystander from ids), (select deleter_person from setup), 7, curre
 -- where the target profile has blocked the inserting celebrator, and the
 -- block row that follows names exactly this pair.
 select private.add_celebration((select bystander from ids), '+919280000099',
-  'The Deleter', null::smallint, null::smallint, null::smallint);
+  'The Deleter');
 
 insert into public.blocks (blocker_profile_id, blocked_profile_id)
 select (select deleter from ids), (select bystander from ids);

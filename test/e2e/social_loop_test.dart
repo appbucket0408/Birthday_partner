@@ -57,18 +57,24 @@ void main() {
   // This suite's own number, already added to [auth.sms.test_otp] in
   // Task 1 and unused by every other suite (graph=004/006, person=007,
   // wish=008/011, profile=009/012, contacts=003, auth=001/002,
-  // settings=005). Only one identity is needed here -- the loop under test
-  // is one user's own path from import to profile stats, not a
-  // two-identity privacy interaction.
+  // settings=005).
   const primary = '+919999000010';
+
+  // The friend being wished. Only a person sets their own birthday
+  // (20261017000003), so the friend has to be a member who entered one --
+  // an imported contact who is not on the app has no birthday to wish on.
+  const friend = '+919999000016';
+  const friendBirthday = Birthday(month: 6, day: 15);
 
   final otpThrottle = OtpSendThrottle();
 
-  setUp(() async {
-    await otpThrottle.run(() => auth.sendOtp(primary));
-    await auth.verifyOtp(phoneE164: primary, token: '123456');
+  Future<void> signIn(String phone) async {
+    await otpThrottle.run(() => auth.sendOtp(phone));
+    await auth.verifyOtp(phoneE164: phone, token: '123456');
     await auth.claimProfile();
-  });
+  }
+
+  setUp(() => signIn(primary));
 
   tearDown(() => auth.deleteAccount().catchError((_) {}));
 
@@ -78,35 +84,40 @@ void main() {
     // 1. Sign in + claim already happened in setUp -- AuthRepository is the
     //    first leg of the loop.
 
-    // 2. Import: add a celebration through ContactsRepository, with a
-    //    birthday so occasionYear can be computed the same way the app's
-    //    own PersonCubit.postWish does (Birthday.occasionYear), rather than
-    //    this test picking an arbitrary year the server happens to accept.
-    const birthday = Birthday(month: 6, day: 15);
+    // 2. The friend joins and sets their own birthday. Signed out after,
+    //    not deleted: the wish below needs their person row to stay claimed.
+    await auth.signOut();
+    await signIn(friend);
+    await auth.completeProfile(
+      handle: 'loop_friend',
+      displayName: 'Loop Friend',
+      city: 'Jaipur',
+      birthday: friendBirthday,
+    );
+    await auth.signOut();
+    await signIn(primary);
+
+    // Import: add the friend through ContactsRepository. The import itself
+    //    carries no birthday -- it comes from the friend's own profile.
     final summary = await contacts.addCelebrations([
-      const DeviceContact(
-        name: 'Loop Friend',
-        phoneE164: '+919999444801',
-        birthday: birthday,
-      ),
+      const DeviceContact(name: 'Loop Friend', phoneE164: friend),
     ]);
     final personId = summary.results.single.personId!;
     expect(personId, isPositive);
 
     // 3. Timeline: GraphRepository.celebrations() is the timeline's own
-    //    data source (spec §6.3) -- confirm the new edge is readable
-    //    through it, with the birthday that was just imported.
+    //    data source (spec §6.3) -- the new edge is readable through it,
+    //    with the birthday the friend set themselves.
     final celebrations = await graph.celebrations();
     final edge = celebrations.firstWhere(
       (c) => c.person.id == personId,
       orElse: () => fail('expected the new celebration to appear in '
           'GraphRepository.celebrations()'),
     );
-    expect(edge.person.birthday, birthday);
-
+    expect(edge.person.birthday, friendBirthday);
     // 4. Wish: post through WishRepository, with occasionYear computed the
     //    same way the real UI would derive it.
-    final occasionYear = birthday.occasionYear(DateTime.now());
+    final occasionYear = friendBirthday.occasionYear(DateTime.now());
     await wish.post(
       personId: personId,
       body: 'Happy birthday!',
@@ -124,5 +135,12 @@ void main() {
       ),
     );
     expect(row.wishesSent, 1);
-  }, timeout: const Timeout(Duration(seconds: 90)));
+
+    // Cleanup: the friend's account, so a rerun starts fresh. tearDown then
+    // deletes the primary, which this leaves signed in.
+    await auth.signOut();
+    await signIn(friend);
+    await auth.deleteAccount();
+    await signIn(primary);
+  }, timeout: const Timeout(Duration(seconds: 150)));
 }

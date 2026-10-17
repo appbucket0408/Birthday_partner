@@ -24,19 +24,19 @@ final class CalendarLoaded extends CalendarState {
 
   /// Days of [month] with at least one birthday on them, for the dots.
   Set<int> get birthdayDays => {
-        for (final c in celebrations)
-          if (c.person.birthday?.inYear(month.year) case final date?
-              when date.month == month.month)
-            date.day,
-      };
+    for (final c in celebrations)
+      if (c.person.birthday?.inYear(month.year) case final date?
+          when date.month == month.month)
+        date.day,
+  };
 
   /// Everyone whose birthday falls on [selected], by name.
   List<Celebration> get onSelected => [
-        for (final c in celebrations)
-          if (c.person.birthday?.inYear(selected.year) case final date?
-              when date.month == selected.month && date.day == selected.day)
-            c,
-      ]..sort((a, b) => a.label.compareTo(b.label));
+    for (final c in celebrations)
+      if (c.person.birthday?.inYear(selected.year) case final date?
+          when date.month == selected.month && date.day == selected.day)
+        c,
+  ]..sort((a, b) => a.person.displayName.compareTo(b.person.displayName));
 
   CalendarLoaded copyWith({DateTime? month, DateTime? selected}) =>
       CalendarLoaded(

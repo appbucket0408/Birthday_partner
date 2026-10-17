@@ -81,12 +81,6 @@ class _FakeGraphRepository implements GraphRepository {
   Future<List<Celebration>> celebrations() async => [];
 
   @override
-  Future<void> updateBirthday(int personId, Birthday birthday) async {}
-
-  @override
-  Future<void> updateNickname(int celebrationId, String? nickname) async {}
-
-  @override
   Future<void> stopCelebrating(int celebrationId) async {}
 }
 

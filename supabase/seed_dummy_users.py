@@ -19,16 +19,15 @@ What it sets up, so every screen has something to show:
   * YOU (default 9876543210, override with SEED_ME=+91..., or SEED_ME=none to
     leave your account alone) celebrate all six, and five of them celebrate
     you back -- b_06 does not.
-  * You and b_02 also celebrate two people who are NOT on the app: one with
-    no birthday at all ("No birthday yet") and one with a birthday but no
-    year. Unclaimed people are the common real case, and the only ones whose
-    birthday you are allowed to edit.
+  * You and b_02 also celebrate two people who are NOT on the app. They have
+    no birthday ("No birthday yet"): only a person sets their own, so someone
+    who has not joined has none.
   * Wishes: several dummies wish b_02 (whose birthday is today) and you, and
     you wish b_02 -- so the Profile wish grid and the wish counts are not 0.
 
 Every step goes through the same public endpoints the app uses (OTP sign-in,
-claim_profile, profiles update, add_celebrations, rpc_update_person_birthday,
-the wishes and celebrations tables), never direct SQL, so the rows come out
+claim_profile, profiles update, add_celebrations, the wishes and
+celebrations tables), never direct SQL, so the rows come out
 exactly as real use would make them -- triggers and guards included.
 
 Safe to re-run. Sign-in, claiming and adding are idempotent, a random birthday
@@ -61,13 +60,12 @@ DUMMIES = [2, 3, 4, 6, 7, 8]
 # after everyone is added. "me" stands for SEED_ME.
 NOT_FOLLOWING = [(8, 7), (6, "me")]
 
-# Not on the app: no account, so their person rows stay unclaimed. Numbers in
-# the +91 90000 001xx range, nowhere in test_otp, so nobody can sign in as
-# them and claim the row.
+# Not on the app: no account, so their person rows stay unclaimed and have no
+# birthday. Numbers in the +91 90000 001xx range, nowhere in test_otp, so
+# nobody can sign in as them and claim the row.
 OUTSIDERS = [
-    {"phone": "+919000000101", "name": "Asha (not on app)", "birthday": None},
-    {"phone": "+919000000102", "name": "Ravi (not on app)",
-     "birthday": {"month": 12, "day": 25, "year": None}},
+    {"phone": "+919000000101", "name": "Asha (not on app)"},
+    {"phone": "+919000000102", "name": "Ravi (not on app)"},
 ]
 
 WISHES_TO_B02 = {
@@ -239,20 +237,6 @@ if me:
     contacts += [{"phone": o["phone"], "name": o["name"]} for o in OUTSIDERS]
     results = add(me, contacts)
     print(f"  you  -> {', '.join(sorted({r['status'] for r in results.values()}))}")
-
-# Birthdays for the people who are not on the app, set the way the app's
-# "Edit birthday" does. Done as b_02 so it works with SEED_ME=none too.
-outsider_ids = add(users[2], [{"phone": o["phone"], "name": o["name"]}
-                              for o in OUTSIDERS])
-for o in OUTSIDERS:
-    b = o["birthday"]
-    if b is None:
-        continue
-    call("POST", "/rest/v1/rpc/rpc_update_person_birthday", users[2]["token"], {
-        "p_person_id": outsider_ids[o["phone"]]["person_id"],
-        "p_birth_month": b["month"], "p_birth_day": b["day"],
-        "p_birth_year": b["year"],
-    })
 
 print("\nMaking some relationships one-way")
 for follower, followed in NOT_FOLLOWING:

@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
 import 'import_cubit.dart';
-import 'import_fill_birthdays_screen.dart';
 import 'import_state.dart';
 import 'import_summary_screen.dart';
 
@@ -18,11 +17,9 @@ class ImportPickScreen extends StatelessWidget {
       body: BlocConsumer<ImportCubit, ImportState>(
         listenWhen: (prev, next) => prev is! ImportDone && next is ImportDone,
         listener: (context, state) {
-          // ImportPickScreen stays mounted underneath a pushed
-          // ImportFillBirthdaysScreen (same pattern as PhoneScreen /
-          // OtpScreen, Task 7). Without the isCurrent guard, a commit()
-          // triggered from that screen would push ImportSummaryScreen a
-          // second time from here too.
+          // Only the route on top pushes the summary (same guard as
+          // PhoneScreen / OtpScreen, Task 7), so a commit() retried from the
+          // summary screen does not push a second one from here.
           final isCurrent = ModalRoute.of(context)?.isCurrent ?? false;
           if (state is ImportDone && isCurrent) {
             Navigator.of(context).push(
@@ -88,8 +85,6 @@ class ImportPickScreen extends StatelessWidget {
                             if (picking.resolved
                                 .any((r) => r.phone == contact.phoneE164))
                               const Text(AppStrings.importOnApp),
-                            if (picking.needsBirthday(contact.phoneE164))
-                              const Text(AppStrings.importNoBirthday),
                           ],
                         ),
                       ),
@@ -102,7 +97,7 @@ class ImportPickScreen extends StatelessWidget {
                   key: const Key('add_selected'),
                   onPressed: picking.selected.isEmpty
                       ? null
-                      : () => _onAddSelected(context, picking),
+                      : () => context.read<ImportCubit>().commit(),
                   child: const Text(AppStrings.importAddSelected),
                 ),
               ),
@@ -111,21 +106,5 @@ class ImportPickScreen extends StatelessWidget {
         },
       ),
     );
-  }
-
-  void _onAddSelected(BuildContext context, ImportPicking picking) {
-    final cubit = context.read<ImportCubit>();
-    if (picking.missingBirthdays.isNotEmpty) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => BlocProvider.value(
-            value: cubit,
-            child: const ImportFillBirthdaysScreen(),
-          ),
-        ),
-      );
-    } else {
-      cubit.commit();
-    }
   }
 }

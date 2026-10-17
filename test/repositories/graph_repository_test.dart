@@ -2,7 +2,6 @@
 library;
 
 import 'package:birthday_app/api/api_client.dart';
-import 'package:birthday_app/core/result.dart';
 import 'package:birthday_app/models/birthday.dart';
 import 'package:birthday_app/repositories/auth_repository.dart';
 import 'package:birthday_app/repositories/auth_repository_impl.dart';
@@ -35,10 +34,10 @@ void main() {
   // This suite's own number, per the task-11 phone pool assignment.
   const primary = '+919999000004';
 
-  // Proving 45002 and 45003 needs a person who has genuinely claimed a
-  // profile, and claiming only ever happens for a real, OTP-verified
-  // account's OWN person row -- there is no service-role shortcut for it in
-  // the client surface this repository exposes. That requires a second real
+  // A member who sets their own birthday needs a person who has genuinely
+  // claimed a profile, and claiming only ever happens for a real,
+  // OTP-verified account's OWN person row -- there is no service-role
+  // shortcut for it in the client surface this repository exposes. That requires a second real
   // identity distinct from `primary`, which the task-11 brief's phone table
   // does not allocate (it gives this suite exactly one number). This is a
   // gap in that table, not a deliberate omission -- see task-11-report.md.
@@ -64,15 +63,23 @@ void main() {
   // `asSecondUsersPerson` below).
   tearDown(() => auth.deleteAccount().catchError((_) {}));
 
-  // Signs into `second`, has it claim its own person row (idempotent, so
-  // safe to call from more than one test), and leaves that account signed
-  // in but NOT deleted -- deleting it would scrub and phone-hash-rotate the
-  // very row these tests need to stay claimed and findable. Returns to
-  // `primary` before returning, since every test's own tearDown expects
-  // `primary` to be the active session.
+  // Signs into `second`, has it claim its own person row and set its OWN
+  // birthday (both idempotent, so safe to call from more than one test), and
+  // leaves that account NOT deleted -- deleting it would scrub and
+  // phone-hash-rotate the very row these tests need to stay claimed and
+  // findable. Returns to `primary` before returning, since every test's own
+  // tearDown expects `primary` to be the active session.
+  const secondBirthday = Birthday(month: 8, day: 9, year: 1995);
   Future<int> asSecondUsersPerson() async {
+    await auth.signOut();
     await signIn(second);
     final personId = await auth.claimProfile();
+    await auth.completeProfile(
+      handle: 'graph_second',
+      displayName: 'Graph Second',
+      city: 'Jaipur',
+      birthday: secondBirthday,
+    );
     await auth.signOut();
     await signIn(primary);
     await auth.claimProfile();
@@ -94,66 +101,34 @@ void main() {
     expect(row.person.isClaimed, isFalse);
   });
 
-  test(
-      'updateBirthday sets a birthday on an unclaimed person, and '
-      'celebrations reflects it', () async {
-    final summary = await contacts.addCelebrations([
-      const DeviceContact(name: 'No Birthday Yet', phoneE164: '+919999444402'),
-    ]);
-    final personId = summary.results.single.personId!;
-
-    await graph.updateBirthday(personId, const Birthday(month: 6, day: 20));
-
-    final rows = await graph.celebrations();
-    final row = rows.firstWhere((c) => c.person.id == personId);
-    expect(row.person.birthday, const Birthday(month: 6, day: 20));
-  });
-
-  test(
-      'updateBirthday on a person this user does not celebrate throws '
-      "ServerFailure with code '45002'", () async {
-    // `second` claims its own person row. `primary` never adds `second` as
-    // a contact in this test, so `primary` holds no celebration edge to it.
+  // Only a person sets their own birthday (20261017000003). What a
+  // celebrator sees is exactly what the member entered on their profile --
+  // there is no longer any call that lets the celebrator change it.
+  test("a member's birthday is the one they set themselves", () async {
     final secondPersonId = await asSecondUsersPerson();
 
-    await expectLater(
-      graph.updateBirthday(secondPersonId, const Birthday(month: 3, day: 3)),
-      throwsA(isA<ServerFailure>().having((f) => f.code, 'code', '45002')),
-    );
-  });
-
-  test(
-      'updateBirthday on a claimed person throws ServerFailure with code '
-      "'45003' -- their own birthday wins", () async {
-    final secondPersonId = await asSecondUsersPerson();
-
-    // Give `primary` a real edge to the already-claimed person, by adding
-    // `second`'s own phone number as a contact. This resolves to the
-    // existing, claimed row rather than minting a new one.
     final summary = await contacts.addCelebrations([
-      const DeviceContact(name: 'Second User', phoneE164: second),
+      const DeviceContact(name: 'Whatever I Call Them', phoneE164: second),
     ]);
     expect(summary.results.single.personId, secondPersonId);
 
-    await expectLater(
-      graph.updateBirthday(secondPersonId, const Birthday(month: 3, day: 3)),
-      throwsA(isA<ServerFailure>().having((f) => f.code, 'code', '45003')),
-    );
-  });
+    final row = (await graph.celebrations())
+        .firstWhere((c) => c.person.id == secondPersonId);
+    expect(row.person.isClaimed, isTrue);
+    expect(row.person.birthday, secondBirthday);
+    // Their own name, not the one in the importer's address book.
+    expect(row.person.displayName, 'Graph Second');
+  }, timeout: const Timeout(Duration(seconds: 90)));
 
-  test(
-      'an impossible date throws ServerFailure with code '
-      "'23514' -- security definer does not bypass the CHECK constraint",
-      () async {
-    final summary = await contacts.addCelebrations([
-      const DeviceContact(name: 'April Fool', phoneE164: '+919999444403'),
-    ]);
-    final personId = summary.results.single.personId!;
-
+  test('the removed birthday-edit call no longer exists', () async {
     await expectLater(
-      // April has 30 days -- April 31 does not exist in any year.
-      graph.updateBirthday(personId, const Birthday(month: 4, day: 31)),
-      throwsA(isA<ServerFailure>().having((f) => f.code, 'code', '23514')),
+      ApiClient.instance.rpc('rpc_update_person_birthday', params: {
+        'p_person_id': 1,
+        'p_birth_month': 1,
+        'p_birth_day': 1,
+        'p_birth_year': null,
+      }),
+      throwsA(anything),
     );
   });
 
@@ -172,21 +147,14 @@ void main() {
     expect(after.any((c) => c.person.id == personId), isFalse);
   });
 
-  test(
-      'updateNickname changes the label; celebrations prefers the nickname '
-      "over the person's display name", () async {
+  test("celebrations shows each person by their own name", () async {
     final summary = await contacts.addCelebrations([
       const DeviceContact(name: 'Formal Name', phoneE164: '+919999444405'),
     ]);
     final personId = summary.results.single.personId!;
-    final before = await graph.celebrations();
-    final celebrationId = before.firstWhere((c) => c.person.id == personId).id;
 
-    await graph.updateNickname(celebrationId, 'Buddy');
-
-    final after = await graph.celebrations();
-    final row = after.firstWhere((c) => c.person.id == personId);
-    expect(row.nickname, 'Buddy');
-    expect(row.label, 'Buddy');
+    final row = (await graph.celebrations())
+        .firstWhere((c) => c.person.id == personId);
+    expect(row.person.displayName, 'Formal Name');
   });
 }

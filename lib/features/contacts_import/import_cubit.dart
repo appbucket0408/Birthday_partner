@@ -5,7 +5,6 @@ import '../../api/api_client.dart';
 import '../../core/app_strings.dart';
 import '../../core/logger.dart';
 import '../../core/result.dart';
-import '../../models/birthday.dart';
 import '../../repositories/contacts_repository.dart';
 import 'import_state.dart';
 
@@ -23,20 +22,19 @@ class ImportCubit extends Cubit<ImportState> {
   static String? _liveCurrentUserPhone() =>
       ApiClient.instance.auth.currentUser?.phone;
 
-  // The picked-contacts/selection/birthdays live here, not just in
+  // The picked contacts and selection live here, not just in
   // ImportPicking, so commit() can be re-run from the summary screen's
   // retry after the displayed state has already moved on to ImportDone or
   // ImportFailed.
   List<DeviceContact> _contacts = const [];
   List<ResolvedContact> _resolved = const [];
   Set<String> _selected = {};
-  final Map<String, Birthday> _birthdays = {};
 
   // Guards commit(), not just recorded in state: ImportCommitting is only
   // emitted from the repository's first onProgress callback, so relying on
   // `state is ImportCommitting` would leave the whole window between tap
   // and that first callback unguarded -- exactly where a fast double-tap on
-  // add_selected / fill_continue / summary_retry lands.
+  // add_selected / summary_retry lands.
   bool _committing = false;
 
   /// Must not touch any permission API until this is called -- Play requires
@@ -80,30 +78,21 @@ class ImportCubit extends Cubit<ImportState> {
     _emitPicking();
   }
 
-  void setBirthday(String phoneE164, Birthday? birthday) {
-    if (birthday == null) {
-      _birthdays.remove(phoneE164);
-    } else {
-      _birthdays[phoneE164] = birthday;
-    }
-    _emitPicking();
-  }
-
   void _emitPicking() {
     emit(ImportPicking(
       contacts: _contacts,
       resolved: _resolved,
       selected: Set.unmodifiable(_selected),
-      birthdays: Map.unmodifiable(_birthdays),
     ));
   }
 
   /// Create-on-select: sends ONLY the contacts the user picked. A person row
   /// must never be minted for a non-consenting contact just because it sat
-  /// in someone's address book.
+  /// in someone's address book. Names only -- never a birthday: only a
+  /// person sets their own.
   ///
-  /// A second call while one is already in flight (a fast double-tap on any
-  /// of the three buttons that call this) is a no-op: the cubit, not its
+  /// A second call while one is already in flight (a fast double-tap on
+  /// either button that calls this) is a no-op: the cubit, not its
   /// callers, owns what is in flight.
   Future<void> commit() async {
     if (_committing) return;
@@ -111,10 +100,6 @@ class ImportCubit extends Cubit<ImportState> {
     try {
       final toSend = _contacts
           .where((c) => _selected.contains(c.phoneE164))
-          .map((c) {
-            final filled = _birthdays[c.phoneE164];
-            return filled == null ? c : c.withBirthday(filled);
-          })
           .toList(growable: false);
 
       final summary = await _contactsRepo.addCelebrations(

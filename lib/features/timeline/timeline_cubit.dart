@@ -1,11 +1,9 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/app_strings.dart';
-import '../../core/logger.dart';
 import '../../core/result.dart';
 import '../../models/birthday.dart';
 import '../../models/celebration.dart';
-import '../../models/person.dart';
 import '../../repositories/graph_repository.dart';
 import 'timeline_state.dart';
 
@@ -23,10 +21,9 @@ class TimelineCubit extends Cubit<TimelineState> {
   final GraphRepository _repo;
   final DateTime Function() _now;
 
-  // The working copy every action mutates locally instead of re-fetching --
-  // stopCelebrating in particular must remove its row "without a full
-  // reload" per the task brief, and editBirthday/editNickname piggyback on
-  // the same mechanism rather than inventing a second one.
+  // The working copy the row action mutates locally instead of re-fetching --
+  // stopCelebrating must remove its row "without a full reload" per the
+  // task brief.
   List<Celebration> _celebrations = const [];
 
   // Guards re-entrancy per (action, id) pair rather than with one flag for
@@ -49,94 +46,6 @@ class TimelineCubit extends Cubit<TimelineState> {
       emit(const TimelineError(AppStrings.somethingWentWrong));
     } finally {
       _inFlight.remove('load');
-    }
-  }
-
-  /// Sets [personId]'s birthday. A 45003 (the person has claimed their own
-  /// profile) is expected here -- any celebration can point at a claimed
-  /// person -- and is mapped to a message the user can act on: give up on
-  /// editing it, not "something went wrong".
-  ///
-  /// A 45002 (the caller holds no edge to this person) is NOT expected here:
-  /// every personId this screen can pass in came from a celebration this
-  /// user's own [celebrations] call returned, so the edge already exists.
-  /// Seeing 45002 from this screen means personId leaked in from somewhere
-  /// it should not have -- a bug, not a user-facing rejection -- so it is
-  /// mapped to the generic message and logged, never shown as a specific
-  /// explanation the user did nothing to deserve.
-  Future<void> editBirthday(int personId, Birthday birthday) async {
-    final key = 'birthday:$personId';
-    if (!_inFlight.add(key)) return;
-    try {
-      await _repo.updateBirthday(personId, birthday);
-      _celebrations = [
-        for (final c in _celebrations)
-          if (c.person.id == personId)
-            Celebration(
-              id: c.id,
-              nickname: c.nickname,
-              person: Person(
-                id: c.person.id,
-                displayName: c.person.displayName,
-                isClaimed: c.person.isClaimed,
-                birthday: birthday,
-              ),
-            )
-          else
-            c,
-      ];
-      _emitGrouped();
-    } on ServerFailure catch (f) {
-      if (f.code == '45002') {
-        // AppFailure.toString() now returns just the human message, so
-        // passing `f` alone as the `error` arg would print that message and
-        // drop the concrete type and the SQLSTATE code -- which is the
-        // whole reason this log exists. Both are spelled out in the message
-        // string itself so they survive regardless of how `f` stringifies.
-        Log.error(
-          'editBirthday got 45002 (no edge to this person) from the '
-          'timeline -- every personId here should come from this user\'s '
-          'own celebrations() list (${f.runtimeType} code=${f.code})',
-          f,
-        );
-      }
-      _emitGrouped(
-        error: f.code == '45003'
-            ? AppStrings.timelineBirthdayNotEditable
-            : AppStrings.somethingWentWrong,
-      );
-    } catch (_) {
-      _emitGrouped(error: AppStrings.somethingWentWrong);
-    } finally {
-      _inFlight.remove(key);
-    }
-  }
-
-  /// Renames a celebration's private label. The only failure mode on this
-  /// write path is `private.guard_celebration`'s block check, which runs on
-  /// ANY update to a `celebrations` row -- including a nickname edit -- and
-  /// rejects it if the person has blocked this caller since the edge was
-  /// created. There is no other rejection code to branch on here, so any
-  /// [ServerFailure] on this call is read as that guard.
-  Future<void> editNickname(int celebrationId, String? nickname) async {
-    final key = 'nickname:$celebrationId';
-    if (!_inFlight.add(key)) return;
-    try {
-      await _repo.updateNickname(celebrationId, nickname);
-      _celebrations = [
-        for (final c in _celebrations)
-          if (c.id == celebrationId)
-            Celebration(id: c.id, person: c.person, nickname: nickname)
-          else
-            c,
-      ];
-      _emitGrouped();
-    } on ServerFailure catch (_) {
-      _emitGrouped(error: AppStrings.timelineNicknameBlocked);
-    } catch (_) {
-      _emitGrouped(error: AppStrings.somethingWentWrong);
-    } finally {
-      _inFlight.remove(key);
     }
   }
 

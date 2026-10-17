@@ -55,7 +55,6 @@ void main() {
       const DeviceContact(
         name: 'Visible Person',
         phoneE164: '+919999444501',
-        birthday: null,
       ),
     ]);
     final personId = summary.results.single.personId!;

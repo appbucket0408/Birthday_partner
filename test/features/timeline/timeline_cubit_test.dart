@@ -10,46 +10,27 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// A real GraphRepository fake, not a mock: the Cubit is exercised through
-/// its real celebrations()/updateBirthday()/updateNickname()/
-/// stopCelebrating() calls, following the pattern in
+/// its real celebrations()/stopCelebrating() calls, following the pattern in
 /// test/features/contacts_import/import_cubit_test.dart.
 class _FakeGraph implements GraphRepository {
   _FakeGraph({
     this.celebrationsList = const [],
     this.celebrationsError,
-    this.updateBirthdayError,
-    this.updateNicknameError,
     this.stopCelebratingError,
   });
 
   List<Celebration> celebrationsList;
   Object? celebrationsError;
-  Object? updateBirthdayError;
-  Object? updateNicknameError;
   Object? stopCelebratingError;
 
   int celebrationsCalls = 0;
   int stopCelebratingCalls = 0;
-  int updateBirthdayCalls = 0;
-  int updateNicknameCalls = 0;
 
   @override
   Future<List<Celebration>> celebrations() async {
     celebrationsCalls++;
     if (celebrationsError != null) throw celebrationsError!;
     return celebrationsList;
-  }
-
-  @override
-  Future<void> updateBirthday(int personId, Birthday birthday) async {
-    updateBirthdayCalls++;
-    if (updateBirthdayError != null) throw updateBirthdayError!;
-  }
-
-  @override
-  Future<void> updateNickname(int celebrationId, String? nickname) async {
-    updateNicknameCalls++;
-    if (updateNicknameError != null) throw updateNicknameError!;
   }
 
   @override
@@ -63,8 +44,8 @@ Person _person(int id, {Birthday? birthday, bool isClaimed = false}) =>
     Person(id: id, displayName: 'Person $id', isClaimed: isClaimed,
         birthday: birthday);
 
-Celebration _celeb(int id, Person person, {String? nickname}) =>
-    Celebration(id: id, person: person, nickname: nickname);
+Celebration _celeb(int id, Person person) =>
+    Celebration(id: id, person: person);
 
 /// Fixed at 15 Apr 2026 throughout, per the task-12 brief. Every test below
 /// supplies this (or another fixed instant) explicitly -- never the real
@@ -159,95 +140,7 @@ void main() {
     ],
   );
 
-  // 5. editBirthday on a claimed person surfaces 45003 as
-  //    AppStrings.timelineBirthdayNotEditable rather than a generic error.
-  //    Assertion 5 is the one that carries Task 1's work all the way to the
-  //    user.
-  test(
-      'editBirthday surfaces 45003 as timelineBirthdayNotEditable, not a '
-      'generic error', () async {
-    final fake = _FakeGraph(
-      celebrationsList: [
-        _celeb(
-          1,
-          _person(1,
-              birthday: const Birthday(month: 4, day: 15), isClaimed: true),
-        ),
-      ],
-      updateBirthdayError: const ServerFailure(
-        'this person has claimed their own profile',
-        code: '45003',
-      ),
-    );
-    final cubit = TimelineCubit(fake, now: _fixedNow);
-    await cubit.load();
-
-    await cubit.editBirthday(1, const Birthday(month: 6, day: 1));
-
-    final state = cubit.state;
-    expect(state, isA<TimelineLoaded>());
-    expect(
-      (state as TimelineLoaded).error,
-      AppStrings.timelineBirthdayNotEditable,
-    );
-    // The row itself is untouched -- the write was rejected, not applied.
-    expect(
-      state.groups[TimelineGroup.today]!.single.person.birthday,
-      const Birthday(month: 4, day: 15),
-    );
-  });
-
-  // Not one of the brief's seven, but Step 3 spells out the other half of
-  // the same mapping: 45002 (no edge to this person) should be unreachable
-  // from this screen -- every personId here comes from this user's own
-  // celebrations() list -- so it is read as a bug signal and shown as the
-  // generic message, never as a specific-sounding explanation the user did
-  // nothing to deserve.
-  test('editBirthday maps an (unreachable-in-practice) 45002 to the generic '
-      'message, not a specific one', () async {
-    final fake = _FakeGraph(
-      celebrationsList: [
-        _celeb(1, _person(1, birthday: const Birthday(month: 4, day: 15))),
-      ],
-      updateBirthdayError: const ServerFailure('no edge', code: '45002'),
-    );
-    final cubit = TimelineCubit(fake, now: _fixedNow);
-    await cubit.load();
-
-    await cubit.editBirthday(1, const Birthday(month: 6, day: 1));
-
-    final state = cubit.state as TimelineLoaded;
-    expect(state.error, AppStrings.somethingWentWrong);
-  });
-
-  // 6. editNickname surfacing the guard-trigger rejection shows
-  //    AppStrings.timelineNicknameBlocked.
-  test(
-      'editNickname surfacing the guard-trigger rejection shows '
-      'timelineNicknameBlocked', () async {
-    final fake = _FakeGraph(
-      celebrationsList: [_celeb(1, _person(1))],
-      // private.guard_celebration raises a plain exception with no
-      // dedicated SQLSTATE -- 'this person has blocked you' -- on ANY
-      // update to a celebrations row, nickname edits included.
-      updateNicknameError: const ServerFailure(
-        'this person has blocked you',
-        code: 'P0001',
-      ),
-    );
-    final cubit = TimelineCubit(fake, now: _fixedNow);
-    await cubit.load();
-
-    await cubit.editNickname(1, 'Buddy');
-
-    final state = cubit.state as TimelineLoaded;
-    expect(state.error, AppStrings.timelineNicknameBlocked);
-    // The nickname was not applied.
-    expect(state.groups[null]!.single.nickname, isNull);
-  });
-
-  // Not one of the brief's seven, but the same defensiveness as the two
-  // editBirthday/editNickname failure paths: a failed stopCelebrating must
+  // Not one of the brief's seven: a failed stopCelebrating must
   // surface the generic message rather than silently dropping the row or
   // throwing out of the Cubit.
   test('a failed stopCelebrating surfaces the generic message and keeps '

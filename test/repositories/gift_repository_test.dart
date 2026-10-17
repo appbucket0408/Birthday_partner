@@ -218,7 +218,6 @@ void main() {
       const DeviceContact(
         name: 'Gift Recipient',
         phoneE164: '+919999444601',
-        birthday: null,
       ),
     ]);
     recipientPersonId = summary.results.single.personId!;

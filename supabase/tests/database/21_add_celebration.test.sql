@@ -13,7 +13,7 @@ select (select id from public.profiles where handle = 'picker') as picker;
 -- assert the retry returns the SAME id, not merely that it does not error.
 create temporary table picks as
 select private.add_celebration((select picker from ids), '+919230000002',
-  'Picked Friend', 4::smallint, 1::smallint, null::smallint) as friend_id;
+  'Picked Friend') as friend_id;
 
 -- Picking a contact mints the person AND the edge together.
 select isnt(
@@ -38,7 +38,7 @@ select is(
 -- mere lives_ok would not catch.
 select is(
   private.add_celebration((select picker from ids), '+919230000002',
-    'Picked Friend', 4::smallint, 1::smallint, null::smallint),
+    'Picked Friend'),
   (select friend_id from picks),
   'picking the same contact twice returns the same person id'
 );
@@ -56,7 +56,7 @@ select private.suppress_person(
   tests.create_person('+919230000003', 'Opted Out'));
 select is(
   private.add_celebration((select picker from ids), '+919230000003',
-    'Opted Out', null::smallint, null::smallint, null::smallint),
+    'Opted Out'),
   null,
   'a suppressed number returns null instead of a person'
 );
@@ -69,16 +69,17 @@ select is(
   'a suppressed contact creates no edge, not just a null return'
 );
 
--- The wrapper is the only surface production can reach, and three of its six
--- parameters are same-typed smallints — exactly where a transposition hides.
+-- The wrapper is the only surface production can reach. It takes no
+-- birthday at all (20261017000003): only a person sets their own, so an
+-- imported contact who is not on the app has none.
 select public.rpc_add_celebration((select picker from ids), '+919230000004',
-  'Wrapper Friend', 3::smallint, 25::smallint, null::smallint);
+  'Wrapper Friend');
 
 select is(
-  (select p.birth_month || '-' || p.birth_day
-     from public.people p where p.display_name = 'Wrapper Friend'),
-  '3-25',
-  'the service_role wrapper passes month and day through in the right order'
+  (select p.birth_month from public.people p
+    where p.display_name = 'Wrapper Friend'),
+  null,
+  'an imported contact gets no birthday from the importer'
 );
 
 -- Celebrating yourself is meaningless. The trigger from M0 is inert here
@@ -92,7 +93,7 @@ select is(
 -- 500 that P0002 (no_data_found) would produce.
 select throws_ok(
   $$ select private.add_celebration((select picker from ids), '+919230000001',
-       'Me', null::smallint, null::smallint, null::smallint) $$,
+       'Me') $$,
   '45001',
   'you cannot celebrate yourself',
   'picking your own number is rejected, with a stable SQLSTATE'
@@ -109,7 +110,7 @@ select tests.create_user('lateclaimer');
 
 select private.add_celebration(
   (select id from public.profiles where handle = 'lateclaimer'),
-  '+919230000009', 'Actually Me', null::smallint, null::smallint, null::smallint);
+  '+919230000009', 'Actually Me');
 
 select private.claim_person(
   (select id from public.profiles where handle = 'lateclaimer'), '+919230000009');

@@ -1,6 +1,5 @@
 import 'package:birthday_app/features/contacts_import/import_cubit.dart';
 import 'package:birthday_app/features/contacts_import/import_state.dart';
-import 'package:birthday_app/models/birthday.dart';
 import 'package:birthday_app/models/import_outcome.dart';
 import 'package:birthday_app/repositories/contacts_repository.dart';
 import 'package:bloc_test/bloc_test.dart';
@@ -93,7 +92,6 @@ void main() {
     phone: '+919999000001',
     personId: 7,
     displayName: 'Ann',
-    hasBirthday: true,
   );
   blocTest<ImportCubit, ImportState>(
     'a granted permission loads contacts and lands on Picking unselected',
@@ -250,18 +248,19 @@ void main() {
     expect(fake.addCelebrationsCalls, 1);
   });
 
-  // 6. setBirthday attaches a birthday to a selected contact before commit.
-  test('setBirthday attaches a birthday to the committed contact', () async {
-    const birthday = Birthday(month: 4, day: 15);
+  // 6. Only a person sets their own birthday: what is committed is the
+  //    contact's name and number, nothing else.
+  test('commit sends only the name and number of the picked contact',
+      () async {
     final fake = _FakeContacts(contacts: const [_c1]);
     final cubit = ImportCubit(fake);
     await cubit.start();
     cubit.toggle(_c1.phoneE164);
-    cubit.setBirthday(_c1.phoneE164, birthday);
     await cubit.commit();
 
-    expect(fake.lastCommitted, hasLength(1));
-    expect(fake.lastCommitted!.single.birthday, birthday);
+    final sent = fake.lastCommitted!.single;
+    expect(sent.name, _c1.name);
+    expect(sent.phoneE164, _c1.phoneE164);
   });
 
   // The region derivation: the signed-in user's own verified phone (minus

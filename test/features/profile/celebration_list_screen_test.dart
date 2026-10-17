@@ -1,5 +1,4 @@
 import 'package:birthday_app/features/profile/celebration_list_screen.dart';
-import 'package:birthday_app/models/celebration.dart';
 import 'package:birthday_app/models/person.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -82,44 +81,4 @@ void main() {
       expect(tile.onTap, isNotNull);
     },
   );
-
-  // §7.3 defect fix: TimelineScreen renders `Celebration.label` (nickname
-  // if set, else the address-book name) for an edge. The Celebrating list
-  // renders the SAME edges and must agree, or a nicknamed person reads
-  // differently on the two screens. `peopleFromCelebrations` is the small
-  // mapping `/profile/celebrating` uses instead of handing this screen a
-  // second repository shape (see the class doc).
-  test('peopleFromCelebrations shows a nickname when one exists', () {
-    final celebrations = [
-      Celebration(id: 1, person: _person(1, displayName: 'Robert Smith'),
-          nickname: 'Bobby'),
-      Celebration(id: 2, person: _person(2, displayName: 'Jane Doe')),
-    ];
-
-    final people = CelebrationListScreen.peopleFromCelebrations(celebrations);
-
-    expect(people[0].displayName, 'Bobby');
-    expect(people[1].displayName, 'Jane Doe');
-  });
-
-  testWidgets('the Celebrating list renders a nickname, not the raw name', (
-    tester,
-  ) async {
-    final celebrations = [
-      Celebration(
-        id: 1,
-        person: _person(1, displayName: 'Robert Smith'),
-        nickname: 'Bobby',
-      ),
-    ];
-
-    await _pump(
-      tester,
-      people: CelebrationListScreen.peopleFromCelebrations(celebrations),
-      navigable: true,
-    );
-
-    expect(find.text('Bobby'), findsOneWidget);
-    expect(find.text('Robert Smith'), findsNothing);
-  });
 }

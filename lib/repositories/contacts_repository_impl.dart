@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../api/api_endpoints.dart';
 import '../api/api_error_mapper.dart';
 import '../core/logger.dart';
-import '../models/birthday.dart';
 import '../models/import_outcome.dart';
 import 'contacts_repository.dart';
 
@@ -47,11 +46,7 @@ class ContactsRepositoryImpl implements ContactsRepository {
         // The server would answer invalid_phone, but a device contact with a
         // landline is not a failure worth showing the user.
         if (e164 == null || !seen.add(e164)) continue;
-        out.add(DeviceContact(
-          name: name,
-          phoneE164: e164,
-          birthday: _birthdayOf(c),
-        ));
+        out.add(DeviceContact(name: name, phoneE164: e164));
       }
     }
     return out;
@@ -67,16 +62,6 @@ class ContactsRepositoryImpl implements ContactsRepository {
     } catch (_) {
       return null;
     }
-  }
-
-  /// Device address books routinely carry a birthday with no year, which is
-  /// exactly why the schema splits month/day/year instead of storing a date.
-  static Birthday? _birthdayOf(fc.Contact c) {
-    for (final e in c.events) {
-      if (e.label != fc.EventLabel.birthday) continue;
-      return Birthday(month: e.month, day: e.day, year: e.year);
-    }
-    return null;
   }
 
   @override
@@ -95,7 +80,6 @@ class ContactsRepositoryImpl implements ContactsRepository {
             phone: row['phone'] as String,
             personId: row['person_id'] as int,
             displayName: row['display_name'] as String,
-            hasBirthday: row['has_birthday'] as bool,
           );
         }));
       } catch (e) {
@@ -123,9 +107,6 @@ class ContactsRepositoryImpl implements ContactsRepository {
                 .map((c) => {
                       'phone': c.phoneE164,
                       'name': c.name,
-                      'birth_month': c.birthday?.month,
-                      'birth_day': c.birthday?.day,
-                      'birth_year': c.birthday?.year,
                     })
                 .toList(),
           },

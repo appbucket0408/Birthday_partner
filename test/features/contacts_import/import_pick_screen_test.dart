@@ -51,7 +51,6 @@ void main() {
           phone: '+919999000010',
           personId: 1,
           displayName: 'Ann',
-          hasBirthday: true,
         ),
       ],
     );

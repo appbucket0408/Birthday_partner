@@ -1,37 +1,26 @@
-import '../models/birthday.dart';
 import '../models/import_outcome.dart';
 
-/// A contact as it exists on the device, already normalised to E.164.
+/// A contact as it exists on the device, already normalised to E.164. Name
+/// and number only: the address book's birthday is never read, because only
+/// a person sets their own.
 class DeviceContact {
-  const DeviceContact({
-    required this.name,
-    required this.phoneE164,
-    this.birthday,
-  });
+  const DeviceContact({required this.name, required this.phoneE164});
 
   final String name;
   final String phoneE164;
-  final Birthday? birthday;
-
-  DeviceContact withBirthday(Birthday? b) =>
-      DeviceContact(name: name, phoneE164: phoneE164, birthday: b);
 }
 
 /// A number that already belongs to a person row on the server.
-/// `hasBirthday` is what drives the fill-birthdays step: only contacts
-/// without one need asking about.
 class ResolvedContact {
   const ResolvedContact({
     required this.phone,
     required this.personId,
     required this.displayName,
-    required this.hasBirthday,
   });
 
   final String phone;
   final int personId;
   final String displayName;
-  final bool hasBirthday;
 }
 
 abstract interface class ContactsRepository {

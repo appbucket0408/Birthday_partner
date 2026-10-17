@@ -25,12 +25,6 @@ class _FakeGraph implements GraphRepository {
   Future<List<Celebration>> celebrations() async => celebrationsList;
 
   @override
-  Future<void> updateBirthday(int personId, Birthday birthday) async {}
-
-  @override
-  Future<void> updateNickname(int celebrationId, String? nickname) async {}
-
-  @override
   Future<void> stopCelebrating(int celebrationId) async {}
 }
 
@@ -207,8 +201,9 @@ void main() {
     expect(find.text('1 September'), findsOneWidget);
   });
 
-  // 4. The overflow menu offers exactly the three actions.
-  testWidgets('the overflow menu offers exactly the three actions', (
+  // 4. The overflow menu offers exactly one action. Nobody renames anybody
+  //    or edits their birthday -- only a person sets their own.
+  testWidgets('the overflow menu offers only "Stop celebrating"', (
     tester,
   ) async {
     await pump(tester, [
@@ -218,10 +213,8 @@ void main() {
     await tester.tap(find.byKey(const Key('menu_1')));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.timelineEditBirthday), findsOneWidget);
-    expect(find.text(AppStrings.timelineEditNickname), findsOneWidget);
     expect(find.text(AppStrings.timelineStopCelebrating), findsOneWidget);
-    expect(find.byType(PopupMenuItem<VoidCallback>), findsNWidgets(3));
+    expect(find.byType(PopupMenuItem<VoidCallback>), findsNWidgets(1));
   });
 
   // The assertion M4 Phase 1 taught this project to write: unit tests on

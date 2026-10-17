@@ -11,13 +11,13 @@ final class TimelineLoading extends TimelineState {
 
 /// [groups] keys the signed-in user's celebrations by [TimelineGroup] --
 /// except a `null` key, which is its own bucket for a celebration whose
-/// person has no birthday at all. The parent spec's reminder fan-out skips
-/// those people outright (there is nothing to remind about), but hiding them
-/// here too would make a missing birthday unfixable: surfacing the row is
-/// what makes [TimelineCubit.editBirthday] reachable for it.
+/// person has no birthday at all -- someone not on the app yet, since only a
+/// person sets their own birthday. The reminder fan-out skips them (there is
+/// nothing to remind about), but they are still someone this user
+/// celebrates, so they stay listed.
 ///
 /// [error] is a transient message from the last row action
-/// (editBirthday/editNickname/stopCelebrating) that failed -- not a reason to
+/// (stopCelebrating) that failed -- not a reason to
 /// blank the screen, since [groups] is still the last-known-good list. A
 /// later successful action clears it (see [TimelineCubit._emitGrouped]).
 final class TimelineLoaded extends TimelineState {

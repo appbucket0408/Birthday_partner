@@ -1,0 +1,17 @@
+-- Removes celebration nicknames entirely.
+--
+-- A nickname let the celebrator rename the person they celebrate, privately,
+-- in their own list. The product decision is that nobody renames anybody:
+-- a person is shown by their own name (the claimed profile's display name, or
+-- the address-book name for someone not on the app).
+--
+-- Dropped, not merely revoked. With the column gone there is nothing left for
+-- an old client or a hand-written API call to write, and no stale nickname
+-- left behind to keep showing. The column-level grant
+-- `grant update (nickname) on public.celebrations to authenticated`
+-- (20260827000006_celebrations_write_lockdown.sql) goes with it, which leaves
+-- `authenticated` with NO update on celebrations at all -- only the delete
+-- that "stop celebrating" uses. Nothing else referenced the column: no view,
+-- function or policy (checked against pg_depend and pg_proc before writing
+-- this).
+alter table public.celebrations drop column nickname;

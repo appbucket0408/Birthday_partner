@@ -32,8 +32,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
 
       // my_celebrates() returns identities only -- a profile id and a person
       // id, never a name, because a row-level policy exposing incoming edges
-      // would also hand over the celebrator's private nickname and the
-      // source that reveals how they found you. Names come from `people`,
+      // would also hand over the source that reveals how they found you. Names come from `people`,
       // where can_see_person's "they celebrate me" branch makes exactly
       // these rows visible. The left join means celebrator_person_id can be
       // null for a celebrator who has not claimed their own row; those are

@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
 import '../../core/result.dart';
-import '../../models/celebration.dart';
 import '../../models/person.dart';
 
 /// One screen serving both of the profile's lists (spec §7.3):
@@ -45,28 +44,6 @@ class CelebrationListScreen extends StatefulWidget {
   final String emptyMessage;
   final bool navigable;
   final Future<List<Person>> Function() fetchPeople;
-
-  /// Maps celebration edges to the people they point at, substituting each
-  /// person's nickname (when the viewer set one) for their address-book
-  /// name -- the same substitution `Celebration.label` performs for
-  /// `TimelineScreen`, kept in sync here so a nicknamed person reads the
-  /// same on the profile as on the timeline for the *same* edge.
-  ///
-  /// `/profile/celebrates` has no equivalent call: those are incoming
-  /// edges, and `my_celebrates()` deliberately never returns the
-  /// celebrator's private nickname, so there is nothing to substitute.
-  static List<Person> peopleFromCelebrations(
-    List<Celebration> celebrations,
-  ) =>
-      [
-        for (final c in celebrations)
-          Person(
-            id: c.person.id,
-            displayName: c.label,
-            isClaimed: c.person.isClaimed,
-            birthday: c.person.birthday,
-          ),
-      ];
 
   @override
   State<CelebrationListScreen> createState() => _CelebrationListScreenState();

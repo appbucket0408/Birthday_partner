@@ -2,7 +2,6 @@
 library;
 
 import 'package:birthday_app/api/api_client.dart';
-import 'package:birthday_app/models/birthday.dart';
 import 'package:birthday_app/models/import_outcome.dart';
 import 'package:birthday_app/repositories/auth_repository.dart';
 import 'package:birthday_app/repositories/auth_repository_impl.dart';
@@ -102,14 +101,20 @@ void main() {
     expect(resolved.any((r) => r.phone == '+919999999999'), isFalse);
   });
 
-  test('a supplied birthday is stored with the person', () async {
+  // Only a person sets their own birthday (20261017000003): an import
+  // carries a name and a number, and the person it creates has no birthday.
+  test('an imported contact gets no birthday', () async {
     final summary = await contacts.addCelebrations([
-      const DeviceContact(
-        name: 'Has Birthday',
-        phoneE164: '+919999333303',
-        birthday: Birthday(month: 4, day: 15),
-      ),
+      const DeviceContact(name: 'No Birthday', phoneE164: '+919999333303'),
     ]);
     expect(summary.added, 1);
+
+    final personId = summary.results.single.personId!;
+    final row = await ApiClient.instance
+        .from('people')
+        .select('birth_month')
+        .eq('id', personId)
+        .single();
+    expect(row['birth_month'], isNull);
   });
 }

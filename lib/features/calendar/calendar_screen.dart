@@ -245,8 +245,8 @@ class _DayList extends StatelessWidget {
               for (final c in people)
                 ListTile(
                   key: Key('calendar_person_${c.person.id}'),
-                  leading: InitialAvatar(name: c.label),
-                  title: Text(c.label),
+                  leading: InitialAvatar(name: c.person.displayName),
+                  title: Text(c.person.displayName),
                   subtitle: Text(_ageLine(c)),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.go('/person/${c.person.id}'),

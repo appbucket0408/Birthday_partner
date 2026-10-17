@@ -26,14 +26,6 @@ class _FakeGraph implements GraphRepository {
   }
 
   @override
-  Future<void> updateBirthday(int personId, Birthday birthday) async =>
-      throw UnimplementedError('not used by CalendarCubit');
-
-  @override
-  Future<void> updateNickname(int celebrationId, String? nickname) async =>
-      throw UnimplementedError('not used by CalendarCubit');
-
-  @override
   Future<void> stopCelebrating(int celebrationId) async =>
       throw UnimplementedError('not used by CalendarCubit');
 }
@@ -134,7 +126,7 @@ void main() {
     cubit.select(DateTime(2026, 12, 21));
 
     final names =
-        (cubit.state as CalendarLoaded).onSelected.map((c) => c.label);
+        (cubit.state as CalendarLoaded).onSelected.map((c) => c.person.displayName);
     expect(names, ['Meera', 'Rahul']);
   });
 
@@ -154,7 +146,7 @@ void main() {
 
     final state = cubit.state as CalendarLoaded;
     expect(state.birthdayDays, {28});
-    expect(state.onSelected.map((c) => c.label), ['Leap']);
+    expect(state.onSelected.map((c) => c.person.displayName), ['Leap']);
   });
 
   test('a Feb 29 birthday stays on Feb 29 in a leap year', () async {

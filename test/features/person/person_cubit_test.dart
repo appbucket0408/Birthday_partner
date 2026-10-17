@@ -92,14 +92,6 @@ class _FakeGraph implements GraphRepository {
   }
 
   @override
-  Future<void> updateBirthday(int personId, Birthday birthday) async =>
-      throw UnimplementedError('not used by PersonCubit');
-
-  @override
-  Future<void> updateNickname(int celebrationId, String? nickname) async =>
-      throw UnimplementedError('not used by PersonCubit');
-
-  @override
   Future<void> stopCelebrating(int celebrationId) async =>
       throw UnimplementedError('not used by PersonCubit');
 }

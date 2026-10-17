@@ -336,6 +336,10 @@ max_frequency = "5s"
 # verified phone (a phone_change OTP, which test_otp also serves). Its own
 # number so linking it never collides with a suite signing in by phone.
 919999000015 = "123456"
+# social_loop_test.dart's friend: an account that sets its OWN birthday, which
+# the primary then sees. Since 20261017000003 an imported contact carries no
+# birthday, so the loop needs a real second member to wish.
+919999000016 = "123456"
 919999999999 = "123456"
 919876543210 = "123456"
 917073039115 = "123456"
