@@ -77,4 +77,70 @@ void main() {
     expect(find.text(AppStrings.otpIncorrect), findsOneWidget);
     expect(find.textContaining('+919999000001'), findsOneWidget);
   });
+
+  testWidgets('a returning user sees "Welcome back" with their name',
+      (tester) async {
+    whenListen(
+      cubit,
+      const Stream<PhoneState>.empty(),
+      initialState: const PhoneVerified(welcomeName: 'Sachin'),
+    );
+    await tester.pumpWidget(wrap());
+
+    expect(find.byKey(const Key('welcome_back')), findsOneWidget);
+    expect(
+      find.text(AppStrings.welcomeBackTemplate.replaceFirst('%s', 'Sachin')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Verify is enabled only once all six digits are in',
+      (tester) async {
+    whenListen(
+      cubit,
+      const Stream<PhoneState>.empty(),
+      initialState: const PhoneCodeSent('me@example.com'),
+    );
+    await tester.pumpWidget(wrap());
+
+    FilledButton verify() =>
+        tester.widget(find.byKey(const Key('otp_verify_button')));
+    expect(verify().onPressed, isNull);
+
+    await tester.enterText(find.byKey(const Key('otp_field')), '123');
+    await tester.pump();
+    expect(verify().onPressed, isNull);
+  });
+
+  testWidgets('"Change" goes back to the sign-in screen', (tester) async {
+    whenListen(
+      cubit,
+      const Stream<PhoneState>.empty(),
+      initialState: const PhoneCodeSent('+919999000001'),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => BlocProvider<PhoneCubit>.value(
+                  value: cubit,
+                  child: const OtpScreen(),
+                ),
+              ),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.byType(OtpScreen), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('otp_change_button')));
+    await tester.pumpAndSettle();
+    expect(find.byType(OtpScreen), findsNothing);
+  });
 }

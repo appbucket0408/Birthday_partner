@@ -2,6 +2,8 @@ import 'package:birthday_app/core/app_strings.dart';
 import 'package:birthday_app/core/result.dart';
 import 'package:birthday_app/features/onboarding/phone_cubit.dart';
 import 'package:birthday_app/features/onboarding/phone_state.dart';
+import 'package:birthday_app/models/birthday.dart';
+import 'package:birthday_app/models/profile.dart';
 import 'package:birthday_app/repositories/auth_repository.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,6 +14,41 @@ class _FakeAuth implements AuthRepository {
   int sendCalls = 0;
   int verifyCalls = 0;
   String? lastPhone;
+
+  int emailSendCalls = 0;
+  int emailVerifyCalls = 0;
+  String? lastEmail;
+  int claimCalls = 0;
+
+  /// A phone sign-in always ends with a verified phone; an email one does
+  /// not until sign-up links one.
+  bool verifiedPhone = true;
+
+  /// What loadProfile returns after sign-in; null throws, as a failed load.
+  Profile? profile = _newUser;
+
+  @override
+  bool get hasVerifiedPhone => verifiedPhone;
+
+  @override
+  Future<void> sendEmailOtp(String email) async {
+    emailSendCalls++;
+    lastEmail = email;
+    if (sendError != null) throw sendError!;
+  }
+
+  @override
+  Future<void> verifyEmailOtp({
+    required String email,
+    required String token,
+  }) async {
+    emailVerifyCalls++;
+    if (verifyError != null) throw verifyError!;
+  }
+
+  @override
+  Future<Profile> loadProfile() async =>
+      profile ?? (throw const ServerFailure('profile load failed'));
 
   @override
   Future<void> sendOtp(String phoneE164) async {
@@ -30,11 +67,30 @@ class _FakeAuth implements AuthRepository {
   }
 
   @override
-  Future<int> claimProfile() async => 1;
+  Future<int> claimProfile() async {
+    claimCalls++;
+    return 1;
+  }
 
   @override
   noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
+
+// Fresh from the signup trigger: no birthday, so not onboarded yet.
+const _newUser = Profile(
+  id: 'u',
+  handle: 'ux',
+  displayName: 'New user',
+  remindersEnabled: true,
+);
+
+const _returningUser = Profile(
+  id: 'u',
+  handle: 'sachin',
+  displayName: 'Sachin',
+  remindersEnabled: true,
+  birthday: Birthday(month: 3, day: 12),
+);
 
 void main() {
   late _FakeAuth auth;
@@ -98,7 +154,7 @@ void main() {
       isA<PhoneVerifying>(),
       isA<PhoneCodeSent>()
           .having((s) => s.error, 'error', isNotNull)
-          .having((s) => s.phoneE164, 'phoneE164', '+919999000001'),
+          .having((s) => s.destination, 'destination', '+919999000001'),
     ],
   );
 
@@ -156,5 +212,124 @@ void main() {
         verify: (_) => expect(auth.sendCalls, 0),
       );
     }
+  });
+
+  group('email', () {
+    blocTest<PhoneCubit, PhoneState>(
+      'a valid email is trimmed, lower-cased and sent',
+      build: () => PhoneCubit(auth),
+      act: (c) => c.submitEmail('  Sachin@Example.COM '),
+      expect: () => [
+        isA<PhoneSending>(),
+        isA<PhoneCodeSent>()
+            .having((s) => s.destination, 'destination', 'sachin@example.com'),
+      ],
+      verify: (_) {
+        expect(auth.lastEmail, 'sachin@example.com');
+        expect(auth.sendCalls, 0, reason: 'must not send an SMS');
+      },
+    );
+
+    for (final raw in ['', 'sachin', 'sachin@', '@example.com', 'a b@c.d']) {
+      blocTest<PhoneCubit, PhoneState>(
+        '"$raw" fails locally without calling the repository',
+        build: () => PhoneCubit(auth),
+        act: (c) => c.submitEmail(raw),
+        expect: () => [
+          isA<PhoneError>()
+              .having((s) => s.message, 'message', AppStrings.emailInvalid),
+        ],
+        verify: (_) => expect(auth.emailSendCalls, 0),
+      );
+    }
+
+    // claim_profile refuses a session with no verified phone, so a new
+    // email account must not call it here; sign-up does, after linking one.
+    blocTest<PhoneCubit, PhoneState>(
+      'an email code verifies by email and skips the claim without a phone',
+      build: () => PhoneCubit(auth..verifiedPhone = false),
+      act: (c) async {
+        await c.submitEmail('a@b.co');
+        await c.submitCode('123456');
+      },
+      expect: () => [
+        isA<PhoneSending>(),
+        isA<PhoneCodeSent>(),
+        isA<PhoneVerifying>(),
+        isA<PhoneVerified>(),
+      ],
+      verify: (_) {
+        expect(auth.emailVerifyCalls, 1);
+        expect(auth.verifyCalls, 0);
+        expect(auth.claimCalls, 0);
+      },
+    );
+
+    blocTest<PhoneCubit, PhoneState>(
+      'a returning email user who already linked a phone claims as usual',
+      build: () => PhoneCubit(auth..verifiedPhone = true),
+      act: (c) async {
+        await c.submitEmail('a@b.co');
+        await c.submitCode('123456');
+      },
+      verify: (_) => expect(auth.claimCalls, 1),
+    );
+
+    blocTest<PhoneCubit, PhoneState>(
+      'resend after an email sends the email again, never an SMS',
+      build: () => PhoneCubit(auth),
+      act: (c) async {
+        await c.submitEmail('a@b.co');
+        await c.resend();
+      },
+      verify: (_) {
+        expect(auth.emailSendCalls, 2);
+        expect(auth.sendCalls, 0);
+      },
+    );
+  });
+
+  group('welcome back', () {
+    blocTest<PhoneCubit, PhoneState>(
+      'a returning, onboarded user is greeted by name',
+      build: () => PhoneCubit(auth..profile = _returningUser),
+      act: (c) async {
+        await c.submitPhone('9999000001');
+        await c.submitCode('123456');
+      },
+      skip: 3,
+      expect: () => [
+        isA<PhoneVerified>()
+            .having((s) => s.welcomeName, 'welcomeName', 'Sachin'),
+      ],
+    );
+
+    blocTest<PhoneCubit, PhoneState>(
+      'a new user gets no greeting (they go to sign-up)',
+      build: () => PhoneCubit(auth..profile = _newUser),
+      act: (c) async {
+        await c.submitPhone('9999000001');
+        await c.submitCode('123456');
+      },
+      skip: 3,
+      expect: () => [
+        isA<PhoneVerified>().having((s) => s.welcomeName, 'welcomeName', null),
+      ],
+    );
+
+    // The greeting is cosmetic: failing to load the profile for it must not
+    // turn a successful sign-in into an error.
+    blocTest<PhoneCubit, PhoneState>(
+      'a failed profile load still signs in, without a greeting',
+      build: () => PhoneCubit(auth..profile = null),
+      act: (c) async {
+        await c.submitPhone('9999000001');
+        await c.submitCode('123456');
+      },
+      skip: 3,
+      expect: () => [
+        isA<PhoneVerified>().having((s) => s.welcomeName, 'welcomeName', null),
+      ],
+    );
   });
 }

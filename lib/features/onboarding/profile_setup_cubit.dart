@@ -24,6 +24,11 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
 
     emit(const ProfileSetupSaving());
     try {
+      // Safety net for an email sign-up whose phone was verified but whose
+      // claim never ran (the app was closed in between): claiming is
+      // idempotent, and finishing sign-up without it would leave the account
+      // with no person behind it.
+      if (_auth.hasVerifiedPhone) await _auth.claimProfile();
       await _auth.completeProfile(
         handle: handle,
         displayName: displayName,

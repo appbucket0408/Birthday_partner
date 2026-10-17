@@ -1,25 +1,24 @@
 #!/usr/bin/env bash
-# Email self-signup check: proves a stranger cannot create an account.
+# Email sign-up check: an email account can be created, but cannot claim a
+# person until it has also verified a phone.
 #
 # WHY THIS IS A SCRIPT AND NOT A TEST. `[auth.email] enable_signup` is a
-# GoTrue setting read from config.toml at container start. The Dart suites
-# never touch the signup endpoint, and nothing in `supabase test db` can see
-# a GoTrue env var -- so no automated suite in this repo can tell whether
-# signup is open or closed. This is the same shape as
-# `[functions.confirm] verify_jwt = false` in M3 Phase 1b, which
-# test-gateway.sh covers for the same reason and in the same way.
+# GoTrue setting read from config.toml at container start, and nothing in
+# `supabase test db` can see a GoTrue env var. The Dart contract suite
+# test/repositories/auth_email_test.dart covers the same path through the
+# app's own repository; this checks the raw endpoints with no app code in
+# between, the same arrangement test-gateway.sh provides for verify_jwt.
 #
-# Consequence, stated plainly: a change to that setting is NOT test-covered.
-# Run this after any edit to config.toml's [auth.email] block, and after any
-# `supabase init` or CLI upgrade, both of which rewrite the whole file.
+# Run this after any edit to config.toml's [auth.email] block or its email
+# templates, and after any `supabase init` or CLI upgrade, both of which
+# rewrite the whole file.
 #
-# WHY IT MATTERS. No path in this product needs email self-signup. Consumers
-# arrive by phone OTP; staff accounts are provisioned by an administrator
-# (admin.auth.admin.createUser, then a DBA `update profiles set is_staff`).
-# Leaving signup open lets a stranger occupy an auth.users row with no
-# `people` row behind it -- harmless in itself, since is_staff defaults false
-# and every staff policy gates on private.is_staff(), but the project has no
-# path to clean such rows up.
+# WHY IT MATTERS. Email sign-up is open (consumers may sign in by email). What
+# keeps an email account harmless is that claim_profile refuses any session
+# without a verified phone -- so an account that never links one has no
+# person, no graph, and nothing social it can do. If that refusal ever stops
+# holding, an email account could become a person without proving it owns
+# the number behind it.
 #
 # Run with:
 #   supabase start
@@ -28,6 +27,7 @@ set -uo pipefail
 cd "$(dirname "$0")/../.."
 
 URL="${SUPABASE_URL:-http://127.0.0.1:54321}"
+MAILPIT="${MAILPIT_URL:-http://127.0.0.1:54324}"
 
 ANON="${SUPABASE_ANON_KEY:-}"
 if [[ -z "$ANON" ]]; then
@@ -43,40 +43,73 @@ if [[ -z "$ANON" ]]; then
   exit 1
 fi
 
-# A fixed prefix so Step 3's cleanup can find the row precisely, and a
-# timestamp so a second run never collides with the first.
+# A fixed prefix so cleanup can find the row precisely, and a timestamp so a
+# second run never collides with the first.
 EMAIL="signupprobe+$(date +%s)@example.com"
 
-resp=$(curl -s -w '\n%{http_code}' -X POST "$URL/auth/v1/signup" \
-  -H "apikey: $ANON" \
-  -H "content-type: application/json" \
-  -d "{\"email\":\"$EMAIL\",\"password\":\"probe-password-123\"}")
-status=$(echo "$resp" | tail -n1)
-body=$(echo "$resp" | sed '$d')
+cleanup() {
+  docker exec -i supabase_db_birthday_app psql -U postgres -qtAc \
+    "delete from auth.users where email like 'signupprobe%';" >/dev/null 2>&1
+}
+trap cleanup EXIT
 
-echo "Email self-signup check"
-echo "Target: $URL/auth/v1/signup"
-echo "Probe:  $EMAIL"
+echo "Email sign-up check"
+echo "Probe: $EMAIL"
 echo
 
-# A created user comes back 200 with an id (and, with confirmations off, an
-# access_token). Checking the BODY and not just the status matters: GoTrue
-# answers a refused signup with 4xx, but a misconfigured gateway could also
-# 4xx for reasons that have nothing to do with this setting -- so a pass
-# requires both "not 200" and "no user id in the body".
-if [[ "$status" == "200" ]] || echo "$body" | grep -q '"id"'; then
-  echo "FAILED: signup was ACCEPTED (status $status)."
-  echo "  A stranger can create an account. Set [auth.email] enable_signup ="
-  echo "  false in supabase/config.toml, then restart the stack:"
-  echo "    supabase stop && supabase start"
-  echo "  Body: $body"
-  echo
-  echo "  Clean up the row this probe created:"
-  echo "    docker exec -i supabase_db_birthday_app psql -U postgres -c \\"
-  echo "      \"delete from auth.users where email like 'signupprobe%';\""
+# 1. Ask for a code. Sign-up is open, so this must create the account.
+status=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$URL/auth/v1/otp" \
+  -H "apikey: $ANON" -H "content-type: application/json" \
+  -d "{\"email\":\"$EMAIL\",\"create_user\":true}")
+if [[ "$status" != "200" ]]; then
+  echo "FAILED: requesting an email code returned $status."
+  echo "  Is [auth.email] enable_signup = true in supabase/config.toml?"
   exit 1
 fi
+echo "  1. code requested -> 200"
 
-echo "  signup -> $status, no user created -- closed OK"
+# 2. Read the code from Mailpit. It must be a 6-digit CODE, not a magic
+#    link: the app has no deep-link handling for one.
+code=""
+for _ in $(seq 1 20); do
+  id=$(curl -s "$MAILPIT/api/v1/search?query=to:$EMAIL" \
+    | python3 -c 'import sys,json;m=json.load(sys.stdin)["messages"];print(m[0]["ID"] if m else "")')
+  if [[ -n "$id" ]]; then
+    code=$(curl -s "$MAILPIT/api/v1/message/$id" \
+      | python3 -c 'import sys,json,re;m=re.search(r"\b(\d{6})\b",json.load(sys.stdin)["Text"]);print(m.group(1) if m else "")')
+    break
+  fi
+  sleep 0.25
+done
+if [[ -z "$code" ]]; then
+  echo "FAILED: no 6-digit code in the mail to $EMAIL."
+  echo "  Check the [auth.email.template.*] blocks point at"
+  echo "  supabase/templates/email_otp.html, then restart the stack."
+  exit 1
+fi
+echo "  2. mailed a 6-digit code"
+
+# 3. Verify it: a real session for an email-only account.
+token=$(curl -s -X POST "$URL/auth/v1/verify" \
+  -H "apikey: $ANON" -H "content-type: application/json" \
+  -d "{\"email\":\"$EMAIL\",\"token\":\"$code\",\"type\":\"email\"}" \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin).get("access_token",""))')
+if [[ -z "$token" ]]; then
+  echo "FAILED: the mailed code did not verify."
+  exit 1
+fi
+echo "  3. code verified -> session"
+
+# 4. THE CHECK: that session must not be able to claim a person.
+resp=$(curl -s -w '\n%{http_code}' -X POST "$URL/functions/v1/claim_profile" \
+  -H "Authorization: Bearer $token" -H "apikey: $ANON")
+status=$(echo "$resp" | tail -n1)
+body=$(echo "$resp" | sed '$d')
+if [[ "$status" == "200" ]] || echo "$body" | grep -q '"person_id"'; then
+  echo "FAILED: an email account with NO verified phone claimed a person."
+  echo "  Body: $body"
+  exit 1
+fi
+echo "  4. claim without a phone -> $status, refused OK"
 echo
-echo "ok | 1 checked | 0 failed -- email self-signup is refused"
+echo "ok | 4 checked | 0 failed -- email sign-up works and cannot claim without a phone"

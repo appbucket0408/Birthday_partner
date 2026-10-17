@@ -10,7 +10,33 @@ class PhoneCubit extends Cubit<PhoneState> {
   PhoneCubit(this._auth) : super(const PhoneIdle());
   final AuthRepository _auth;
 
-  String? _phoneE164;
+  /// Where the last code went: an E.164 number, or an email address when
+  /// [_isEmail]. Kept here, not in state, so a resend or a retry after an
+  /// error never depends on which state happens to be current.
+  String? _destination;
+  bool _isEmail = false;
+
+  // Deliberately loose: the server is the real check (it has to deliver the
+  // mail). This only catches the typos worth stopping before a round trip.
+  static final _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+  Future<void> submitEmail(String raw) async {
+    final email = raw.trim().toLowerCase();
+    if (!_emailPattern.hasMatch(email)) {
+      emit(const PhoneError(AppStrings.emailInvalid));
+      return;
+    }
+    _destination = email;
+    _isEmail = true;
+
+    emit(const PhoneSending());
+    try {
+      await _auth.sendEmailOtp(email);
+      emit(PhoneCodeSent(email));
+    } on AppFailure catch (f) {
+      emit(PhoneError(f.message));
+    }
+  }
 
   /// Normalises to E.164 on the device before anything is sent.
   ///
@@ -43,7 +69,8 @@ class PhoneCubit extends Cubit<PhoneState> {
       return;
     }
     final e164 = '+${parsed.countryCode}${parsed.nsn}';
-    _phoneE164 = e164;
+    _destination = e164;
+    _isEmail = false;
 
     emit(const PhoneSending());
     try {
@@ -55,41 +82,66 @@ class PhoneCubit extends Cubit<PhoneState> {
   }
 
   Future<void> submitCode(String token) async {
-    final phone = _phoneE164;
-    if (phone == null) return;
+    final destination = _destination;
+    if (destination == null) return;
     // A verification already in flight owns this attempt. Without this
     // guard, editing the field during the async gap -- a correction, or a
     // delayed SMS autofill overwrite -- fires a second concurrent
     // verifyOtp/claimProfile.
     if (state is PhoneVerifying) return;
 
-    emit(PhoneVerifying(phone));
+    emit(PhoneVerifying(destination));
     try {
-      await _auth.verifyOtp(phoneE164: phone, token: token);
-      await _auth.claimProfile();
-      emit(const PhoneVerified());
+      if (_isEmail) {
+        await _auth.verifyEmailOtp(email: destination, token: token);
+      } else {
+        await _auth.verifyOtp(phoneE164: destination, token: token);
+      }
+      // An email account has nothing to claim until it has verified a phone
+      // -- claim_profile refuses it. Sign-up does that step, then claims.
+      // A returning email user who already linked one claims here exactly
+      // like a phone user (claiming is idempotent).
+      if (_auth.hasVerifiedPhone) await _auth.claimProfile();
+      emit(PhoneVerified(welcomeName: await _returningName()));
     } on ServerFailure catch (f) {
       // 409: this account already claimed a different number. A distinct
       // message, because "try again" is not the remedy.
       emit(
         PhoneCodeSent(
-          phone,
+          destination,
           error: f.code == '409' ? AppStrings.claimConflict : f.message,
         ),
       );
     } on AppFailure catch (f) {
-      emit(PhoneCodeSent(phone, error: f.message));
+      emit(PhoneCodeSent(destination, error: f.message));
+    }
+  }
+
+  /// The display name of a user who has already finished sign-up, for the
+  /// "Welcome back" greeting; null for a new one. Only a greeting: a failure
+  /// here must not undo a successful sign-in, so it reads as "new user" and
+  /// the session's own load decides where to go.
+  Future<String?> _returningName() async {
+    try {
+      final profile = await _auth.loadProfile();
+      return profile.hasCompletedOnboarding ? profile.displayName : null;
+    } catch (_) {
+      return null;
     }
   }
 
   Future<void> resend() async {
-    final phone = _phoneE164;
-    if (phone == null) return;
+    final destination = _destination;
+    if (destination == null) return;
     try {
-      await _auth.sendOtp(phone);
-      emit(PhoneCodeSent(phone));
+      if (_isEmail) {
+        await _auth.sendEmailOtp(destination);
+      } else {
+        await _auth.sendOtp(destination);
+      }
+      emit(PhoneCodeSent(destination));
     } on AppFailure catch (f) {
-      emit(PhoneCodeSent(phone, error: f.message));
+      emit(PhoneCodeSent(destination, error: f.message));
     }
   }
 }

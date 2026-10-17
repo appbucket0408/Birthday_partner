@@ -1,3 +1,4 @@
+import 'package:birthday_app/core/app_strings.dart';
 import 'package:birthday_app/core/result.dart';
 import 'package:birthday_app/features/onboarding/otp_screen.dart';
 import 'package:birthday_app/features/onboarding/phone_screen.dart';
@@ -11,9 +12,14 @@ import 'package:flutter_test/flutter_test.dart';
 /// bug (or its fix) in that navigation code is what the test is exposed to.
 class _FakeAuth implements AuthRepository {
   Object? verifyError;
+  String? lastEmail;
+  int smsSends = 0;
 
   @override
-  Future<void> sendOtp(String phoneE164) async {}
+  Future<void> sendOtp(String phoneE164) async => smsSends++;
+
+  @override
+  Future<void> sendEmailOtp(String email) async => lastEmail = email;
 
   @override
   Future<void> verifyOtp({
@@ -63,5 +69,38 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(OtpScreen, skipOffstage: false), findsOneWidget);
+  });
+
+  testWidgets(
+      'the Email tab swaps in an email field and sends the code by email',
+      (tester) async {
+    final auth = _FakeAuth();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepositoryProvider<AuthRepository>.value(
+          value: auth,
+          child: const PhoneScreen(),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('phone_field')), findsOneWidget);
+    expect(find.byKey(const Key('email_field')), findsNothing);
+
+    await tester.tap(find.text(AppStrings.signInEmailTab));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('phone_field')), findsNothing);
+    await tester.enterText(
+      find.byKey(const Key('email_field')),
+      'me@example.com',
+    );
+    await tester.tap(find.byKey(const Key('send_code_button')));
+    await tester.pumpAndSettle();
+
+    expect(auth.lastEmail, 'me@example.com');
+    expect(auth.smsSends, 0);
+    expect(find.byType(OtpScreen), findsOneWidget);
+    expect(find.text('me@example.com'), findsOneWidget);
   });
 }

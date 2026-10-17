@@ -38,6 +38,31 @@ class _FakePush implements PushRepository {
 
 class _FakeAuth implements AuthRepository {
   @override
+  bool get hasVerifiedPhone => true;
+
+  @override
+  Future<void> sendEmailOtp(String email) async =>
+      throw UnimplementedError('not used here');
+
+  @override
+  Future<void> verifyEmailOtp({
+    required String email,
+    required String token,
+  }) async =>
+      throw UnimplementedError('not used here');
+
+  @override
+  Future<void> sendPhoneLink(String phoneE164) async =>
+      throw UnimplementedError('not used here');
+
+  @override
+  Future<void> verifyPhoneLink({
+    required String phoneE164,
+    required String token,
+  }) async =>
+      throw UnimplementedError('not used here');
+
+  @override
   String? get currentUserId => 'fake-user-id';
 
   @override

@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../api/api_endpoints.dart';
 import '../api/api_error_mapper.dart';
 import '../api/api_params.dart';
+import '../core/app_strings.dart';
 import '../core/logger.dart';
 import '../core/result.dart';
 import '../models/birthday.dart';
@@ -35,6 +36,70 @@ class AuthRepositoryImpl implements AuthRepository {
         phone: phoneE164,
         token: token,
         type: OtpType.sms,
+      );
+    } catch (e) {
+      throw mapError(e);
+    }
+  }
+
+  @override
+  Future<void> sendEmailOtp(String email) async {
+    try {
+      await _client.auth.signInWithOtp(email: email, shouldCreateUser: true);
+    } catch (e) {
+      throw mapError(e);
+    }
+  }
+
+  @override
+  Future<void> verifyEmailOtp({
+    required String email,
+    required String token,
+  }) async {
+    try {
+      await _client.auth.verifyOTP(
+        email: email,
+        token: token,
+        type: OtpType.email,
+      );
+    } catch (e) {
+      throw mapError(e);
+    }
+  }
+
+  // `phone` is '' rather than null on an email-only user, and stays '' while
+  // a phone change is pending (the pending number sits in `new_phone`).
+  @override
+  bool get hasVerifiedPhone =>
+      (_client.auth.currentUser?.phone ?? '').isNotEmpty;
+
+  @override
+  Future<void> sendPhoneLink(String phoneE164) async {
+    try {
+      await _client.auth.updateUser(UserAttributes(phone: phoneE164));
+    } on AuthException catch (e) {
+      // A number already on another account. Saying so is not an oracle
+      // worth hiding: the same number on the sign-in screen would simply
+      // sign into that account.
+      if (e.code == 'phone_exists') {
+        throw const AuthFailure(AppStrings.phoneAlreadyRegistered);
+      }
+      throw mapError(e);
+    } catch (e) {
+      throw mapError(e);
+    }
+  }
+
+  @override
+  Future<void> verifyPhoneLink({
+    required String phoneE164,
+    required String token,
+  }) async {
+    try {
+      await _client.auth.verifyOTP(
+        phone: phoneE164,
+        token: token,
+        type: OtpType.phoneChange,
       );
     } catch (e) {
       throw mapError(e);

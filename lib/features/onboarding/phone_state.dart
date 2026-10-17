@@ -10,21 +10,26 @@ final class PhoneSending extends PhoneState {
   const PhoneSending();
 }
 
-/// The code screen. [error] is non-null after a rejected code, so the user
-/// stays here with their number intact rather than being thrown out.
+/// The code screen. [destination] is where the code went: an E.164 number or
+/// an email address. [error] is non-null after a rejected code, so the user
+/// stays here with their input intact rather than being thrown out.
 final class PhoneCodeSent extends PhoneState {
-  const PhoneCodeSent(this.phoneE164, {this.error});
-  final String phoneE164;
+  const PhoneCodeSent(this.destination, {this.error});
+  final String destination;
   final String? error;
 }
 
 final class PhoneVerifying extends PhoneState {
-  const PhoneVerifying(this.phoneE164);
-  final String phoneE164;
+  const PhoneVerifying(this.destination);
+  final String destination;
 }
 
+/// Signed in. [welcomeName] is set for a returning user who has already
+/// finished signing up, so the code screen can greet them before the router
+/// moves on; null for a new user, who goes straight to sign-up.
 final class PhoneVerified extends PhoneState {
-  const PhoneVerified();
+  const PhoneVerified({this.welcomeName});
+  final String? welcomeName;
 }
 
 final class PhoneError extends PhoneState {

@@ -13,6 +13,29 @@ abstract interface class AuthRepository {
 
   Future<void> verifyOtp({required String phoneE164, required String token});
 
+  /// Sends a 6-digit sign-in code by email, creating the account if the
+  /// address is new. Locally the mail lands in Mailpit (port 54324).
+  Future<void> sendEmailOtp(String email);
+
+  Future<void> verifyEmailOtp({required String email, required String token});
+
+  /// Whether this session's user has a verified phone. Phone sign-ins always
+  /// do; an email sign-in does not until [verifyPhoneLink] succeeds, and
+  /// [claimProfile] refuses a session without one.
+  bool get hasVerifiedPhone;
+
+  /// Starts attaching [phoneE164] to the signed-in (email) account by
+  /// texting it a code. Throws [AuthFailure] with
+  /// `AppStrings.phoneAlreadyRegistered` when another account owns it.
+  Future<void> sendPhoneLink(String phoneE164);
+
+  /// Confirms [sendPhoneLink]'s code. On success the phone is verified on
+  /// this account and [claimProfile] can run.
+  Future<void> verifyPhoneLink({
+    required String phoneE164,
+    required String token,
+  });
+
   /// Links this session's verified phone to its person row. Returns the
   /// person id. Throws [ServerFailure] with code '409' when the profile has
   /// already claimed a different number.

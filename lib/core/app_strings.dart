@@ -17,35 +17,57 @@ abstract final class AppStrings {
       "That page doesn't exist, or the link is out of date.";
   static const routeNotFoundAction = 'Go to timeline';
 
-  // Onboarding — phone
-  static const phoneTitle = 'What is your number?';
-  static const phoneSubtitle = 'We use it to find the people you already know.';
+  // Onboarding — sign in (phone or email)
+  static const signInTitle = 'Welcome to Birthday';
+  static const signInSubtitle =
+      'Never miss the birthdays of the people you love.';
+  static const signInPhoneTab = 'Phone';
+  static const signInEmailTab = 'Email';
   static const phoneHint = 'Phone number';
   static const phoneInvalid = 'That does not look like a valid number.';
+  static const emailHint = 'Email address';
+  static const emailInvalid = 'That does not look like a valid email.';
   static const sendCode = 'Send code';
   static const otpTitle = 'Enter the code';
-  static const otpSubtitleTemplate = 'We sent a 6-digit code to %s.';
-  static const otpHint = '6-digit code';
+  static const otpSubtitle = 'We sent a 6-digit code to';
+  static const otpChange = 'Change';
+  static const otpVerify = 'Verify';
   static const otpIncorrect = 'That code is not right.';
   static const otpExpired = 'That code has expired. Ask for a new one.';
   static const resendCode = 'Resend code';
-  static const resendCooldownTemplate = 'Resend in %ss';
+  static const resendCooldownTemplate = 'Resend code in %ss';
   static const claimConflict =
       'This account is already linked to a different phone number.';
+  static const welcomeBackTemplate = 'Welcome back, %s';
+  static const welcomeBackBody = 'Opening your dashboard…';
 
-  // Onboarding — profile setup
-  static const setupTitle = 'Tell us about you';
-  static const setupName = 'Your name';
+  // Onboarding — sign up (profile setup)
+  static const setupTitle = 'Create your profile';
+  static const setupSubtitle = 'So your friends can find and celebrate you.';
+  static const setupName = 'Full name';
   static const setupHandle = 'Username';
   static const setupCity = 'City';
-  static const setupBirthday = 'Your birthday';
-  static const setupBirthdayHelp = 'The year is optional.';
+  static const setupBirthday = 'Birthday';
+  static const setupBirthdayPick = 'Pick your birthday';
   static const setupNameRequired = 'Please enter your name.';
   static const setupHandleRequired = 'Please pick a username.';
   static const setupBirthdayRequired = 'Please pick your birthday.';
   static const setupHandleTaken = 'That username is already taken.';
-  static const setupNoYear = 'I would rather not say the year';
-  static const finish = 'Finish';
+  static const setupNoYear = 'Hide my birth year';
+  static const setupSubmit = 'Create account';
+  static const setupSignOut = 'Not you? Sign out';
+
+  // Sign up — linking a phone to an email account. The phone is how friends
+  // find you, so an email sign-up must verify one before it can finish.
+  static const linkPhoneTitle = 'Your phone number';
+  static const linkPhoneBody =
+      'Friends find you by the number saved in their contacts. We text you a '
+      'code to confirm it is yours.';
+  static const linkPhoneVerified = 'Phone number verified';
+  static const linkPhoneRequired = 'Please verify your phone number first.';
+  static const phoneAlreadyRegistered =
+      'This number already has an account. Sign out and sign in with it '
+      'instead.';
 
   // Contacts import
   //
