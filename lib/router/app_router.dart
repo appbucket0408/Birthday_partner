@@ -1,23 +1,20 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/app_strings.dart';
 import '../features/calendar/calendar_screen.dart';
+import '../features/connections/connections_screen.dart';
 import '../features/contacts_import/import_disclosure_screen.dart';
 import '../features/gifting/catalog_screen.dart';
 import '../features/gifting/gift_list_screen.dart';
 import '../features/onboarding/phone_screen.dart';
 import '../features/onboarding/profile_setup_screen.dart';
 import '../features/person/person_screen.dart';
-import '../features/profile/celebration_list_screen.dart';
 import '../features/profile/profile_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/timeline/timeline_screen.dart';
-import '../repositories/graph_repository.dart';
-import '../repositories/profile_repository.dart';
 import 'home_shell.dart';
 import 'session_cubit.dart';
 import 'session_state.dart';
@@ -142,31 +139,17 @@ GoRouter buildRouter(SessionCubit session) {
       // path parameter and so need prefix matching instead (see those
       // routes' own comments).
       GoRoute(path: '/gifts', builder: (_, __) => const GiftListScreen()),
+      // Both counts on the Profile tab open the same screen, each on its own
+      // tab -- Instagram's Following / Followers.
       GoRoute(
         path: '/profile/celebrating',
-        builder: (context, __) => CelebrationListScreen(
-          title: AppStrings.profileCelebrating,
-          emptyMessage: AppStrings.profileCelebratingEmpty,
-          navigable: true,
-          fetchPeople: () async {
-            final celebrations =
-                await context.read<GraphRepository>().celebrations();
-            return [for (final c in celebrations) c.person];
-          },
-        ),
+        builder: (_, __) =>
+            const ConnectionsScreen(initialTab: ConnectionsTab.iCelebrate),
       ),
       GoRoute(
         path: '/profile/celebrates',
-        builder: (context, __) => CelebrationListScreen(
-          title: AppStrings.profileCelebrates,
-          emptyMessage: AppStrings.profileCelebratesEmpty,
-          fetchPeople: () => context.read<ProfileRepository>().celebrates(),
-          fetchAlreadyCelebrating: () async => {
-            for (final c in await context.read<GraphRepository>().celebrations())
-              c.person.id,
-          },
-          celebrateBack: (id) => context.read<GraphRepository>().celebrateBack(id),
-        ),
+        builder: (_, __) =>
+            const ConnectionsScreen(initialTab: ConnectionsTab.celebrateMe),
       ),
     ],
     redirect: (context, state) {

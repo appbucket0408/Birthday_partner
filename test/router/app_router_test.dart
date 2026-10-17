@@ -4,7 +4,8 @@ import 'package:birthday_app/features/calendar/calendar_screen.dart';
 import 'package:birthday_app/features/gifting/catalog_screen.dart';
 import 'package:birthday_app/features/gifting/gift_list_screen.dart';
 import 'package:birthday_app/features/person/person_screen.dart';
-import 'package:birthday_app/features/profile/celebration_list_screen.dart';
+import 'package:birthday_app/core/app_strings.dart';
+import 'package:birthday_app/features/connections/connections_screen.dart';
 import 'package:birthday_app/models/birthday.dart';
 import 'package:birthday_app/models/birthday_stat.dart';
 import 'package:birthday_app/models/celebration.dart';
@@ -407,44 +408,35 @@ void main() {
     );
   });
 
-  group('CelebrationListScreen navigability per route', () {
-    // test/features/profile/celebration_list_screen_test.dart pins the
-    // widget's own default (false) and that passing `true` works, but never
-    // exercises the route that is supposed to leave `navigable` at that
-    // default. Adding `navigable: true` to '/profile/celebrates' in
-    // app_router.dart today leaves every existing test green -- this is the
-    // one test that would not be.
-    testWidgets(
-      "'/profile/celebrates' yields navigable: false",
-      (tester) async {
-        final fixture = _routerAt('/profile/celebrates');
+  // Both Profile counts open the same screen; each route must land on its
+  // own tab, or tapping "Celebrate me" would show "I celebrate".
+  group('connections routes open the right tab', () {
+    for (final (route, tab, emptyText) in [
+      (
+        '/profile/celebrating',
+        ConnectionsTab.iCelebrate,
+        AppStrings.profileCelebratingEmpty,
+      ),
+      (
+        '/profile/celebrates',
+        ConnectionsTab.celebrateMe,
+        AppStrings.profileCelebratesEmpty,
+      ),
+    ]) {
+      testWidgets('$route opens on ${tab.name}', (tester) async {
+        final fixture = _routerAt(route);
         addTearDown(() => _disposeFixture(fixture));
-        final router = fixture.router;
-        await tester.pumpWidget(_appWith(router));
+        await tester.pumpWidget(_appWith(fixture.router));
         await tester.pumpAndSettle();
 
-        final screen = tester.widget<CelebrationListScreen>(
-          find.byType(CelebrationListScreen),
+        final screen = tester.widget<ConnectionsScreen>(
+          find.byType(ConnectionsScreen),
         );
-        expect(screen.navigable, isFalse);
-      },
-    );
-
-    testWidgets(
-      "'/profile/celebrating' yields navigable: true",
-      (tester) async {
-        final fixture = _routerAt('/profile/celebrating');
-        addTearDown(() => _disposeFixture(fixture));
-        final router = fixture.router;
-        await tester.pumpWidget(_appWith(router));
-        await tester.pumpAndSettle();
-
-        final screen = tester.widget<CelebrationListScreen>(
-          find.byType(CelebrationListScreen),
-        );
-        expect(screen.navigable, isTrue);
-      },
-    );
+        expect(screen.initialTab, tab);
+        // Only the visible tab is built; its empty state proves which.
+        expect(find.text(emptyText), findsOneWidget);
+      });
+    }
   });
 
   // Whole-branch review §8 should-fix 5: two navigation edges the same shape

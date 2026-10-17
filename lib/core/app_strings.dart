@@ -197,6 +197,16 @@ abstract final class AppStrings {
   static const profileCelebratingEmpty = 'You are not celebrating anyone yet.';
   static const profileCelebratesEmpty = 'Nobody celebrates you yet.';
 
+  // Connections (the I celebrate / Celebrate me screen)
+  static const connectionsSearch = 'Search';
+  static const connectionsNoMatchesTemplate = 'No one matches "%s".';
+  static const connectionsCelebratesEmptyHint =
+      'When someone adds you, they show up here.';
+  static const connectionsStopTitleTemplate = 'Stop celebrating %s?';
+  static const connectionsStopBody =
+      "They'll leave your Dashboard and Calendar, and you won't get reminders "
+      'for their birthday. You can add them again any time.';
+
   // Gifting
   static const giftSendCake = 'Send a cake';
   static const giftCatalogTitle = 'Choose a cake';
