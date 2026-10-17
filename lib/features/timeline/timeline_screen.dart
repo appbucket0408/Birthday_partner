@@ -10,10 +10,13 @@ import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
 import '../../core/app_text_styles.dart';
 import '../../core/celebrates_you_tag.dart';
+import '../../core/countdown_pill.dart';
 import '../../core/date_labels.dart';
 import '../../core/initial_avatar.dart';
 import '../../core/profile_avatar.dart';
+import '../../core/stop_celebrating_sheet.dart';
 import '../../models/birthday.dart';
+import '../../models/celebration.dart';
 import '../../models/profile.dart';
 import '../../repositories/graph_repository.dart';
 import '../../repositories/graph_repository_impl.dart';
@@ -97,7 +100,10 @@ class TimelineScreen extends StatelessWidget {
           create: (c) => PushCubit(c.read<PushRepository>())..enable(),
         ),
       ],
-      child: _TimelineView(share: _share ?? _systemShare),
+      child: _TimelineView(
+        share: _share ?? _systemShare,
+        now: _now ?? DateTime.now,
+      ),
     );
   }
 }
@@ -108,9 +114,12 @@ class TimelineScreen extends StatelessWidget {
 /// below: `SliverPersistentHeader` requires a delegate object, so that much
 /// indirection is Flutter's API, not a style choice.
 class _TimelineView extends StatelessWidget {
-  const _TimelineView({required this.share});
+  const _TimelineView({required this.share, required this.now});
 
   final Future<void> Function(String text) share;
+
+  /// For the rows' countdowns, from the same clock the cubit groups with.
+  final DateTime Function() now;
 
   static void _addPeople(BuildContext context) {
     HapticFeedback.lightImpact();
@@ -226,6 +235,60 @@ class _TimelineView extends StatelessWidget {
     );
   }
 
+  /// One person: bold name, birthday (and "Celebrates you"), and on the
+  /// right how soon -- or, for someone not on the app, Invite. Stopping is a
+  /// long-press that asks first: it removes them, so it is not a one-tap
+  /// menu item any more.
+  Widget _row(
+    BuildContext context,
+    TimelineCubit cubit,
+    TimelineLoaded state,
+    Celebration celebration,
+  ) {
+    final person = celebration.person;
+    final birthday = person.birthday;
+    final celebratesYou = state.celebratesMe.contains(person.id);
+    final theme = Theme.of(context);
+    return ListTile(
+      key: Key('celebration_${celebration.id}'),
+      leading: InitialAvatar(name: person.displayName, radius: 22),
+      title: Text(
+        person.displayName,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style:
+            theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+      ),
+      isThreeLine: birthday != null && celebratesYou,
+      subtitle: _subtitle(person.id, birthday, celebratesYou: celebratesYou),
+      onTap: () => context.go('/person/${person.id}'),
+      onLongPress: () async {
+        HapticFeedback.mediumImpact();
+        if (await confirmStopCelebrating(context, person.displayName)) {
+          await cubit.stopCelebrating(celebration.id);
+        }
+      },
+      trailing: birthday != null
+          ? CountdownPill(
+              key: Key('countdown_${celebration.id}'),
+              birthday: birthday,
+              now: now(),
+              compact: true,
+            )
+          : !person.isClaimed
+              ? FilledButton.tonalIcon(
+                  key: Key('invite_${celebration.id}'),
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: () => share(_inviteMessage(person.displayName)),
+                  icon: const Icon(Icons.send, size: 16),
+                  label: const Text(AppStrings.timelineInvite),
+                )
+              : null,
+    );
+  }
+
   Widget _buildLoaded(BuildContext context, TimelineLoaded state) {
     final cubit = context.read<TimelineCubit>();
     return CustomScrollView(
@@ -235,80 +298,21 @@ class _TimelineView extends StatelessWidget {
           child: _AddPeopleRow(onTap: () => _addPeople(context)),
         ),
         for (final group in _sectionOrder)
-          if (state.groups[group] case final rows? when rows.isNotEmpty) ...[
-            SliverPersistentHeader(
-              delegate: _SectionHeaderDelegate(_headerFor(group)),
-            ),
-            if (group == null)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.md,
-                    0,
-                    AppSpacing.md,
-                    AppSpacing.sm,
-                  ),
-                  child: Text(
-                    AppStrings.timelineWaitingToJoinHint,
-                    key: const Key('timeline_waiting_hint'),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                  ),
-                ),
-              ),
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final celebration = rows[index];
-                  final birthday = celebration.person.birthday;
-                  final celebratesYou =
-                      state.celebratesMe.contains(celebration.person.id);
-                  return ListTile(
-                    key: Key('celebration_${celebration.id}'),
-                    leading: InitialAvatar(name: celebration.person.displayName),
-                    title: Text(celebration.person.displayName),
-                    isThreeLine: birthday != null && celebratesYou,
-                    subtitle: _subtitle(
-                      celebration.person.id,
-                      birthday,
-                      celebratesYou: celebratesYou,
-                    ),
-                    onTap: () =>
-                        context.go('/person/${celebration.person.id}'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (!celebration.person.isClaimed)
-                          TextButton.icon(
-                            key: Key('invite_${celebration.id}'),
-                            onPressed: () => share(
-                              _inviteMessage(celebration.person.displayName),
-                            ),
-                            icon: const Icon(Icons.send, size: 18),
-                            label: const Text(AppStrings.timelineInvite),
-                          ),
-                        PopupMenuButton<VoidCallback>(
-                          key: Key('menu_${celebration.id}'),
-                          onSelected: (action) => action(),
-                          itemBuilder: (context) => [
-                            PopupMenuItem(
-                              value: () =>
-                                  cubit.stopCelebrating(celebration.id),
-                              child: const Text(
-                                AppStrings.timelineStopCelebrating,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                },
-                childCount: rows.length,
+          if (state.groups[group] case final rows? when rows.isNotEmpty)
+            SliverToBoxAdapter(
+              child: _Section(
+                key: Key('section_${group?.name ?? 'waiting'}'),
+                title: _headerFor(group),
+                count: rows.length,
+                hint: group == null ? AppStrings.timelineWaitingToJoinHint : null,
+                // Today is the moment the app exists for: its card is tinted.
+                highlighted: group == TimelineGroup.today,
+                children: [
+                  for (final celebration in rows)
+                    _row(context, cubit, state, celebration),
+                ],
               ),
             ),
-          ],
         const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.lg)),
       ],
     );
@@ -409,32 +413,85 @@ class _AddPeopleRow extends StatelessWidget {
   }
 }
 
-class _SectionHeaderDelegate extends SliverPersistentHeaderDelegate {
-  _SectionHeaderDelegate(this.title);
+/// A titled group of rows on a rounded card -- "This week · 2" -- so the
+/// list reads as a few clear blocks instead of one long column.
+class _Section extends StatelessWidget {
+  const _Section({
+    super.key,
+    required this.title,
+    required this.count,
+    required this.children,
+    this.hint,
+    this.highlighted = false,
+  });
 
   final String title;
+  final int count;
+  final String? hint;
+  final bool highlighted;
+  final List<Widget> children;
 
   @override
-  double get minExtent => 40;
-
-  @override
-  double get maxExtent => 40;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    return Container(
-      color: Theme.of(context).colorScheme.surface,
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      child: Text(title, style: AppTextStyles.sectionHeader(context)),
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.md,
+        0,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(
+              left: AppSpacing.xs,
+              bottom: AppSpacing.sm,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$title · $count',
+                  style: AppTextStyles.sectionHeader(context),
+                ),
+                if (hint != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    hint!,
+                    key: const Key('timeline_waiting_hint'),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Card(
+            margin: EdgeInsets.zero,
+            elevation: 0,
+            color: highlighted
+                ? scheme.primaryContainer.withValues(alpha: 0.6)
+                : scheme.surfaceContainerLow,
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                for (final (i, child) in children.indexed) ...[
+                  if (i > 0)
+                    Divider(
+                      height: 1,
+                      indent: 72,
+                      color: scheme.outlineVariant.withValues(alpha: 0.5),
+                    ),
+                  child,
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
-
-  @override
-  bool shouldRebuild(covariant _SectionHeaderDelegate oldDelegate) =>
-      oldDelegate.title != title;
 }

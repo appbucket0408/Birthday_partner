@@ -4,10 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
+import '../../core/countdown_pill.dart';
 import '../../core/date_labels.dart';
 import '../../core/initial_avatar.dart';
 import '../../core/wish_card.dart';
-import '../../models/birthday.dart';
 import '../../repositories/graph_repository.dart';
 import '../../repositories/person_repository.dart';
 import '../../repositories/wish_repository.dart';
@@ -15,15 +15,6 @@ import 'person_cubit.dart';
 import 'person_state.dart';
 import 'wish_compose_sheet.dart';
 
-/// The person page (spec §7.1): name, birthday, celebrator count and the
-/// wish wall, reached by tapping a timeline row.
-///
-/// [PersonRepository], [WishRepository] and [GraphRepository] are all read
-/// off context -- all three are registered in `app.dart` -- never
-/// constructed here. `TimelineScreen`'s own `?? GraphRepositoryImpl(...)`
-/// fallback predates `GraphRepository`'s `RepositoryProvider` (added in
-/// Task 8's Step 3b) and is left as-is; migrating it is a Phase 2b refactor,
-/// out of scope here.
 class PersonScreen extends StatelessWidget {
   const PersonScreen({
     super.key,
@@ -48,12 +39,6 @@ class PersonScreen extends StatelessWidget {
   }
 }
 
-/// The screen's actual content, split out from [PersonScreen] (not
-/// underscore-private, unlike `_TimelineView`/`_SettingsView`) so a widget
-/// test can drive it with a mocked [PersonCubit] via `BlocProvider.value`,
-/// without needing a live [PersonRepository]/[WishRepository] session --
-/// the same reason `OtpScreen` expects an already-provided `PhoneCubit`
-/// rather than building its own.
 class PersonView extends StatelessWidget {
   const PersonView({
     super.key,
@@ -70,11 +55,6 @@ class PersonView extends StatelessWidget {
       builder: (context, state) {
         return Scaffold(
           appBar: AppBar(
-            // '/person/:personId' is reached with context.go, which REPLACES
-            // the page stack -- Navigator.canPop() is false here and
-            // automaticallyImplyLeading finds nothing to pop, so no back
-            // arrow renders without this. This trap has now bitten this
-            // project three times: '/import', '/settings', and this screen.
             leading: IconButton(
               key: const Key('person_back_button'),
               icon: const Icon(Icons.arrow_back),
@@ -213,7 +193,11 @@ class _Header extends StatelessWidget {
                 style: theme.textTheme.bodyLarge,
               ),
               const SizedBox(height: AppSpacing.sm),
-              _CountdownPill(birthday: birthday, now: now()),
+              CountdownPill(
+                key: const Key('person_countdown'),
+                birthday: birthday,
+                now: now(),
+              ),
             ],
             const SizedBox(height: AppSpacing.sm),
             Row(
@@ -294,56 +278,6 @@ class _Header extends StatelessWidget {
               ),
             ],
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// How far off the birthday is, as a pill: "in 10 days", "Tomorrow", or --
-/// on the day -- a bold "🎉 Birthday today!" in the primary colour, since
-/// that is the moment the page exists for. Counted with the same
-/// next-occurrence rule (Feb 29 included) as the Dashboard's grouping.
-class _CountdownPill extends StatelessWidget {
-  const _CountdownPill({required this.birthday, required this.now});
-
-  final Birthday birthday;
-  final DateTime now;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final today = DateTime(now.year, now.month, now.day);
-    final days = birthday.nextOccurrence(now).difference(today).inDays;
-    final (label, background, foreground) = switch (days) {
-      0 => (AppStrings.personToday, scheme.primary, scheme.onPrimary),
-      1 => (
-          AppStrings.personTomorrow,
-          scheme.tertiaryContainer,
-          scheme.onTertiaryContainer,
-        ),
-      _ => (
-          AppStrings.personInDaysTemplate.replaceFirst('%s', '$days'),
-          scheme.secondaryContainer,
-          scheme.onSecondaryContainer,
-        ),
-    };
-    return Container(
-      key: const Key('person_countdown'),
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.xs + 2,
-      ),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(AppSpacing.lg),
-      ),
-      child: Text(
-        label,
-        style: theme.textTheme.labelLarge?.copyWith(
-          color: foreground,
-          fontWeight: days == 0 ? FontWeight.w800 : FontWeight.w600,
         ),
       ),
     );

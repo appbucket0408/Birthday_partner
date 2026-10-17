@@ -142,11 +142,12 @@ void main() {
       _celeb(2, _person(2, birthday: const Birthday(month: 9, day: 1))),
     ]);
 
-    expect(find.text(AppStrings.timelineToday), findsOneWidget);
-    expect(find.text(AppStrings.timelineLater), findsOneWidget);
-    expect(find.text(AppStrings.timelineThisWeek), findsNothing);
-    expect(find.text(AppStrings.timelineThisMonth), findsNothing);
-    expect(find.text(AppStrings.timelineWaitingToJoin), findsNothing);
+    // Each heading carries its count.
+    expect(find.text('${AppStrings.timelineToday} · 1'), findsOneWidget);
+    expect(find.text('${AppStrings.timelineLater} · 1'), findsOneWidget);
+    expect(find.textContaining(AppStrings.timelineThisWeek), findsNothing);
+    expect(find.textContaining(AppStrings.timelineThisMonth), findsNothing);
+    expect(find.textContaining(AppStrings.timelineWaitingToJoin), findsNothing);
   });
 
   // 2. A person with no birthday -- someone not on the app yet -- is listed
@@ -156,7 +157,10 @@ void main() {
   ) async {
     await pump(tester, [_celeb(1, _person(1))]);
 
-    expect(find.text(AppStrings.timelineWaitingToJoin), findsOneWidget);
+    expect(
+      find.text('${AppStrings.timelineWaitingToJoin} · 1'),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('timeline_waiting_hint')), findsOneWidget);
     expect(find.text('Person 1'), findsOneWidget);
   });
@@ -215,20 +219,58 @@ void main() {
     expect(find.text('1 September'), findsOneWidget);
   });
 
-  // 4. The overflow menu offers exactly one action. Nobody renames anybody
-  //    or edits their birthday -- only a person sets their own.
-  testWidgets('the overflow menu offers only "Stop celebrating"', (
-    tester,
-  ) async {
-    await pump(tester, [
+  // 4. No ⋮ menu: stopping is a long-press that asks first, because it
+  //    removes the person.
+  testWidgets('long-press asks before stopping, then stops', (tester) async {
+    final graph = _FakeGraph([
       _celeb(1, _person(1, birthday: const Birthday(month: 4, day: 15))),
     ]);
-
-    await tester.tap(find.byKey(const Key('menu_1')));
+    await tester.pumpWidget(
+      _withSession(
+        MaterialApp(
+          home: RepositoryProvider<PushRepository>.value(
+            value: _FakePush(),
+            child: TimelineScreen(repository: graph, now: _fixedNow),
+          ),
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
+    expect(find.byKey(const Key('menu_1')), findsNothing);
 
-    expect(find.text(AppStrings.timelineStopCelebrating), findsOneWidget);
-    expect(find.byType(PopupMenuItem<VoidCallback>), findsNWidgets(1));
+    await tester.longPress(find.byKey(const Key('celebration_1')));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(AppStrings.connectionsStopTitleTemplate
+          .replaceFirst('%s', 'Person 1')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('connections_stop_confirm')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('celebration_1')), findsNothing);
+  });
+
+  testWidgets('each row shows how soon the birthday is', (tester) async {
+    await pump(tester, [
+      _celeb(1, _person(1, birthday: const Birthday(month: 4, day: 15))),
+      _celeb(2, _person(2, birthday: const Birthday(month: 4, day: 18))),
+    ]);
+
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('countdown_1')),
+        matching: find.text(AppStrings.personToday),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('countdown_2')),
+        matching: find.text('in 3 days'),
+      ),
+      findsOneWidget,
+    );
   });
 
   // The assertion M4 Phase 1 taught this project to write: unit tests on
