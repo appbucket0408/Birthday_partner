@@ -22,6 +22,11 @@ abstract final class ApiParams {
   static const city = 'city';
   static const remindersEnabled = 'reminders_enabled';
 
+  /// The profile photo's Storage PATH inside the `avatars` bucket, not a URL
+  /// (see 20261017000001_avatars.sql).
+  static const avatarUrl = 'avatar_url';
+  static const avatarsBucket = 'avatars';
+
   /// Read by the ops console to explain a refusal. Never written from a
   /// client: `authenticated` has no update grant on this column
   /// (20260822000003_profiles.sql:54), and it is a DBA action by design.

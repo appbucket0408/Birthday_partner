@@ -56,6 +56,15 @@ abstract final class AppStrings {
   static const setupNoYear = 'Hide my birth year';
   static const setupSubmit = 'Create account';
   static const setupSignOut = 'Not you? Sign out';
+  static const setupAddPhoto = 'Add a photo';
+  static const setupChangePhoto = 'Change photo';
+
+  // Profile photo
+  static const photoFromGallery = 'Choose from gallery';
+  static const photoFromCamera = 'Take a photo';
+  static const photoRemove = 'Remove photo';
+  static const photoUnsupported = 'Please choose a JPG, PNG or WebP photo.';
+  static const photoUploadFailed = 'Your photo could not be uploaded.';
 
   // Sign up — linking a phone to an email account. The phone is how friends
   // find you, so an email sign-up must verify one before it can finish.

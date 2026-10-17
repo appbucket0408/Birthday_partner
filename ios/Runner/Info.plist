@@ -66,5 +66,9 @@
 	     them on a server. -->
 	<key>NSContactsUsageDescription</key>
 	<string>Birthday reads the names and numbers in your contacts so you can pick who you want to celebrate. Your contacts are never stored on our servers and are never shared with anyone.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose a photo for your Birthday profile.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Take a photo for your Birthday profile.</string>
 </dict>
 </plist>

@@ -5,8 +5,10 @@ import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
 import '../../core/date_labels.dart';
 import '../../core/initial_avatar.dart';
+import '../../core/photo_picker.dart';
 import '../../models/birthday.dart';
 import '../../repositories/auth_repository.dart';
+import '../../repositories/avatar_repository.dart';
 import '../../router/session_cubit.dart';
 import 'code_field.dart';
 import 'phone_link_cubit.dart';
@@ -24,7 +26,10 @@ class ProfileSetupScreen extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider(
-          create: (c) => ProfileSetupCubit(c.read<AuthRepository>()),
+          create: (c) => ProfileSetupCubit(
+            c.read<AuthRepository>(),
+            c.read<AvatarRepository>(),
+          ),
         ),
         BlocProvider(create: (c) => PhoneLinkCubit(c.read<AuthRepository>())),
       ],
@@ -61,6 +66,25 @@ class _ProfileSetupViewState extends State<_ProfileSetupView> {
   String? _handleError;
   String? _birthdayError;
   String? _phoneError;
+
+  // Held on the device until "Create account": nothing is uploaded for an
+  // account that is never finished.
+  PhotoPicked? _photo;
+
+  Future<void> _pickPhoto() async {
+    final choice = await pickProfilePhoto(context, canRemove: _photo != null);
+    if (!mounted || choice == null) return;
+    switch (choice) {
+      case PhotoPicked():
+        setState(() => _photo = choice);
+      case PhotoRemoved():
+        setState(() => _photo = null);
+      case PhotoUnsupported():
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(AppStrings.photoUnsupported)),
+        );
+    }
+  }
 
   @override
   void dispose() {
@@ -129,6 +153,7 @@ class _ProfileSetupViewState extends State<_ProfileSetupView> {
           displayName: name,
           city: city,
           birthday: birthday,
+          photo: _photo,
         );
   }
 
@@ -178,12 +203,11 @@ class _ProfileSetupViewState extends State<_ProfileSetupView> {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.lg),
-                  // The avatar follows the name as it is typed.
                   Center(
-                    child: ValueListenableBuilder<TextEditingValue>(
-                      valueListenable: _nameController,
-                      builder: (_, value, __) =>
-                          InitialAvatar(name: value.text, radius: 40),
+                    child: _PhotoButton(
+                      photo: _photo,
+                      nameController: _nameController,
+                      onTap: saving ? null : _pickPhoto,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.lg),
@@ -296,6 +320,68 @@ class _ProfileSetupViewState extends State<_ProfileSetupView> {
           ),
         );
       },
+    );
+  }
+}
+
+/// The avatar with a camera badge. Shows the picked photo, or the initial
+/// of the name as it is typed.
+class _PhotoButton extends StatelessWidget {
+  const _PhotoButton({
+    required this.photo,
+    required this.nameController,
+    required this.onTap,
+  });
+
+  final PhotoPicked? photo;
+  final TextEditingController nameController;
+  final VoidCallback? onTap;
+
+  static const _radius = 44.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final picked = photo;
+    return Semantics(
+      button: true,
+      label: picked == null
+          ? AppStrings.setupAddPhoto
+          : AppStrings.setupChangePhoto,
+      child: InkWell(
+        key: const Key('setup_photo'),
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Stack(
+          children: [
+            if (picked != null)
+              CircleAvatar(
+                key: const Key('setup_photo_preview'),
+                radius: _radius,
+                backgroundImage: MemoryImage(picked.bytes),
+              )
+            else
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: nameController,
+                builder: (_, value, __) =>
+                    InitialAvatar(name: value.text, radius: _radius),
+              ),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: CircleAvatar(
+                radius: 15,
+                backgroundColor: scheme.primary,
+                child: Icon(
+                  Icons.photo_camera,
+                  size: 16,
+                  color: scheme.onPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

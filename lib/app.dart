@@ -9,6 +9,8 @@ import 'core/app_colors.dart';
 import 'core/app_strings.dart';
 import 'repositories/auth_repository.dart';
 import 'repositories/auth_repository_impl.dart';
+import 'repositories/avatar_repository.dart';
+import 'repositories/avatar_repository_impl.dart';
 import 'repositories/gift_repository.dart';
 import 'repositories/gift_repository_impl.dart';
 import 'repositories/graph_repository.dart';
@@ -34,6 +36,8 @@ class BirthdayApp extends StatefulWidget {
 
 class _BirthdayAppState extends State<BirthdayApp> {
   late final AuthRepository _auth = AuthRepositoryImpl(ApiClient.instance);
+  late final AvatarRepository _avatar =
+      AvatarRepositoryImpl(ApiClient.instance);
   late final PersonRepository _person =
       PersonRepositoryImpl(ApiClient.instance);
   late final WishRepository _wish = WishRepositoryImpl(ApiClient.instance);
@@ -86,6 +90,7 @@ class _BirthdayAppState extends State<BirthdayApp> {
     return MultiRepositoryProvider(
       providers: [
         RepositoryProvider<AuthRepository>.value(value: _auth),
+        RepositoryProvider<AvatarRepository>.value(value: _avatar),
         RepositoryProvider<PersonRepository>.value(value: _person),
         RepositoryProvider<WishRepository>.value(value: _wish),
         RepositoryProvider<ProfileRepository>.value(value: _profile),

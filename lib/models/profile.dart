@@ -16,6 +16,7 @@ class Profile {
     required this.remindersEnabled,
     this.city,
     this.birthday,
+    this.avatarPath,
   });
 
   final String id;
@@ -24,6 +25,10 @@ class Profile {
   final bool remindersEnabled;
   final String? city;
   final Birthday? birthday;
+
+  /// Where the profile photo is stored in the `avatars` bucket, or null for
+  /// no photo. A path, not a URL: shown through a short-lived signed URL.
+  final String? avatarPath;
 
   bool get hasCompletedOnboarding => birthday != null;
 
@@ -34,5 +39,6 @@ class Profile {
         remindersEnabled: row[ApiParams.remindersEnabled] as bool,
         city: row[ApiParams.city] as String?,
         birthday: Birthday.fromRow(row),
+        avatarPath: row[ApiParams.avatarUrl] as String?,
       );
 }

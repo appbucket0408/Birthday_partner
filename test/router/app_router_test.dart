@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:birthday_app/features/calendar/calendar_screen.dart';
 import 'package:birthday_app/features/gifting/catalog_screen.dart';
 import 'package:birthday_app/features/gifting/gift_list_screen.dart';
@@ -14,6 +16,7 @@ import 'package:birthday_app/models/profile.dart';
 import 'package:birthday_app/models/service_area.dart';
 import 'package:birthday_app/models/wish.dart';
 import 'package:birthday_app/repositories/auth_repository.dart';
+import 'package:birthday_app/repositories/avatar_repository.dart';
 import 'package:birthday_app/repositories/gift_repository.dart';
 import 'package:birthday_app/repositories/graph_repository.dart';
 import 'package:birthday_app/repositories/person_repository.dart';
@@ -61,6 +64,18 @@ class _FakeAuthRepository implements AuthRepository {
 
 /// Real fakes, not mocks -- same pattern as
 /// test/features/person/person_cubit_test.dart's `_FakePerson`/`_FakeWish`.
+class _FakeAvatarRepository implements AvatarRepository {
+  @override
+  Future<String> upload(Uint8List bytes, {required String extension}) async =>
+      throw UnimplementedError('not exercised by these route tests');
+
+  @override
+  Future<void> remove() async {}
+
+  @override
+  Future<String> signedUrl(String path) async => 'https://example/$path';
+}
+
 class _FakeGraphRepository implements GraphRepository {
   @override
   Future<List<Celebration>> celebrations() async => [];
@@ -207,6 +222,9 @@ Widget _appWith(
         // alongside the should-fix 5 arrival tests below -- no earlier test
         // in this file ever reached '/profile'.
         RepositoryProvider<AuthRepository>.value(value: _FakeAuthRepository()),
+        RepositoryProvider<AvatarRepository>.value(
+          value: _FakeAvatarRepository(),
+        ),
       ],
       child: MaterialApp.router(routerConfig: router),
     );

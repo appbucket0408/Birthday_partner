@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:birthday_app/core/app_strings.dart';
+import 'package:birthday_app/core/photo_picker.dart';
 import 'package:birthday_app/core/result.dart';
 import 'package:birthday_app/features/profile/profile_cubit.dart';
 import 'package:birthday_app/features/profile/profile_state.dart';
@@ -9,6 +12,7 @@ import 'package:birthday_app/models/person.dart';
 import 'package:birthday_app/models/profile.dart';
 import 'package:birthday_app/models/wish.dart';
 import 'package:birthday_app/repositories/auth_repository.dart';
+import 'package:birthday_app/repositories/avatar_repository.dart';
 import 'package:birthday_app/repositories/graph_repository.dart';
 import 'package:birthday_app/repositories/profile_repository.dart';
 import 'package:birthday_app/repositories/wish_repository.dart';
@@ -191,6 +195,29 @@ class _FakeWishes implements WishRepository {
       throw UnimplementedError('not used by ProfileCubit');
 }
 
+/// Records what the cubit asked of it; [error] makes the next call fail.
+class _FakeAvatars implements AvatarRepository {
+  Object? error;
+  final uploads = <String>[];
+  int removes = 0;
+
+  @override
+  Future<String> upload(Uint8List bytes, {required String extension}) async {
+    if (error != null) throw error!;
+    uploads.add(extension);
+    return 'user-1/photo.$extension';
+  }
+
+  @override
+  Future<void> remove() async {
+    if (error != null) throw error!;
+    removes++;
+  }
+
+  @override
+  Future<String> signedUrl(String path) async => 'https://example/$path';
+}
+
 Wish _wish(int id) => Wish(
       id: id,
       authorProfileId: 'friend-$id',
@@ -222,6 +249,7 @@ void main() {
       _FakeGraph(celebrationsList: [_celeb(1), _celeb(2), _celeb(3)]),
       _FakeAuth(profileToReturn: _profile()),
       _FakeWishes(),
+      _FakeAvatars(),
     ),
     act: (c) => c.load(),
     expect: () => [
@@ -260,6 +288,7 @@ void main() {
       _FakeGraph(),
       _FakeAuth(profileToReturn: _profile()),
       _FakeWishes(),
+      _FakeAvatars(),
     ),
     act: (c) => c.load(),
     expect: () => [
@@ -278,6 +307,7 @@ void main() {
       _FakeGraph(),
       _FakeAuth(profileToReturn: _profile()),
       _FakeWishes(wall: [_wish(2), _wish(1)]),
+      _FakeAvatars(),
     ),
     act: (c) => c.load(),
     expect: () => [
@@ -296,6 +326,7 @@ void main() {
       _FakeGraph(celebrationsList: [_celeb(1)]),
       _FakeAuth(profileToReturn: _profile()),
       _FakeWishes(error: const ServerFailure('wall broke')),
+      _FakeAvatars(),
     ),
     act: (c) => c.load(),
     expect: () => [
@@ -316,6 +347,7 @@ void main() {
       _FakeGraph(),
       _FakeAuth(profileToReturn: _profile()),
       _FakeWishes(),
+      _FakeAvatars(),
     ),
     act: (c) => c.load(),
     expect: () => [
@@ -344,6 +376,7 @@ void main() {
       _FakeGraph(),
       _FakeAuth(profileToReturn: _profile()),
       _FakeWishes(),
+      _FakeAvatars(),
     );
 
     await cubit.load();
@@ -363,6 +396,7 @@ void main() {
       _FakeGraph(),
       _FakeAuth(profileToReturn: _profile()),
       _FakeWishes(),
+      _FakeAvatars(),
     );
 
     await cubit.load();
@@ -380,6 +414,7 @@ void main() {
       _FakeGraph(celebrationsError: StateError('unexpected')),
       _FakeAuth(profileToReturn: _profile()),
       _FakeWishes(),
+      _FakeAvatars(),
     );
 
     await cubit.load();
@@ -397,6 +432,7 @@ void main() {
       _FakeGraph(),
       _FakeAuth(loadProfileError: StateError('unexpected')),
       _FakeWishes(),
+      _FakeAvatars(),
     );
 
     await cubit.load();
@@ -415,6 +451,7 @@ void main() {
       _FakeGraph(),
       auth,
       _FakeWishes(),
+      _FakeAvatars(),
     );
 
     final first = cubit.load();
@@ -422,5 +459,72 @@ void main() {
     await Future.wait([first, second]);
 
     expect(auth.loadProfileCalls, 1);
+  });
+
+  group('changePhoto', () {
+    late _FakeAuth auth;
+    late _FakeAvatars avatars;
+    late ProfileCubit cubit;
+
+    setUp(() async {
+      auth = _FakeAuth(profileToReturn: _profile());
+      avatars = _FakeAvatars();
+      cubit = ProfileCubit(
+        _FakeProfileRepo(),
+        _FakeGraph(),
+        auth,
+        _FakeWishes(),
+        avatars,
+      );
+      await cubit.load();
+    });
+
+    test('a picked photo uploads, re-reads the profile, and reports a change',
+        () async {
+      auth.profileToReturn = const Profile(
+        id: 'user-1',
+        handle: 'u1',
+        displayName: 'Me',
+        remindersEnabled: true,
+        avatarPath: 'user-1/photo.jpg',
+      );
+
+      final changed = await cubit.changePhoto(
+        PhotoPicked(Uint8List.fromList([1]), 'jpg'),
+      );
+
+      expect(changed, isTrue);
+      expect(avatars.uploads, ['jpg']);
+      final s = cubit.state as ProfileLoaded;
+      expect(s.profile.avatarPath, 'user-1/photo.jpg');
+      expect(s.savingPhoto, isFalse);
+      expect(s.error, isNull);
+    });
+
+    test('remove clears the photo', () async {
+      expect(await cubit.changePhoto(const PhotoRemoved()), isTrue);
+      expect(avatars.removes, 1);
+    });
+
+    test('a failed upload keeps the page and reports the error once',
+        () async {
+      avatars.error = const ServerFailure('down');
+
+      expect(
+        await cubit.changePhoto(PhotoPicked(Uint8List.fromList([1]), 'jpg')),
+        isFalse,
+      );
+
+      final s = cubit.state as ProfileLoaded;
+      expect(s.error, AppStrings.photoUploadFailed);
+      expect(s.savingPhoto, isFalse);
+      expect(s.profile.displayName, 'Me');
+    });
+
+    test('an unsupported file never reaches the repository', () async {
+      expect(await cubit.changePhoto(const PhotoUnsupported()), isFalse);
+      expect(avatars.uploads, isEmpty);
+      expect((cubit.state as ProfileLoaded).error, AppStrings.photoUnsupported);
+    });
   });
 }

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -54,4 +55,45 @@ class OtpSendThrottle {
     await send();
     _lastSentAt = DateTime.now();
   }
+}
+
+/// The 6-digit sign-in code in the newest mail to [email], read from
+/// Mailpit -- the local inbox `supabase start` runs on port 54324, and the
+/// only place a local email code goes.
+///
+/// The code in the newest mail to [email], polled briefly because
+/// GoTrue hands the mail to Mailpit asynchronously.
+Future<String> mailedCode(String email) async {
+  final client = HttpClient();
+  try {
+    for (var attempt = 0; attempt < 20; attempt++) {
+      final search = await _getJson(
+        client,
+        Uri.parse('http://127.0.0.1:54324/api/v1/search')
+            .replace(queryParameters: {'query': 'to:$email'}),
+      );
+      final messages = search['messages'] as List;
+      if (messages.isNotEmpty) {
+        final id = (messages.first as Map<String, dynamic>)['ID'] as String;
+        final message = await _getJson(
+          client,
+          Uri.parse('http://127.0.0.1:54324/api/v1/message/$id'),
+        );
+        final match = RegExp(r'\b(\d{6})\b').firstMatch(
+          message['Text'] as String,
+        );
+        if (match != null) return match.group(1)!;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+    throw StateError('no code mailed to $email (is Mailpit on :54324?)');
+  } finally {
+    client.close();
+  }
+}
+
+Future<Map<String, dynamic>> _getJson(HttpClient client, Uri uri) async {
+  final res = await (await client.getUrl(uri)).close();
+  return jsonDecode(await res.transform(utf8.decoder).join())
+      as Map<String, dynamic>;
 }

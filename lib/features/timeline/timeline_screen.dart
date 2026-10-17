@@ -8,6 +8,7 @@ import '../../core/app_strings.dart';
 import '../../core/app_text_styles.dart';
 import '../../core/date_labels.dart';
 import '../../core/initial_avatar.dart';
+import '../../core/profile_avatar.dart';
 import '../../models/birthday.dart';
 import '../../models/celebration.dart';
 import '../../models/profile.dart';
@@ -309,7 +310,11 @@ class _MeHeader extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Row(
           children: [
-            InitialAvatar(name: profile.displayName, radius: 26),
+            ProfileAvatar(
+              name: profile.displayName,
+              path: profile.avatarPath,
+              radius: 26,
+            ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(

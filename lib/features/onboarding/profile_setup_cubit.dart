@@ -1,20 +1,25 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/app_strings.dart';
+import '../../core/photo_picker.dart';
 import '../../core/result.dart';
 import '../../models/birthday.dart';
 import '../../repositories/auth_repository.dart';
+import '../../repositories/avatar_repository.dart';
 import 'profile_setup_state.dart';
 
 class ProfileSetupCubit extends Cubit<ProfileSetupState> {
-  ProfileSetupCubit(this._auth) : super(const ProfileSetupIdle());
+  ProfileSetupCubit(this._auth, this._avatars)
+      : super(const ProfileSetupIdle());
   final AuthRepository _auth;
+  final AvatarRepository _avatars;
 
   Future<void> submit({
     required String handle,
     required String displayName,
     required String city,
     required Birthday birthday,
+    PhotoPicked? photo,
   }) async {
     // A save already in flight owns this attempt. The button disables on
     // ProfileSetupSaving, but that only takes effect a microtask after this
@@ -35,6 +40,16 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
         city: city,
         birthday: birthday,
       );
+      // After the profile, not before: completeProfile is what can reject
+      // the handle, and uploading first would re-upload on every rename.
+      if (photo != null) {
+        try {
+          await _avatars.upload(photo.bytes, extension: photo.extension);
+        } on AppFailure {
+          emit(const ProfileSetupError(AppStrings.photoUploadFailed));
+          return;
+        }
+      }
       emit(const ProfileSetupDone());
     } on ServerFailure catch (f) {
       // 23505 is the unique index on profiles.handle.

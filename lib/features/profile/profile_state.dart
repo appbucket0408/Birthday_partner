@@ -24,6 +24,8 @@ final class ProfileLoaded extends ProfileState {
     required this.wishesSent,
     required this.stats,
     this.wall = const [],
+    this.savingPhoto = false,
+    this.error,
   });
 
   final Profile profile;
@@ -33,6 +35,30 @@ final class ProfileLoaded extends ProfileState {
   final int wishesSent;
   final List<BirthdayStat> stats;
   final List<Wish> wall;
+
+  /// A photo change is uploading; the avatar shows a spinner over it.
+  final bool savingPhoto;
+
+  /// A transient message from the last photo change that failed. The page
+  /// stays as it was; the screen shows this once as a snackbar.
+  final String? error;
+
+  ProfileLoaded copyWith({
+    Profile? profile,
+    bool? savingPhoto,
+    String? error,
+  }) =>
+      ProfileLoaded(
+        profile: profile ?? this.profile,
+        celebratingCount: celebratingCount,
+        celebratesCount: celebratesCount,
+        wishesReceived: wishesReceived,
+        wishesSent: wishesSent,
+        stats: stats,
+        wall: wall,
+        savingPhoto: savingPhoto ?? this.savingPhoto,
+        error: error,
+      );
 }
 
 final class ProfileError extends ProfileState {

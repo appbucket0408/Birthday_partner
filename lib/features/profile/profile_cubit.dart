@@ -2,10 +2,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/app_strings.dart';
 import '../../core/logger.dart';
+import '../../core/photo_picker.dart';
 import '../../core/reentrancy_guard.dart';
 import '../../core/result.dart';
 import '../../models/wish.dart';
 import '../../repositories/auth_repository.dart';
+import '../../repositories/avatar_repository.dart';
 import '../../repositories/graph_repository.dart';
 import '../../repositories/profile_repository.dart';
 import '../../repositories/wish_repository.dart';
@@ -19,13 +21,19 @@ import 'profile_state.dart';
 /// would otherwise check is emitted only after the first await, and that is
 /// exactly the window a double-tap lands in.
 class ProfileCubit extends Cubit<ProfileState> with ReentrancyGuard {
-  ProfileCubit(this._profile, this._graph, this._auth, this._wishes)
-      : super(const ProfileLoading());
+  ProfileCubit(
+    this._profile,
+    this._graph,
+    this._auth,
+    this._wishes,
+    this._avatars,
+  ) : super(const ProfileLoading());
 
   final ProfileRepository _profile;
   final GraphRepository _graph;
   final AuthRepository _auth;
   final WishRepository _wishes;
+  final AvatarRepository _avatars;
 
   Future<void> load() => guard('load', () async {
         emit(const ProfileLoading());
@@ -54,6 +62,35 @@ class ProfileCubit extends Cubit<ProfileState> with ReentrancyGuard {
           emit(const ProfileError(AppStrings.somethingWentWrong));
         }
       });
+
+  /// Uploads or removes the photo, then re-reads the profile so the page
+  /// shows the new one. Returns whether it changed, so the screen knows to
+  /// refresh the session's copy (the Dashboard header reads that one).
+  Future<bool> changePhoto(PhotoChoice choice) async {
+    final s = state;
+    if (s is! ProfileLoaded || s.savingPhoto) return false;
+    if (choice is PhotoUnsupported) {
+      emit(s.copyWith(error: AppStrings.photoUnsupported));
+      return false;
+    }
+    emit(s.copyWith(savingPhoto: true));
+    try {
+      switch (choice) {
+        case PhotoPicked(:final bytes, :final extension):
+          await _avatars.upload(bytes, extension: extension);
+        case PhotoRemoved():
+          await _avatars.remove();
+        case PhotoUnsupported():
+          break; // handled above
+      }
+      final profile = await _auth.loadProfile();
+      emit(s.copyWith(profile: profile, savingPhoto: false));
+      return true;
+    } on AppFailure {
+      emit(s.copyWith(savingPhoto: false, error: AppStrings.photoUploadFailed));
+      return false;
+    }
+  }
 
   /// The wall is decoration under the counts, not the point of the page: a
   /// failure here is logged and shows an empty wall rather than replacing

@@ -5,12 +5,15 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
 import '../../core/date_labels.dart';
-import '../../core/initial_avatar.dart';
+import '../../core/photo_picker.dart';
+import '../../core/profile_avatar.dart';
 import '../../models/wish.dart';
 import '../../repositories/auth_repository.dart';
+import '../../repositories/avatar_repository.dart';
 import '../../repositories/graph_repository.dart';
 import '../../repositories/profile_repository.dart';
 import '../../repositories/wish_repository.dart';
+import '../../router/session_cubit.dart';
 import 'profile_cubit.dart';
 import 'profile_state.dart';
 
@@ -31,6 +34,7 @@ class ProfileScreen extends StatelessWidget {
         context.read<GraphRepository>(),
         context.read<AuthRepository>(),
         context.read<WishRepository>(),
+        context.read<AvatarRepository>(),
       )..load(),
       child: const ProfileView(),
     );
@@ -46,7 +50,11 @@ class ProfileView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ProfileCubit, ProfileState>(
+    return BlocConsumer<ProfileCubit, ProfileState>(
+      listenWhen: (_, next) => next is ProfileLoaded && next.error != null,
+      listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text((state as ProfileLoaded).error!)),
+      ),
       builder: (context, state) => Scaffold(
         appBar: AppBar(
           title: Text(
@@ -105,7 +113,7 @@ class ProfileView extends StatelessWidget {
         const SizedBox(height: AppSpacing.md),
         Row(
           children: [
-            InitialAvatar(name: profile.displayName, radius: 40),
+            _EditablePhoto(state: state),
             Expanded(
               child: _StatTile(
                 key: const Key('profile_wishes_received_tile'),
@@ -184,6 +192,60 @@ class ProfileView extends StatelessWidget {
           ),
         const SizedBox(height: AppSpacing.lg),
       ],
+    );
+  }
+}
+
+/// The profile photo; tapping it opens the gallery/camera/remove sheet.
+class _EditablePhoto extends StatelessWidget {
+  const _EditablePhoto({required this.state});
+
+  final ProfileLoaded state;
+
+  Future<void> _change(BuildContext context) async {
+    final cubit = context.read<ProfileCubit>();
+    final session = context.read<SessionCubit>();
+    final choice = await pickProfilePhoto(
+      context,
+      canRemove: state.profile.avatarPath != null,
+    );
+    if (choice == null) return;
+    // The Dashboard header reads the session's copy of the profile.
+    if (await cubit.changePhoto(choice)) await session.load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      key: const Key('profile_photo'),
+      customBorder: const CircleBorder(),
+      onTap: state.savingPhoto ? null : () => _change(context),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          ProfileAvatar(
+            name: state.profile.displayName,
+            path: state.profile.avatarPath,
+            radius: 40,
+          ),
+          if (state.savingPhoto)
+            const SizedBox.square(
+              dimension: 80,
+              child: CircularProgressIndicator(strokeWidth: 3),
+            )
+          else
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: CircleAvatar(
+                radius: 13,
+                backgroundColor: scheme.primary,
+                child: Icon(Icons.edit, size: 14, color: scheme.onPrimary),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

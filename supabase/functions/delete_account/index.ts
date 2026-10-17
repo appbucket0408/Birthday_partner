@@ -122,6 +122,28 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
+  // Profile photos live in Storage, which no foreign key reaches: deleting
+  // the user would orphan them. Removed first, and a failure stops the
+  // delete -- a "deleted" account whose photo is still stored is the one
+  // outcome worse than a retry.
+  const folder = userData.user.id;
+  const { data: photos, error: listError } = await admin.storage
+    .from("avatars")
+    .list(folder);
+  const removeError = listError ??
+    (photos && photos.length > 0
+      ? (await admin.storage
+        .from("avatars")
+        .remove(photos.map((p) => `${folder}/${p.name}`))).error
+      : null);
+  if (removeError) {
+    console.error("avatar cleanup failed", removeError.message);
+    return new Response(JSON.stringify({ error: "delete failed" }), {
+      status: 500,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
   const { error } = await admin.auth.admin.deleteUser(userData.user.id);
 
   if (error) {

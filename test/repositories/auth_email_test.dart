@@ -1,9 +1,6 @@
 @Tags(['contract'])
 library;
 
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:birthday_app/api/api_client.dart';
 import 'package:birthday_app/core/app_strings.dart';
 import 'package:birthday_app/core/result.dart';
@@ -51,7 +48,7 @@ void main() {
 
   Future<void> signInByEmail(String email) async {
     await repo.sendEmailOtp(email);
-    await repo.verifyEmailOtp(email: email, token: await _mailedCode(email));
+    await repo.verifyEmailOtp(email: email, token: await mailedCode(email));
   }
 
   test('an email code round trip signs in, with no verified phone', () async {
@@ -71,7 +68,7 @@ void main() {
 
     // Sending the code created the account. Sign in with the real code so
     // tearDown has a session to delete it with.
-    await repo.verifyEmailOtp(email: email, token: await _mailedCode(email));
+    await repo.verifyEmailOtp(email: email, token: await mailedCode(email));
   });
 
   test('claimProfile is refused until a phone is linked, then succeeds',
@@ -116,41 +113,4 @@ void main() {
     await otpThrottle.run(() => repo.sendOtp(linkPhone));
     await repo.verifyOtp(phoneE164: linkPhone, token: '123456');
   }, timeout: const Timeout(Duration(seconds: 90)));
-}
-
-/// The 6-digit code in the newest mail to [email], polled briefly because
-/// GoTrue hands the mail to Mailpit asynchronously.
-Future<String> _mailedCode(String email) async {
-  final client = HttpClient();
-  try {
-    for (var attempt = 0; attempt < 20; attempt++) {
-      final search = await _getJson(
-        client,
-        Uri.parse('http://127.0.0.1:54324/api/v1/search')
-            .replace(queryParameters: {'query': 'to:$email'}),
-      );
-      final messages = search['messages'] as List;
-      if (messages.isNotEmpty) {
-        final id = (messages.first as Map<String, dynamic>)['ID'] as String;
-        final message = await _getJson(
-          client,
-          Uri.parse('http://127.0.0.1:54324/api/v1/message/$id'),
-        );
-        final match = RegExp(r'\b(\d{6})\b').firstMatch(
-          message['Text'] as String,
-        );
-        if (match != null) return match.group(1)!;
-      }
-      await Future<void>.delayed(const Duration(milliseconds: 250));
-    }
-    throw StateError('no code mailed to $email (is Mailpit on :54324?)');
-  } finally {
-    client.close();
-  }
-}
-
-Future<Map<String, dynamic>> _getJson(HttpClient client, Uri uri) async {
-  final res = await (await client.getUrl(uri)).close();
-  return jsonDecode(await res.transform(utf8.decoder).join())
-      as Map<String, dynamic>;
 }
