@@ -1,6 +1,6 @@
 {
-    "name": "birthday_app",
-    "short_name": "birthday_app",
+    "name": "Candlewish",
+    "short_name": "Candlewish",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

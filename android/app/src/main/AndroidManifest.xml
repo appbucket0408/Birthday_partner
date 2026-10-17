@@ -12,7 +12,7 @@
          Settings afterwards. Import would dead-end permanently. -->
     <uses-permission android:name="android.permission.READ_CONTACTS"/>
     <application
-        android:label="birthday_app"
+        android:label="Candlewish"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:networkSecurityConfig="@xml/network_security_config">

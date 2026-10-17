@@ -1,6 +1,6 @@
 abstract final class AppStrings {
   // Generic
-  static const appName = 'Birthday';
+  static const appName = 'Candlewish';
   static const retry = 'Try again';
   static const cancel = 'Cancel';
   static const save = 'Save';
