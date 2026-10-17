@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
+import '../../core/celebrates_you_tag.dart';
 import '../../core/date_labels.dart';
 import '../../core/initial_avatar.dart';
 import '../../models/person.dart';
@@ -14,13 +15,7 @@ import '../../router/session_state.dart';
 import 'connections_cubit.dart';
 import 'connections_state.dart';
 
-/// Which tab [ConnectionsScreen] opens on.
 enum ConnectionsTab { iCelebrate, celebrateMe }
-
-/// "I celebrate" and "Celebrate me" on one screen, two swipeable tabs -- the
-/// shape of Instagram's Following / Followers, which is the relationship
-/// these are. Reached from the two counts on the Profile tab, each opening
-/// its own tab.
 class ConnectionsScreen extends StatelessWidget {
   const ConnectionsScreen({super.key, required this.initialTab});
 
@@ -82,8 +77,6 @@ class _ConnectionsViewState extends State<ConnectionsView> {
           child: Scaffold(
             appBar: AppBar(
               title: Text(handle ?? AppStrings.profileTitle),
-              // Reached with context.go, which replaces the page stack --
-              // there is nothing to pop, so the way back is explicit.
               leading: IconButton(
                 key: const Key('connections_back_button'),
                 icon: const Icon(Icons.arrow_back),
@@ -346,32 +339,7 @@ class _PersonRow extends StatelessWidget {
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
           if (celebratesYou)
-            Padding(
-              key: Key('celebrates_you_${person.id}'),
-              padding: const EdgeInsets.only(top: 2),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.favorite,
-                    size: 12,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  Flexible(
-                    child: Text(
-                      AppStrings.celebratesYou,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            CelebratesYouTag(key: Key('celebrates_you_${person.id}')),
         ],
       ),
       trailing: trailing,
@@ -397,8 +365,6 @@ class _CelebratingButton extends StatelessWidget {
     final stop = await showModalBottomSheet<bool>(
       context: context,
       showDragHandle: true,
-      // Sized to its content, and scrollable when that does not fit -- a
-      // small phone or a large system font would otherwise overflow it.
       isScrollControlled: true,
       builder: (sheet) => SafeArea(
         child: SingleChildScrollView(
@@ -466,8 +432,6 @@ class _CelebratingButton extends StatelessWidget {
   }
 }
 
-/// One size for every row's button, filled or outlined, so the right edge of
-/// the list lines up -- the detail that makes Instagram's lists read cleanly.
 class _RowButton extends StatelessWidget {
   const _RowButton.filled({
     super.key,
@@ -491,8 +455,6 @@ class _RowButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const size = Size(136, 36);
-    // Scaled down, never clipped: with a large system font "Celebrate back"
-    // is wider than any fixed size that still leaves room for the name.
     final child = busy
         ? const SizedBox.square(
             dimension: 16,

@@ -41,6 +41,7 @@ class _OpsAppState extends State<OpsApp> {
       child: BlocProvider.value(
         value: _session,
         child: MaterialApp.router(
+          debugShowCheckedModeBanner: false,
           title: AppStrings.opsTitle,
           theme: ThemeData(colorScheme: AppColors.light(), useMaterial3: true),
           darkTheme:

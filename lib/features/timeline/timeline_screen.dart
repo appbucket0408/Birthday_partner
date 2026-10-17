@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
@@ -9,6 +9,7 @@ import '../../core/app_links.dart';
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
 import '../../core/app_text_styles.dart';
+import '../../core/celebrates_you_tag.dart';
 import '../../core/date_labels.dart';
 import '../../core/initial_avatar.dart';
 import '../../core/profile_avatar.dart';
@@ -106,114 +107,102 @@ class TimelineScreen extends StatelessWidget {
 /// earn a separate widget. The sole exception is [_SectionHeaderDelegate]
 /// below: `SliverPersistentHeader` requires a delegate object, so that much
 /// indirection is Flutter's API, not a style choice.
-class _TimelineView extends StatefulWidget {
+class _TimelineView extends StatelessWidget {
   const _TimelineView({required this.share});
 
   final Future<void> Function(String text) share;
 
-  @override
-  State<_TimelineView> createState() => _TimelineViewState();
-}
-
-class _TimelineViewState extends State<_TimelineView> {
-  // The add button shows its label until the user scrolls down the list, so
-  // it never sits over a name for long, and comes back on the way up.
-  bool _fabExtended = true;
-
-  bool _onScroll(UserScrollNotification n) {
-    final extended = switch (n.direction) {
-      ScrollDirection.reverse => false,
-      ScrollDirection.forward => true,
-      ScrollDirection.idle => _fabExtended,
-    };
-    if (extended != _fabExtended) setState(() => _fabExtended = extended);
-    return false;
+  static void _addPeople(BuildContext context) {
+    HapticFeedback.lightImpact();
+    context.go('/import');
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Profile and Settings used to be AppBar actions here. Profile is now a
-      // bottom-bar tab, and Settings moved onto it.
-      appBar: AppBar(title: const Text(AppStrings.timelineTitle)),
-      // Adding people is this screen's primary action, so it is always on
-      // screen -- not only in the empty state, which a user who already
-      // celebrates anyone never sees again.
-      floatingActionButton: FloatingActionButton.extended(
-        key: const Key('dashboard_add_people'),
-        onPressed: () => context.go('/import'),
-        isExtended: _fabExtended,
-        icon: const Icon(Icons.person_add_alt_1),
-        label: const Text(AppStrings.timelineAddPeople),
-        tooltip: AppStrings.timelineAddPeople,
+      appBar: AppBar(
+        title: const Text(AppStrings.timelineTitle),
+        // Always in reach, but quiet: an icon in the same place and weight
+        // as the Profile tab's settings icon, so the headers read as one
+        // app. The labelled entry point is the row at the top of the list.
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: AppSpacing.sm),
+            child: IconButton.filledTonal(
+              key: const Key('dashboard_add_people'),
+              tooltip: AppStrings.timelineAddPeople,
+              icon: const Icon(Icons.person_add_alt_1),
+              onPressed: () => _addPeople(context),
+            ),
+          ),
+        ],
       ),
-      body: NotificationListener<UserScrollNotification>(
-        onNotification: _onScroll,
-        child: BlocConsumer<TimelineCubit, TimelineState>(
-          listenWhen: (previous, next) =>
-              next is TimelineLoaded && next.error != null,
-          listener: (context, state) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text((state as TimelineLoaded).error!)),
-            );
-          },
-          builder: (context, state) => switch (state) {
-            TimelineLoading() =>
-              const Center(child: CircularProgressIndicator()),
-            TimelineError() => Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(state.message),
-                    const SizedBox(height: AppSpacing.md),
-                    FilledButton(
-                      onPressed: () => context.read<TimelineCubit>().load(),
-                      child: const Text(AppStrings.retry),
-                    ),
-                  ],
-                ),
-              ),
-            TimelineEmpty() => Column(
+      body: BlocConsumer<TimelineCubit, TimelineState>(
+        listenWhen: (previous, next) =>
+            next is TimelineLoaded && next.error != null,
+        listener: (context, state) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text((state as TimelineLoaded).error!)),
+          );
+        },
+        builder: (context, state) => switch (state) {
+          TimelineLoading() =>
+            const Center(child: CircularProgressIndicator()),
+          TimelineError() => Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const _MeHeader(),
-                  Expanded(
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.lg),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              AppStrings.timelineEmptyTitle,
-                              style: Theme.of(context).textTheme.headlineSmall,
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            const Text(
-                              AppStrings.timelineEmptyBody,
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: AppSpacing.lg),
-                            FilledButton(
-                              key: const Key('timeline_import_cta'),
-                              onPressed: () => context.go('/import'),
-                              child: const Text(AppStrings.timelineImportCta),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  Text(state.message),
+                  const SizedBox(height: AppSpacing.md),
+                  FilledButton(
+                    onPressed: () => context.read<TimelineCubit>().load(),
+                    child: const Text(AppStrings.retry),
                   ),
                 ],
               ),
-            TimelineLoaded() => _buildLoaded(context, state),
-          },
-        ),
+            ),
+          TimelineEmpty() => Column(
+              children: [
+                const _MeHeader(),
+                Expanded(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            AppStrings.timelineEmptyTitle,
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          const Text(
+                            AppStrings.timelineEmptyBody,
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                          FilledButton.icon(
+                            key: const Key('timeline_import_cta'),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size(200, 48),
+                            ),
+                            onPressed: () => _addPeople(context),
+                            icon: const Icon(Icons.person_add_alt_1),
+                            label: const Text(AppStrings.timelineAddPeople),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          TimelineLoaded() => _buildLoaded(context, state),
+        },
       ),
     );
   }
 
-  /// Addressed by first name -- it reads as a message from a friend, not a
-  /// notification from an app.
   static String _inviteMessage(String name) {
     final first = name.trim().split(RegExp(r'\s+')).first;
     return AppStrings.inviteMessageTemplate
@@ -221,14 +210,20 @@ class _TimelineViewState extends State<_TimelineView> {
         .replaceFirst('%2', AppLinks.download);
   }
 
-  /// "18 March", "18 March · Celebrates you", or null when there is
-  /// neither -- someone not on the app cannot celebrate anyone yet.
-  static Widget? _subtitle(Birthday? birthday, {required bool celebratesYou}) {
-    final parts = [
-      if (birthday != null) DateLabels.birthday(birthday),
-      if (celebratesYou) AppStrings.celebratesYou,
-    ];
-    return parts.isEmpty ? null : Text(parts.join(' · '));
+  static Widget? _subtitle(
+    int personId,
+    Birthday? birthday, {
+    required bool celebratesYou,
+  }) {
+    if (birthday == null && !celebratesYou) return null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (birthday != null) Text(DateLabels.birthday(birthday)),
+        if (celebratesYou) CelebratesYouTag(key: Key('celebrates_you_$personId')),
+      ],
+    );
   }
 
   Widget _buildLoaded(BuildContext context, TimelineLoaded state) {
@@ -236,14 +231,14 @@ class _TimelineViewState extends State<_TimelineView> {
     return CustomScrollView(
       slivers: [
         const SliverToBoxAdapter(child: _MeHeader()),
+        SliverToBoxAdapter(
+          child: _AddPeopleRow(onTap: () => _addPeople(context)),
+        ),
         for (final group in _sectionOrder)
           if (state.groups[group] case final rows? when rows.isNotEmpty) ...[
             SliverPersistentHeader(
               delegate: _SectionHeaderDelegate(_headerFor(group)),
             ),
-            // Only people not on the app have no birthday (only a person sets
-            // their own), so this section is "waiting to join" -- said here,
-            // where its rows would otherwise look like missing data.
             if (group == null)
               SliverToBoxAdapter(
                 child: Padding(
@@ -267,14 +262,17 @@ class _TimelineViewState extends State<_TimelineView> {
                 (context, index) {
                   final celebration = rows[index];
                   final birthday = celebration.person.birthday;
+                  final celebratesYou =
+                      state.celebratesMe.contains(celebration.person.id);
                   return ListTile(
                     key: Key('celebration_${celebration.id}'),
                     leading: InitialAvatar(name: celebration.person.displayName),
                     title: Text(celebration.person.displayName),
+                    isThreeLine: birthday != null && celebratesYou,
                     subtitle: _subtitle(
+                      celebration.person.id,
                       birthday,
-                      celebratesYou: state.celebratesMe
-                          .contains(celebration.person.id),
+                      celebratesYou: celebratesYou,
                     ),
                     onTap: () =>
                         context.go('/person/${celebration.person.id}'),
@@ -284,7 +282,7 @@ class _TimelineViewState extends State<_TimelineView> {
                         if (!celebration.person.isClaimed)
                           TextButton.icon(
                             key: Key('invite_${celebration.id}'),
-                            onPressed: () => widget.share(
+                            onPressed: () => share(
                               _inviteMessage(celebration.person.displayName),
                             ),
                             icon: const Icon(Icons.send, size: 18),
@@ -311,18 +309,11 @@ class _TimelineViewState extends State<_TimelineView> {
               ),
             ),
           ],
-        // Room under the last row for the floating add button, so it never
-        // covers that row's menu.
-        const SliverToBoxAdapter(child: SizedBox(height: 96)),
+        const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.lg)),
       ],
     );
   }
 }
-
-/// The signed-in user's own card at the top of the Dashboard: avatar, name,
-/// handle, birthday and city. Read from the session, which already holds the
-/// profile -- the router only shows this screen once the session is
-/// [SessionReady], so no second fetch is needed.
 class _MeHeader extends StatelessWidget {
   const _MeHeader();
 
@@ -379,6 +370,41 @@ class _MeHeader extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The labelled way in to adding people: a slim row at the top of the list,
+/// saying what it does -- the header icon alone would leave a new user
+/// guessing. Scrolls away with the list rather than floating over it.
+class _AddPeopleRow extends StatelessWidget {
+  const _AddPeopleRow({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return ListTile(
+      key: const Key('dashboard_add_people_row'),
+      onTap: onTap,
+      leading: CircleAvatar(
+        radius: 20,
+        backgroundColor: scheme.primaryContainer,
+        foregroundColor: scheme.onPrimaryContainer,
+        child: const Icon(Icons.person_add_alt_1, size: 20),
+      ),
+      title: Text(
+        AppStrings.timelineAddPeople,
+        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+      ),
+      subtitle: Text(
+        AppStrings.timelineAddPeopleHint,
+        style: theme.textTheme.bodySmall
+            ?.copyWith(color: scheme.onSurfaceVariant),
+      ),
+      trailing: Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
     );
   }
 }

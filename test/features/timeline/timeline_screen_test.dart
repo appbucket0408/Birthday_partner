@@ -174,7 +174,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byKey(const Key('timeline_import_cta')),
-        matching: find.text(AppStrings.timelineImportCta),
+        matching: find.text(AppStrings.timelineAddPeople),
       ),
       findsOneWidget,
     );
@@ -258,18 +258,80 @@ void main() {
   });
 
   group('Add people button', () {
-    // Always on screen, empty list or full: a user who already celebrates
-    // anyone never sees the empty state's import button again.
+    // Exactly one "Add people" button is always on screen: the floating one
+    // on a list, the big centred one on the empty Dashboard -- never both.
+    // The header icon is always there, list or empty, in the app bar.
     for (final (name, rows) in [
-      ('empty', <Celebration>[]),
       ('loaded', [_celeb(1, _person(1))]),
+      ('empty', <Celebration>[]),
     ]) {
-      testWidgets('is shown on the $name Dashboard', (tester) async {
+      testWidgets('the header Add people icon is on the $name Dashboard',
+          (tester) async {
         await pump(tester, rows);
-        expect(find.byKey(const Key('dashboard_add_people')), findsOneWidget);
-        expect(find.text(AppStrings.timelineAddPeople), findsOneWidget);
+        final icon = find.byKey(const Key('dashboard_add_people'));
+        expect(icon, findsOneWidget);
+        expect(
+          find.ancestor(of: icon, matching: find.byType(AppBar)),
+          findsOneWidget,
+        );
       });
     }
+
+    // The labelled entry: a row at the top of a list. The empty Dashboard
+    // has no list, and keeps its big centred button instead.
+    testWidgets('a list has the labelled Add people row at the top',
+        (tester) async {
+      await pump(tester, [_celeb(1, _person(1))]);
+      final row = find.byKey(const Key('dashboard_add_people_row'));
+      expect(row, findsOneWidget);
+      expect(
+        find.descendant(of: row, matching: find.text(AppStrings.timelineAddPeopleHint)),
+        findsOneWidget,
+      );
+      expect(
+        tester.getTopLeft(row).dy,
+        lessThan(tester.getTopLeft(find.byKey(const Key('celebration_1'))).dy),
+      );
+      expect(find.byKey(const Key('timeline_import_cta')), findsNothing);
+    });
+
+    testWidgets('the empty Dashboard has the centred button, not the row',
+        (tester) async {
+      await pump(tester, []);
+      expect(find.byKey(const Key('timeline_import_cta')), findsOneWidget);
+      expect(find.byKey(const Key('dashboard_add_people_row')), findsNothing);
+    });
+
+    testWidgets('the row opens the contacts import too', (tester) async {
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, __) => RepositoryProvider<PushRepository>.value(
+              value: _FakePush(),
+              child: TimelineScreen(
+                repository: _FakeGraph([_celeb(1, _person(1))]),
+                now: _fixedNow,
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/import',
+            builder: (_, __) => const Text('import screen'),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        _withSession(MaterialApp.router(routerConfig: router)),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('dashboard_add_people_row')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('import screen'), findsOneWidget);
+    });
 
     testWidgets('opens the contacts import', (tester) async {
       final router = GoRouter(
@@ -300,21 +362,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('import screen'), findsOneWidget);
-    });
-
-    testWidgets('drops its label while scrolling down, and keeps the icon',
-        (tester) async {
-      await pump(tester, [
-        for (var i = 1; i <= 30; i++)
-          _celeb(i, _person(i, birthday: Birthday(month: 1 + i % 12, day: 1))),
-      ]);
-      expect(find.text(AppStrings.timelineAddPeople), findsOneWidget);
-
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -400));
-      await tester.pumpAndSettle();
-
-      expect(find.byKey(const Key('dashboard_add_people')), findsOneWidget);
-      expect(find.text(AppStrings.timelineAddPeople), findsNothing);
     });
   });
 
@@ -391,10 +438,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('1 September · ${AppStrings.celebratesYou}'),
-      findsOneWidget,
-    );
+    expect(find.text('1 September'), findsOneWidget);
     expect(find.text('2 September'), findsOneWidget);
+    // On its own line under the date, only for the one who celebrates back.
+    expect(find.byKey(const Key('celebrates_you_1')), findsOneWidget);
+    expect(find.byKey(const Key('celebrates_you_2')), findsNothing);
+    expect(
+      tester.getTopLeft(find.byKey(const Key('celebrates_you_1'))).dy,
+      greaterThan(tester.getTopLeft(find.text('1 September')).dy),
+    );
   });
 }

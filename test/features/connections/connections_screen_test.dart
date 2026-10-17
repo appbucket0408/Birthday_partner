@@ -101,10 +101,10 @@ void main() {
     double top(String name) => tester.getTopLeft(find.text(name)).dy;
     expect(top('Ann'), lessThan(top('Bob')));
     expect(find.text('🎂 1 March'), findsOneWidget);
-    expect(
-      find.text('🎂 2 March · ${AppStrings.celebratesYou}'),
-      findsOneWidget,
-    );
+    expect(find.text('🎂 2 March'), findsOneWidget);
+    // Bob celebrates back, on his own line; Ann does not.
+    expect(find.byKey(const Key('celebrates_you_2')), findsOneWidget);
+    expect(find.byKey(const Key('celebrates_you_1')), findsNothing);
   });
 
   testWidgets('I celebrate: "Celebrating" asks, then stops celebrating',
@@ -202,5 +202,23 @@ void main() {
 
     expect(find.text(AppStrings.profileCelebratingEmpty), findsOneWidget);
     expect(find.byKey(const Key('connections_add_people')), findsOneWidget);
+  });
+
+  // With a large system font the label must shrink, not be cut off.
+  testWidgets('"Celebrate back" fits its button with a large system font',
+      (tester) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 1.4;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await _pump(
+      tester,
+      iCelebrate: [],
+      celebrateMe: [cid],
+      tab: ConnectionsTab.celebrateMe,
+    );
+
+    final button = tester.getRect(find.byKey(const Key('celebrate_back_3')));
+    final label = tester.getRect(find.text(AppStrings.celebrateBack));
+    expect(button.left <= label.left && label.right <= button.right, isTrue,
+        reason: 'label $label spills out of button $button');
   });
 }

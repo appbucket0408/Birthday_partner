@@ -122,8 +122,8 @@ abstract final class AppStrings {
   static const timelineEmptyTitle = 'Nobody yet';
   static const timelineEmptyBody =
       'Import your contacts to start celebrating the people you know.';
-  static const timelineImportCta = 'Import contacts';
   static const timelineAddPeople = 'Add people';
+  static const timelineAddPeopleHint = 'Find friends from your contacts';
   static const timelineStopCelebrating = 'Stop celebrating';
   static const timelineWaitingToJoin = 'Waiting to join';
   static const timelineWaitingToJoinHint =
