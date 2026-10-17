@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 
+import '../../core/app_links.dart';
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
+import '../../core/countdown_pill.dart';
 import '../../core/date_labels.dart';
 import '../../core/photo_picker.dart';
 import '../../core/profile_avatar.dart';
@@ -41,13 +44,22 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 }
-
-/// The screen's actual content, split out from [ProfileScreen] (not
-/// underscore-private) so a widget test can drive it with a mocked
-/// [ProfileCubit] via `BlocProvider.value`, the same pattern
-/// `test/features/person/person_screen_test.dart` uses for `PersonView`.
 class ProfileView extends StatelessWidget {
-  const ProfileView({super.key});
+  const ProfileView({
+    super.key,
+    this.share = _systemShare,
+    this.now = DateTime.now,
+  });
+
+  /// Opens the share sheet for "Invite friends"; injectable because a test
+  /// cannot open the real one.
+  final Future<void> Function(String text) share;
+
+  /// For the countdown to the user's own birthday.
+  final DateTime Function() now;
+
+  static Future<void> _systemShare(String text) =>
+      SharePlus.instance.share(ShareParams(text: text));
 
   @override
   Widget build(BuildContext context) {
@@ -99,16 +111,16 @@ class ProfileView extends StatelessWidget {
 
   Widget _buildLoaded(BuildContext context, ProfileLoaded state) {
     final profile = state.profile;
-    final textTheme = Theme.of(context).textTheme;
-    final details = [
-      if (profile.birthday case final b?) '🎂 ${DateLabels.birthday(b)}',
-      if (profile.city case final c? when c.isNotEmpty) c,
-    ].join(' · ');
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final birthday = profile.birthday;
+    final city = profile.city;
 
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       children: [
         const SizedBox(height: AppSpacing.md),
+        // Avatar and the two relationship counts, Instagram's header shape.
         Row(
           children: [
             _EditablePhoto(state: state),
@@ -131,54 +143,139 @@ class ProfileView extends StatelessWidget {
           ],
         ),
         const SizedBox(height: AppSpacing.md),
-        Text(profile.displayName, style: textTheme.titleMedium),
-        if (details.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.xs),
-            child: Text(details, style: textTheme.bodyMedium),
+        Text(
+          profile.displayName,
+          style:
+              theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.xs,
+          children: [
+            if (birthday != null) ...[
+              Text(
+                '🎂 ${DateLabels.birthday(birthday)}',
+                style: theme.textTheme.bodyMedium,
+              ),
+              CountdownPill(
+                key: const Key('profile_countdown'),
+                birthday: birthday,
+                now: now(),
+                compact: true,
+              ),
+            ],
+            if (city != null && city.isNotEmpty)
+              Text(
+                birthday == null ? city : '· $city',
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: scheme.onSurfaceVariant),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Card(
+          key: const Key('profile_wishes_card'),
+          margin: EdgeInsets.zero,
+          elevation: 0,
+          color: scheme.surfaceContainerLow,
+          child: IntrinsicHeight(
+            child: Row(
+              children: [
+                Expanded(
+                  child: _StatTile(
+                    key: const Key('profile_wishes_received_tile'),
+                    label: AppStrings.profileWishesReceived,
+                    value: state.wishesReceived,
+                    icon: Icons.favorite_outline,
+                  ),
+                ),
+                VerticalDivider(
+                  width: 1,
+                  indent: AppSpacing.md,
+                  endIndent: AppSpacing.md,
+                  color: scheme.outlineVariant,
+                ),
+                Expanded(
+                  child: _StatTile(
+                    key: const Key('profile_wishes_sent_tile'),
+                    label: AppStrings.profileWishesSent,
+                    value: state.wishesSent,
+                    icon: Icons.send_outlined,
+                  ),
+                ),
+              ],
+            ),
           ),
-        const SizedBox(height: AppSpacing.sm),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        // Two equal buttons, like Instagram's "Edit profile / Share profile".
         Row(
           children: [
             Expanded(
-              child: _StatTile(
-                key: const Key('profile_wishes_received_tile'),
-                label: AppStrings.profileWishesReceived,
-                value: state.wishesReceived,
+              child: FilledButton.tonalIcon(
+                key: const Key('profile_my_gifts_tile'),
+                icon: const Icon(Icons.cake_outlined, size: 18),
+                label: const Text(AppStrings.giftListTitle),
+                onPressed: () => context.go('/gifts'),
               ),
             ),
+            const SizedBox(width: AppSpacing.sm),
             Expanded(
-              child: _StatTile(
-                key: const Key('profile_wishes_sent_tile'),
-                label: AppStrings.profileWishesSent,
-                value: state.wishesSent,
+              child: FilledButton.tonalIcon(
+                key: const Key('profile_invite_friends'),
+                icon: const Icon(Icons.person_add_alt_1, size: 18),
+                label: const Text(AppStrings.profileInviteFriends),
+                onPressed: () => share(
+                  AppStrings.profileInviteMessageTemplate
+                      .replaceFirst('%1', profile.handle)
+                      .replaceFirst('%2', AppLinks.download),
+                ),
               ),
             ),
           ],
         ),
-        OutlinedButton.icon(
-          key: const Key('profile_my_gifts_tile'),
-          icon: const Icon(Icons.cake_outlined),
-          label: const Text(AppStrings.giftListTitle),
-          onPressed: () => context.go('/gifts'),
-        ),
-        const Divider(height: AppSpacing.xl),
+        const SizedBox(height: AppSpacing.lg),
         Text(
           state.wall.isEmpty
               ? AppStrings.profileWishWall
               : '${AppStrings.profileWishWall} · ${state.wall.length}',
           key: const Key('profile_wall_title'),
-          style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: AppSpacing.sm),
         if (state.wall.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-            child: Text(
-              AppStrings.profileWishWallEmpty,
-              key: const Key('profile_wall_empty'),
-              textAlign: TextAlign.center,
-              style: textTheme.bodyMedium,
+          Card(
+            key: const Key('profile_wall_empty'),
+            margin: EdgeInsets.zero,
+            elevation: 0,
+            color: scheme.surfaceContainerLow,
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundColor: scheme.primaryContainer,
+                    foregroundColor: scheme.onPrimaryContainer,
+                    child: const Icon(Icons.mail_outline, size: 28),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    AppStrings.profileWishWallEmptyTitle,
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    AppStrings.profileWishWallEmpty,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
             ),
           )
         else
@@ -267,11 +364,13 @@ class _StatTile extends StatelessWidget {
     required this.label,
     required this.value,
     this.onTap,
+    this.icon,
   });
 
   final String label;
   final int value;
   final VoidCallback? onTap;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -282,9 +381,36 @@ class _StatTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
         child: Column(
           children: [
-            Text('$value', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: AppSpacing.xs),
-            Text(label, textAlign: TextAlign.center),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[
+                  Icon(
+                    icon,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                ],
+                // The number is the strongest text on the page, the way
+                // profile counts are everywhere people know them from.
+                Text(
+                  '$value',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
           ],
         ),
       ),

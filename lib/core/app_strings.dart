@@ -222,7 +222,15 @@ abstract final class AppStrings {
   static const profileWishesReceived = 'Wishes received';
   static const profileWishesSent = 'Wishes sent';
   static const profileWishWall = 'Wishes I received';
-  static const profileWishWallEmpty = 'Wishes people send you show up here.';
+  static const profileWishWallEmptyTitle = 'No wishes yet';
+  static const profileWishWallEmpty =
+      'When friends wish you, their notes appear here.';
+  static const profileInviteFriends = 'Invite friends';
+
+  /// %1 is the user's handle, %2 the download link.
+  static const profileInviteMessageTemplate =
+      "I'm on Birthday so I never miss a friend's day 🎂 Add me (@%1) and "
+      'add your birthday too: %2';
   static const profileWishAuthorUnknown = 'Someone';
   static const profileCelebratingEmpty = 'You are not celebrating anyone yet.';
   static const profileCelebratesEmpty = 'Nobody celebrates you yet.';

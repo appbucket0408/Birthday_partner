@@ -1,3 +1,4 @@
+import 'package:birthday_app/core/app_links.dart';
 import 'package:birthday_app/core/app_strings.dart';
 import 'package:birthday_app/features/profile/profile_cubit.dart';
 import 'package:birthday_app/features/profile/profile_screen.dart';
@@ -66,12 +67,17 @@ Future<void> _pump(
     MaterialApp(
       home: BlocProvider<ProfileCubit>.value(
         value: cubit,
-        child: const ProfileView(),
+        child: ProfileView(
+          share: (text) async => _shared.add(text),
+          now: () => DateTime(2026, 5, 22),
+        ),
       ),
     ),
   );
   await tester.pump();
 }
+
+final _shared = <String>[];
 
 void main() {
   late _MockProfileCubit cubit;
@@ -101,7 +107,16 @@ void main() {
 
     expect(find.text('@u1'), findsOneWidget);
     expect(find.text('Me'), findsOneWidget);
-    expect(find.text('🎂 1 June · Jaipur'), findsOneWidget);
+    expect(find.text('🎂 1 June'), findsOneWidget);
+    expect(find.text('· Jaipur'), findsOneWidget);
+    // Own birthday gets the same countdown pill as everyone else's.
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('profile_countdown')),
+        matching: find.text('in 10 days'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('the wall renders one square per wish, with its author',
@@ -167,5 +182,31 @@ void main() {
       find.text('${AppStrings.profileWishWall} · 2'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('the wish counts sit together on their own card',
+      (tester) async {
+    await _pump(tester, cubit, _loaded(received: 4, sent: 1));
+
+    final card = find.byKey(const Key('profile_wishes_card'));
+    for (final key in ['profile_wishes_received_tile', 'profile_wishes_sent_tile']) {
+      expect(
+        find.descendant(of: card, matching: find.byKey(Key(key))),
+        findsOneWidget,
+      );
+    }
+  });
+
+  testWidgets('Invite friends shares a message with the handle and the link',
+      (tester) async {
+    _shared.clear();
+    await _pump(tester, cubit, _loaded());
+
+    await tester.tap(find.byKey(const Key('profile_invite_friends')));
+    await tester.pump();
+
+    expect(_shared, hasLength(1));
+    expect(_shared.single, contains('@u1'));
+    expect(_shared.single, contains(AppLinks.download));
   });
 }
