@@ -253,11 +253,11 @@ otp_expiry = 3600
 # app has no deep-link handling for one, so both the new-user (confirmation)
 # and returning-user (magic_link) templates send the 6-digit code instead.
 [auth.email.template.confirmation]
-subject = "Your Birthday sign-in code"
+subject = "Your Candlewish sign-in code"
 content_path = "./supabase/templates/email_otp.html"
 
 [auth.email.template.magic_link]
-subject = "Your Birthday sign-in code"
+subject = "Your Candlewish sign-in code"
 content_path = "./supabase/templates/email_otp.html"
 
 # Uncomment to customize email template

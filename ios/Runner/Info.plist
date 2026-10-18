@@ -65,10 +65,10 @@
 	     contacts so the user can pick who to celebrate, and never stores
 	     them on a server. -->
 	<key>NSContactsUsageDescription</key>
-	<string>Birthday reads the names and numbers in your contacts so you can pick who you want to celebrate. Your contacts are never stored on our servers and are never shared with anyone.</string>
+	<string>Candlewish reads the names and numbers in your contacts so you can pick who you want to celebrate. Your contacts are never stored on our servers and are never shared with anyone.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Choose a photo for your Birthday profile.</string>
+	<string>Choose a photo for your Candlewish profile or a birthday wish.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Take a photo for your Birthday profile.</string>
+	<string>Take a photo for your Candlewish profile or a birthday wish.</string>
 </dict>
 </plist>

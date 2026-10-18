@@ -18,7 +18,7 @@ abstract final class AppStrings {
   static const routeNotFoundAction = 'Go to timeline';
 
   // Onboarding — sign in (phone or email)
-  static const signInTitle = 'Welcome to Birthday';
+  static const signInTitle = 'Welcome to Candlewish';
   static const signInSubtitle =
       'Never miss the birthdays of the people you love.';
   static const signInPhoneTab = 'Phone';
@@ -91,7 +91,7 @@ abstract final class AppStrings {
   // Play's prominent disclosure: WHAT is read and WHY, stated on this screen
   // before the permission prompt. Keep both halves in this sentence.
   static const importDisclosureBody =
-      'Birthday reads the names and numbers in your contacts so you can pick '
+      'Candlewish reads the names and numbers in your contacts so you can pick '
       'who you want to celebrate.';
   static const importTrustStaysTitle = 'Stays on your phone';
   static const importTrustStaysBody =
@@ -105,12 +105,12 @@ abstract final class AppStrings {
   static const importDisclosureContinue = 'Continue';
   static const importDisclosureSkip = 'Not now';
   static const importPermissionDenied =
-      'Birthday needs access to your contacts to find people you know. You '
+      'Candlewish needs access to your contacts to find people you know. You '
       'can turn it on in Settings.';
   static const importPickTitle = 'Who do you celebrate?';
-  static const importOnApp = 'On Birthday';
+  static const importOnApp = 'On Candlewish';
   static const importOnAppHint = "You'll get their birthday and reminders.";
-  static const importNotOnApp = 'Not on Birthday yet';
+  static const importNotOnApp = 'Not on Candlewish yet';
   static const importNotOnAppHint =
       'Their birthday shows up once they join. You can invite them from your '
       'Dashboard.';
@@ -150,13 +150,13 @@ abstract final class AppStrings {
   static const timelineStopCelebrating = 'Stop celebrating';
   static const timelineWaitingToJoin = 'Waiting to join';
   static const timelineWaitingToJoinHint =
-      "They aren't on Birthday yet. Their birthday shows up here once they "
+      "They aren't on Candlewish yet. Their birthday shows up here once they "
       'join.';
   static const timelineInvite = 'Invite';
 
   /// %1 is their name, %2 the download link.
   static const inviteMessageTemplate =
-      "Hi %1! I've added you on Birthday so I never miss your day 🎂 Join and "
+      "Hi %1! I've added you on Candlewish so I never miss your day 🎂 Join and "
       'add your birthday: %2';
 
   // Settings
@@ -178,7 +178,7 @@ abstract final class AppStrings {
   // Person page
   static const personCelebratorCountTemplate = '%s people celebrate them';
   static const personCelebratorCountOne = '1 person celebrates them';
-  static const personNoBirthday = 'Not on Birthday yet';
+  static const personNoBirthday = 'Not on Candlewish yet';
   static const personNoBirthdayHint =
       'Their birthday shows up here once they join.';
   static const personToday = '🎉 Birthday today!';
@@ -284,7 +284,7 @@ abstract final class AppStrings {
 
   /// %1 is the user's handle, %2 the download link.
   static const profileInviteMessageTemplate =
-      "I'm on Birthday so I never miss a friend's day 🎂 Add me (@%1) and "
+      "I'm on Candlewish so I never miss a friend's day 🎂 Add me (@%1) and "
       'add your birthday too: %2';
   static const profileWishAuthorUnknown = 'Someone';
   static const profileCelebratingEmpty = 'You are not celebrating anyone yet.';
