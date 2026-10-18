@@ -13,6 +13,9 @@ import 'repositories/avatar_repository.dart';
 import 'repositories/avatar_repository_impl.dart';
 import 'repositories/gift_interest_repository.dart';
 import 'repositories/gift_interest_repository_impl.dart';
+import 'repositories/notification_repository.dart';
+import 'repositories/notification_repository_impl.dart';
+import 'features/notifications/notification_badge_cubit.dart';
 import 'repositories/gift_repository.dart';
 import 'repositories/gift_repository_impl.dart';
 import 'repositories/graph_repository.dart';
@@ -51,6 +54,12 @@ class _BirthdayAppState extends State<BirthdayApp> {
       GiftInterestRepositoryImpl(ApiClient.instance);
   late final PushRepository _push =
       PushRepositoryImpl(ApiClient.instance, FirebaseMessaging.instance);
+  late final NotificationRepository _notifications =
+      NotificationRepositoryImpl(ApiClient.instance);
+  // App-level, not in HomeShell: the bell lives in the tabs, but the
+  // Notifications screen that clears it is a route above them.
+  late final NotificationBadgeCubit _badge =
+      NotificationBadgeCubit(_notifications);
   late final SessionCubit _session = SessionCubit(_auth)..load();
   late final _router = buildRouter(_session);
   late final StreamSubscription<String> _tapSub;
@@ -86,6 +95,7 @@ class _BirthdayAppState extends State<BirthdayApp> {
   @override
   void dispose() {
     _tapSub.cancel();
+    _badge.close();
     super.dispose();
   }
 
@@ -104,9 +114,15 @@ class _BirthdayAppState extends State<BirthdayApp> {
           value: _giftInterest,
         ),
         RepositoryProvider<PushRepository>.value(value: _push),
+        RepositoryProvider<NotificationRepository>.value(
+          value: _notifications,
+        ),
       ],
-      child: BlocProvider.value(
-        value: _session,
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider.value(value: _session),
+          BlocProvider.value(value: _badge),
+        ],
         child: MaterialApp.router(
           debugShowCheckedModeBanner: false,
           title: AppStrings.appName,

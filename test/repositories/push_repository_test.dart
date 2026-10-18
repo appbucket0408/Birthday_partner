@@ -32,6 +32,11 @@ class FakePush implements PushRepository {
   @override
   Future<PushPermission> currentPermission() async => status;
 
+  int openSettingsCalls = 0;
+
+  @override
+  Future<void> openNotificationSettings() async => openSettingsCalls++;
+
   @override
   Future<bool> requestPermission() async {
     permissionCalls++;

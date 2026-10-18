@@ -47,6 +47,9 @@ Person _person(int id, {Birthday? birthday, bool isClaimed = false}) =>
 Celebration _celeb(int id, Person person) => Celebration(id: id, person: person);
 
 class _FakePush implements PushRepository {
+  @override
+  Future<void> openNotificationSettings() async {}
+
   /// notDetermined, not granted: this fake exists to prove the screen
   /// actually ASKS, and a pre-granted fake would skip the prompt and make
   /// the reachability assertion below vacuous.

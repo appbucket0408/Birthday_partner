@@ -101,4 +101,17 @@ void main() {
     expect(push.registerCalls, 1);
     expect(cubit.state, isA<PushEnabled>());
   });
+
+  test('7. a BLOCKED user is never prompted either', () async {
+    // Android 13+ after a second refusal: no prompt would even show, and the
+    // banner's "Turn on" -- not this automatic ask -- is the way back.
+    final push = FakePush(granted: true, status: PushPermission.blocked);
+    final cubit = PushCubit(push);
+
+    await cubit.enable();
+
+    expect(push.permissionCalls, 0);
+    expect(push.registerCalls, 0);
+    expect(cubit.state, isA<PushDenied>());
+  });
 }

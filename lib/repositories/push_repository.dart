@@ -13,6 +13,14 @@ enum PushPermission {
   /// POST_NOTIFICATIONS makes the permission permanently auto-denied, and
   /// the only recovery is OS settings.
   denied,
+
+  /// Refused for good: the OS will not show its prompt again, so the only
+  /// way back is the app's notification settings page
+  /// ([PushRepository.openNotificationSettings]). Never prompted for
+  /// automatically, like [denied]; told apart from it only so the
+  /// Notifications-off banner's "Turn on" knows whether asking can still
+  /// work.
+  blocked,
 }
 
 abstract interface class PushRepository {
@@ -38,6 +46,10 @@ abstract interface class PushRepository {
   /// affects nothing while the device keeps receiving the previous user's
   /// reminders.
   Future<void> deleteThisDeviceToken();
+
+  /// Opens this app's page in the OS notification settings: the only way
+  /// back once the permission is [PushPermission.blocked].
+  Future<void> openNotificationSettings();
 
   /// Routes from notifications tapped while the app was running.
   Stream<String> get notificationRoutes;

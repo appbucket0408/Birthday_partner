@@ -28,7 +28,9 @@ class PushCubit extends Cubit<PushState> {
       // POST_NOTIFICATIONS refusal within seconds of the first, and Android
       // 13+ then auto-denies permanently. Re-running enable() must be free.
       final status = await _push.currentPermission();
-      if (status == PushPermission.denied) {
+      // blocked as much as denied: neither may be prompted for unasked.
+      if (status == PushPermission.denied ||
+          status == PushPermission.blocked) {
         emit(const PushDenied());
         return;
       }

@@ -12,6 +12,7 @@ import '../../models/celebration.dart';
 import '../../repositories/graph_repository.dart';
 import '../../router/active_tab.dart';
 import '../../router/home_shell.dart';
+import '../notifications/notification_bell.dart';
 import 'calendar_cubit.dart';
 import 'calendar_state.dart';
 
@@ -47,7 +48,10 @@ class CalendarView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.calendarTitle)),
+      appBar: AppBar(
+        title: const Text(AppStrings.calendarTitle),
+        actions: const [NotificationBell(), SizedBox(width: AppSpacing.xs)],
+      ),
       body: BlocBuilder<CalendarCubit, CalendarState>(
         builder: (context, state) => switch (state) {
           CalendarLoading() => const Center(child: CircularProgressIndicator()),

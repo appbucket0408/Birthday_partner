@@ -19,6 +19,7 @@ import '../../repositories/wish_repository.dart';
 import '../../router/active_tab.dart';
 import '../../router/home_shell.dart';
 import '../../router/session_cubit.dart';
+import '../notifications/notification_bell.dart';
 import 'profile_cubit.dart';
 import 'profile_state.dart';
 
@@ -76,6 +77,7 @@ class ProfileView extends StatelessWidget {
                 : AppStrings.profileTitle,
           ),
           actions: [
+            const NotificationBell(),
             IconButton(
               key: const Key('settings_button'),
               icon: const Icon(Icons.settings),

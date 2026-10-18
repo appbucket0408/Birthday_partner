@@ -51,6 +51,9 @@ class _FakeSettings implements SettingsRepository {
 /// asserting across a repository boundary -- now the boundary that actually
 /// exists.
 class _FakePush implements PushRepository {
+  @override
+  Future<void> openNotificationSettings() async {}
+
   _FakePush({required this.calls});
   @override
   Future<PushPermission> currentPermission() async =>
@@ -513,6 +516,9 @@ void main() {
 /// from [_FakePush] so its error path can be tested without giving every
 /// other test an error-prone deleteThisDeviceToken.
 class _FailingDeleteTokenPush implements PushRepository {
+  @override
+  Future<void> openNotificationSettings() async {}
+
   @override
   Future<PushPermission> currentPermission() async =>
       PushPermission.granted;

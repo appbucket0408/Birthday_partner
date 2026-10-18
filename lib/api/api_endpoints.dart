@@ -11,4 +11,7 @@ abstract final class ApiEndpoints {
   static const rpcCelebrateBack = 'rpc_celebrate_back';
   static const rpcCreateGift = 'rpc_create_gift';
   static const rpcFeedPage = 'feed_page';
+  static const rpcMyNotifications = 'my_notifications';
+  static const rpcMyUnseenNotificationCount = 'my_unseen_notification_count';
+  static const rpcMarkNotificationsSeen = 'mark_notifications_seen';
 }

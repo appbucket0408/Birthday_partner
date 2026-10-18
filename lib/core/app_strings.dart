@@ -236,6 +236,24 @@ abstract final class AppStrings {
   static const wishPostTitle = 'Wish';
 
   // Feed
+  // Notifications screen and bell.
+  static const notificationsTitle = 'Notifications';
+  static const notificationsBellTooltip = 'Notifications';
+  static const notificationsEmptyTitle = 'Nothing yet';
+  static const notificationsEmptyBody =
+      'Birthday reminders and wishes people leave you will show up here.';
+  static const notificationWishTemplate = '%s left you a birthday wish.';
+  static const notificationTodayTemplate = "It's %s's birthday today.";
+  static const notificationTomorrowTemplate = "%s's birthday is tomorrow.";
+  static const notificationInDaysTemplate = "%1's birthday is in %2 days.";
+  static const notificationOther = 'Something new for you.';
+  static const notificationSomeone = 'Someone';
+  // The banner shown when Android has notifications turned off for the app.
+  static const notificationsOffTitle = 'Notifications are off on this phone';
+  static const notificationsOffBody =
+      "You won't get birthday reminders or wish alerts until you turn them on.";
+  static const notificationsTurnOn = 'Turn on';
+
   static const feedTitle = 'Feed';
   static const feedWished = 'wished';
   static const feedSentCakeTo = 'sent a cake to';

@@ -24,6 +24,9 @@ class _FakeSettings implements SettingsRepository {
 
 class _FakePush implements PushRepository {
   @override
+  Future<void> openNotificationSettings() async {}
+
+  @override
   Future<PushPermission> currentPermission() async =>
       PushPermission.granted;
 

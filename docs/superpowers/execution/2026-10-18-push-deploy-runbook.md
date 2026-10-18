@@ -51,7 +51,7 @@ supabase migration list     # read-only: shows which migrations hosted lacks
 supabase db push            # applies supabase/migrations/ only
 ```
 
-There are 48 migrations; the latest is `20261018000005_phone_pepper_required.sql`.
+There are 49 migrations; the latest is `20261018000006_notification_inbox.sql`.
 The ones added since the last runbook, all applied by the same `db push`:
 
 | Migration | What it adds |
@@ -61,12 +61,13 @@ The ones added since the last runbook, all applied by the same `db push`:
 | `20261018000003_wish_notifications` | `kind = 'wish'` in the outbox, the enqueue trigger on `wishes`, `profiles.wish_notifications_enabled`, the extended batch |
 | `20261018000004_smoke_push` | `rpc_queue_test_push()`, service-role only, for `smoke-push.sh` |
 | `20261018000005_phone_pepper_required` | Removes the public placeholder pepper; hashing refuses to run until step 3 is done |
+| `20261018000006_notification_inbox` | The in-app Notifications screen: `my_notifications()`, `my_unseen_notification_count()`, `mark_notifications_seen()` |
 
 Verify in the SQL editor:
 
 ```sql
 select version from supabase_migrations.schema_migrations
-order by version desc limit 5;              -- ends 20261018000005
+order by version desc limit 6;              -- ends 20261018000006
 
 select * from private.drain_config;         -- exists, EMPTY (step 6 fills it)
 

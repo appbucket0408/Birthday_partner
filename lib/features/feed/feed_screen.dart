@@ -8,6 +8,7 @@ import '../../core/date_labels.dart';
 import '../../core/initial_avatar.dart';
 import '../../core/profile_avatar.dart';
 import '../../core/wish_photo.dart';
+import '../notifications/notification_bell.dart';
 import '../../models/feed_entry.dart';
 import '../../models/profile.dart';
 import '../../repositories/wish_repository.dart';
@@ -45,7 +46,10 @@ class FeedView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.feedTitle)),
+      appBar: AppBar(
+        title: const Text(AppStrings.feedTitle),
+        actions: const [NotificationBell(), SizedBox(width: AppSpacing.xs)],
+      ),
       body: BlocConsumer<FeedCubit, FeedState>(
         listenWhen: (previous, next) =>
             next is FeedLoaded && next.error != null,

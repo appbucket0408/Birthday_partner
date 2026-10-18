@@ -11,6 +11,7 @@ import '../../repositories/push_repository.dart';
 import '../../repositories/settings_repository.dart';
 import '../../repositories/settings_repository_impl.dart';
 import '../../router/session_cubit.dart';
+import '../push/notifications_off_banner.dart';
 import 'settings_cubit.dart';
 import 'settings_state.dart';
 
@@ -128,6 +129,9 @@ class _SettingsView extends StatelessWidget {
         AppSpacing.lg,
       ),
       children: [
+        // The two switches below only choose WHAT to send; if the phone
+        // blocks notifications, nothing arrives either way, so say so first.
+        const NotificationsOffBanner(),
         const _SectionLabel(AppStrings.settingsSectionNotifications),
         _Group(
           children: [

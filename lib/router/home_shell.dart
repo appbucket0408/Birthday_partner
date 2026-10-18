@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/app_strings.dart';
+import '../features/notifications/notification_badge_cubit.dart';
 import 'active_tab.dart';
 
 class HomeShell extends StatelessWidget {
@@ -35,10 +37,16 @@ class HomeShell extends StatelessWidget {
           selectedIndex: shell.currentIndex,
           // Re-tapping the active tab returns it to its root, the way every
           // tab bar on the platform behaves.
-          onDestinationSelected: (index) => shell.goBranch(
-            index,
-            initialLocation: index == shell.currentIndex,
-          ),
+          onDestinationSelected: (index) {
+            shell.goBranch(index, initialLocation: index == shell.currentIndex);
+            // Something may have arrived while the app was open; the bell is
+            // in every tab, so a tab switch is a natural moment to recount.
+            try {
+              context.read<NotificationBadgeCubit>().refresh();
+            } on ProviderNotFoundException {
+              // Router tests build the shell without it.
+            }
+          },
           destinations: const [
             NavigationDestination(
               key: Key('nav_feed'),

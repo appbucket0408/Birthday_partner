@@ -10,6 +10,7 @@ import '../features/contacts_import/import_disclosure_screen.dart';
 import '../features/feed/feed_screen.dart';
 import '../features/gifting/cake_coming_soon_screen.dart';
 import '../features/gifting/gift_list_screen.dart';
+import '../features/notifications/notifications_screen.dart';
 import '../features/onboarding/phone_screen.dart';
 import '../features/onboarding/profile_setup_screen.dart';
 import '../features/person/person_screen.dart';
@@ -125,6 +126,12 @@ GoRouter buildRouter(SessionCubit session) {
         ),
       ),
       GoRoute(path: '/gifts', builder: (_, __) => const GiftListScreen()),
+      // Full screen, above the tabs, opened from any tab's bell and popped
+      // back to it.
+      GoRoute(
+        path: '/notifications',
+        builder: (_, __) => const NotificationsScreen(),
+      ),
       // Both counts on the Profile tab open the same screen, each on its own
       // tab -- Instagram's Following / Followers.
       GoRoute(
@@ -151,6 +158,7 @@ GoRouter buildRouter(SessionCubit session) {
         '/profile/celebrating',
         '/profile/celebrates',
         '/gifts',
+        '/notifications',
       };
       final onPersonPage = at.startsWith('/person/');
       final onGiftCatalogPage = at.startsWith('/gift/new/');

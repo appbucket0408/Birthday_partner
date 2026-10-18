@@ -47,7 +47,9 @@ select is(
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
   -- feed_page (20261018000002): the public feed. Clients are meant to call
   -- it; it returns only what a feed card shows.
-  'feed_page,my_birthday_stats,my_celebrates,ops_get_delivery_address,person_celebrator_count,register_device_token,rpc_celebrate_back,rpc_create_gift',
+  -- mark_notifications_seen, my_notifications, my_unseen_notification_count
+  -- (20261018000006): the Notifications screen, each scoped to auth.uid().
+  'feed_page,mark_notifications_seen,my_birthday_stats,my_celebrates,my_notifications,my_unseen_notification_count,ops_get_delivery_address,person_celebrator_count,register_device_token,rpc_celebrate_back,rpc_create_gift',
   'only intentionally client-callable public functions are executable'
 );
 

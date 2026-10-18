@@ -59,6 +59,11 @@ abstract final class ApiParams {
   static const photoPath = 'photo_path';
   static const wishPhotosBucket = 'wish_photos';
 
+  // my_notifications
+  static const seen = 'seen';
+  static const wishId = 'wish_id';
+  static const offsetDays = 'offset_days';
+
   // feed_page
   static const pBefore = 'p_before';
   static const pLimit = 'p_limit';

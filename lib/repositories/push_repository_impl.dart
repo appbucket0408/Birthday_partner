@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -156,9 +157,11 @@ class PushRepositoryImpl implements PushRepository {
       AuthorizationStatus.authorized ||
       AuthorizationStatus.provisional =>
         PushPermission.granted,
-      AuthorizationStatus.denied ||
-      AuthorizationStatus.deniedPermanently =>
-        PushPermission.denied,
+      AuthorizationStatus.denied => PushPermission.denied,
+      // Android 13+'s state after a SECOND refusal: no prompt will ever show
+      // again. Kept apart from denied so the banner's "Turn on" goes to
+      // settings instead of asking an OS that will not answer.
+      AuthorizationStatus.deniedPermanently => PushPermission.blocked,
       AuthorizationStatus.notDetermined => PushPermission.notDetermined,
     };
   }
@@ -200,6 +203,20 @@ class PushRepositoryImpl implements PushRepository {
           .eq(ApiParams.token, token);
     } catch (e) {
       throw mapError(e);
+    }
+  }
+
+  /// MainActivity's handler; see the comment there for why it is native.
+  static const _settingsChannel =
+      MethodChannel('candlewish/notification_settings');
+
+  @override
+  Future<void> openNotificationSettings() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _settingsChannel.invokeMethod<void>('open');
+    } on PlatformException catch (e, s) {
+      Log.error('opening notification settings failed', e, s);
     }
   }
 

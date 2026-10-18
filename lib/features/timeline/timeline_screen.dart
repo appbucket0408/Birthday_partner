@@ -23,6 +23,7 @@ import '../../repositories/graph_repository_impl.dart';
 import '../../repositories/push_repository.dart';
 import '../../router/session_cubit.dart';
 import '../../router/session_state.dart';
+import '../notifications/notification_bell.dart';
 import '../push/push_cubit.dart';
 import 'timeline_cubit.dart';
 import 'timeline_state.dart';
@@ -135,6 +136,7 @@ class _TimelineView extends StatelessWidget {
         // as the Profile tab's settings icon, so the headers read as one
         // app. The labelled entry point is the row at the top of the list.
         actions: [
+          const NotificationBell(),
           Padding(
             padding: const EdgeInsets.only(right: AppSpacing.sm),
             child: IconButton.filledTonal(
