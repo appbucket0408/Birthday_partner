@@ -61,6 +61,11 @@ class _OpsCatalogViewState extends State<OpsCatalogView> {
             child: const Text(AppStrings.opsSlotsTab),
           ),
           TextButton(
+            key: const Key('ops_go_reports'),
+            onPressed: () => context.go('/reports'),
+            child: const Text(AppStrings.opsReportsTab),
+          ),
+          TextButton(
             key: const Key('ops_sign_out'),
             onPressed: () => context.read<SignInCubit>().signOut(),
             child: const Text(AppStrings.opsSignOut),

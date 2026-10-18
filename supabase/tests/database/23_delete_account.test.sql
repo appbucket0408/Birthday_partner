@@ -32,11 +32,16 @@ select tests.as_postgres();
 
 select tests.create_user('deleter');
 select tests.create_user('bystander');
+-- The other side of both block rows. Not the bystander: a block deletes the
+-- celebrations between the pair (20261018000007), and the bystander's edge
+-- to the deleter is one this test needs to survive.
+select tests.create_user('blockee');
 
 create temporary table ids as
 select
   (select id from public.profiles where handle = 'deleter') as deleter,
-  (select id from public.profiles where handle = 'bystander') as bystander;
+  (select id from public.profiles where handle = 'bystander') as bystander,
+  (select id from public.profiles where handle = 'blockee') as blockee;
 
 -- A real signed-up user sets their own name and birthday during onboarding.
 -- Set them here so this test can prove the post-delete SCRUB, not merely
@@ -49,10 +54,10 @@ where id = (select deleter from ids);
 -- The deleter claims their own number (which copies the name/birthday just
 -- set above onto the people row -- private.claim_person overwrites, it does
 -- not merge), celebrates a contact (minting that contact's person row),
--- authors a wish, registers a device, and blocks the bystander. A bystander,
+-- authors a wish, registers a device, and blocks the blockee. A bystander,
 -- separately, celebrates the deleter's own number -- that edge belongs to
--- the bystander, not the deleter, and must not move -- and later blocks the
--- deleter right back, exercising blocks' OTHER foreign key.
+-- the bystander, not the deleter, and must not move. The blockee later
+-- blocks the deleter right back, exercising blocks' OTHER foreign key.
 create temporary table setup as
 select
   private.claim_person((select deleter from ids), '+919280000099') as deleter_person,
@@ -77,19 +82,16 @@ insert into private.notification_outbox
   (recipient_profile_id, subject_person_id, offset_days, occasion_date)
 select (select bystander from ids), (select deleter_person from setup), 7, current_date + 7;
 
--- Must happen BEFORE the block below: guard_celebration rejects an insert
--- where the target profile has blocked the inserting celebrator, and the
--- block row that follows names exactly this pair.
 select private.add_celebration((select bystander from ids), '+919280000099',
   'The Deleter');
 
 insert into public.blocks (blocker_profile_id, blocked_profile_id)
-select (select deleter from ids), (select bystander from ids);
+select (select deleter from ids), (select blockee from ids);
 
 -- The reverse direction: someone else blocks the deleter. Exercises
 -- blocks.blocked_profile_id's OWN cascade, distinct from blocker_profile_id's.
 insert into public.blocks (blocker_profile_id, blocked_profile_id)
-select (select bystander from ids), (select deleter from ids);
+select (select blockee from ids), (select deleter from ids);
 
 -- ---------------------------------------------------------------- before
 

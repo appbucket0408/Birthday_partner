@@ -64,10 +64,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'private'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  -- is_public_wish_photo: wish_photos_select_public_feed (20261018000002)
-  -- calls it as the signed-in user, so a member can load the photo on a
-  -- public feed post. It answers one yes/no about one storage path.
-  'can_see_person,is_public_wish_photo,is_staff,my_person_id',
+
+  'can_see_person,i_reported_wish,is_blocked_with,is_public_wish_photo,is_staff,my_person_id',
   'only the policy helpers are executable by authenticated'
 );
 

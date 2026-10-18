@@ -6,6 +6,7 @@ import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
 import '../../core/date_labels.dart';
 import '../../core/initial_avatar.dart';
+import '../../core/moderation_sheet.dart';
 import '../../core/profile_avatar.dart';
 import '../../core/wish_photo.dart';
 import '../notifications/notification_bell.dart';
@@ -325,6 +326,27 @@ class _Post extends StatelessWidget {
                 Icons.chevron_right,
                 size: 20,
                 color: scheme.onSurfaceVariant,
+              ),
+            // Anyone can see a member's wall here, strangers included, so
+            // every post that isn't yours can be reported or its author
+            // blocked from the feed itself.
+            if (!mine)
+              IconButton(
+                key: Key('feed_more_${wish.id}'),
+                icon: const Icon(Icons.more_vert, size: 20),
+                color: scheme.onSurfaceVariant,
+                tooltip: AppStrings.moreActions,
+                visualDensity: VisualDensity.compact,
+                onPressed: () async {
+                  final outcome = await showWishModeration(
+                    context,
+                    wish: wish,
+                    authorName: author,
+                  );
+                  if (outcome != null && context.mounted) {
+                    context.read<FeedCubit>().refresh();
+                  }
+                },
               ),
           ],
         ),

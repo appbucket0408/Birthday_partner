@@ -15,6 +15,7 @@ import '../features/onboarding/phone_screen.dart';
 import '../features/onboarding/profile_setup_screen.dart';
 import '../features/person/person_screen.dart';
 import '../features/profile/profile_screen.dart';
+import '../features/settings/blocked_users_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/timeline/timeline_screen.dart';
 import 'home_shell.dart';
@@ -106,6 +107,10 @@ GoRouter buildRouter(SessionCubit session) {
       ),
       GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
       GoRoute(
+        path: '/settings/blocked',
+        builder: (_, __) => const BlockedUsersScreen(),
+      ),
+      GoRoute(
         path: '/person/:personId',
         builder: (_, state) => PersonScreen(
           personId: int.parse(state.pathParameters['personId']!),
@@ -154,6 +159,7 @@ GoRouter buildRouter(SessionCubit session) {
         '/calendar',
         '/import',
         '/settings',
+        '/settings/blocked',
         '/profile',
         '/profile/celebrating',
         '/profile/celebrates',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/wish.dart';
 import 'app_spacing.dart';
+import 'moderation_sheet.dart';
 import 'wish_photo.dart';
 import 'wish_post_screen.dart';
 
@@ -11,6 +12,8 @@ class WishCard extends StatelessWidget {
     required this.wish,
     required this.index,
     required this.unknownAuthor,
+    this.canModerate = false,
+    this.onModerated,
   });
 
   final Wish wish;
@@ -21,6 +24,24 @@ class WishCard extends StatelessWidget {
   /// Shown when the author is outside the viewer's graph, worded for the
   /// screen it is on.
   final String unknownAuthor;
+
+  /// Offer report/block on the opened post. The caller decides: false for
+  /// the viewer's own wish.
+  final bool canModerate;
+
+  /// Called after the post was reported or its author blocked, so the wall
+  /// can reload without it.
+  final ValueChanged<ModerationOutcome>? onModerated;
+
+  Future<void> _open(BuildContext context) async {
+    final outcome = await WishPostScreen.open(
+      context,
+      wish: wish,
+      unknownAuthor: unknownAuthor,
+      canModerate: canModerate,
+    );
+    if (outcome != null) onModerated?.call(outcome);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,11 +71,7 @@ class WishCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         borderRadius: BorderRadius.circular(AppSpacing.md),
         child: InkWell(
-          onTap: () => WishPostScreen.open(
-            context,
-            wish: wish,
-            unknownAuthor: unknownAuthor,
-          ),
+          onTap: () => _open(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -86,29 +103,35 @@ class WishCard extends StatelessWidget {
       );
     }
 
-    return Container(
+    // Tappable too, not only photo posts: the opened post is where the
+    // whole text is readable and where report/block lives.
+    return Material(
       key: Key('wish_${wish.id}'),
-      padding: const EdgeInsets.all(AppSpacing.md - AppSpacing.xs),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(AppSpacing.md),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Text(
-              wish.body,
-              overflow: TextOverflow.fade,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: foreground,
-                height: 1.3,
+      color: background,
+      clipBehavior: Clip.antiAlias,
+      borderRadius: BorderRadius.circular(AppSpacing.md),
+      child: InkWell(
+        onTap: () => _open(context),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md - AppSpacing.xs),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  wish.body,
+                  overflow: TextOverflow.fade,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: foreground,
+                    height: 1.3,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(height: AppSpacing.sm),
+              author,
+            ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-          author,
-        ],
+        ),
       ),
     );
   }

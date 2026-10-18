@@ -182,6 +182,17 @@ class _SettingsView extends StatelessWidget {
         _Group(
           children: [
             ListTile(
+              key: const Key('blocked_people_tile'),
+              leading: _IconTile(
+                icon: Icons.block,
+                background: scheme.surfaceContainerHigh,
+                foreground: scheme.onSurfaceVariant,
+              ),
+              title: Text(AppStrings.settingsBlocked, style: rowTitle),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/settings/blocked'),
+            ),
+            ListTile(
               key: const Key('sign_out_tile'),
               leading: _IconTile(
                 icon: Icons.logout_rounded,

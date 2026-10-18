@@ -8,11 +8,15 @@ import '../../core/app_text_styles.dart';
 import '../../core/countdown_pill.dart';
 import '../../core/date_labels.dart';
 import '../../core/initial_avatar.dart';
+import '../../core/moderation_sheet.dart';
 import '../../core/wish_card.dart';
 import '../../core/wish_post_screen.dart';
+import '../../models/profile.dart';
 import '../../repositories/graph_repository.dart';
 import '../../repositories/person_repository.dart';
 import '../../repositories/wish_repository.dart';
+import '../../router/session_cubit.dart';
+import '../../router/session_state.dart';
 import 'person_cubit.dart';
 import 'person_state.dart';
 import 'wish_compose_screen.dart';
@@ -75,13 +79,19 @@ class PersonView extends StatelessWidget {
           current is PersonLoaded,
       listener: (context, state) {
         final loaded = state as PersonLoaded;
+        final me = _me(context);
         for (final wish in loaded.wishes) {
           if (wish.id == openWishId) {
             WishPostScreen.open(
               context,
               wish: wish,
               unknownAuthor: AppStrings.wishAuthorUnknown,
-            );
+              canModerate: me != null && wish.authorProfileId != me.id,
+            ).then((outcome) {
+              if (outcome != null && context.mounted) {
+                context.read<PersonCubit>().load(personId);
+              }
+            });
             return;
           }
         }
@@ -103,6 +113,31 @@ class PersonView extends StatelessWidget {
                   ? context.pop()
                   : context.go('/timeline'),
             ),
+            actions: [
+              if (state case PersonLoaded(:final person)
+                  when person.profileId != null &&
+                      person.profileId != _me(context)?.id)
+                IconButton(
+                  key: const Key('person_more'),
+                  icon: const Icon(Icons.more_vert),
+                  tooltip: AppStrings.moreActions,
+                  onPressed: () async {
+                    final outcome = await showPersonModeration(
+                      context,
+                      profileId: person.profileId!,
+                      name: person.displayName,
+                    );
+                    // A block removes them from the viewer's world, this
+                    // page included: it would only fail to reload.
+                    if (outcome == ModerationOutcome.blocked &&
+                        context.mounted) {
+                      context.canPop()
+                          ? context.pop()
+                          : context.go('/timeline');
+                    }
+                  },
+                ),
+            ],
           ),
           body: switch (state) {
             PersonLoading() =>
@@ -128,8 +163,17 @@ class PersonView extends StatelessWidget {
     );
   }
 
+  // Nullable lookup: a widget test may host this page without a session,
+  // and then nothing is offered rather than the page failing to build.
+  Profile? _me(BuildContext context) =>
+      switch (context.read<SessionCubit?>()?.state) {
+        SessionReady(:final profile) => profile,
+        _ => null,
+      };
+
   Widget _buildLoaded(BuildContext context, PersonLoaded state) {
     final theme = Theme.of(context);
+    final me = _me(context);
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
@@ -173,6 +217,9 @@ class PersonView extends StatelessWidget {
                   wish: wish,
                   index: i,
                   unknownAuthor: AppStrings.wishAuthorUnknown,
+                  canModerate: me != null && wish.authorProfileId != me.id,
+                  onModerated: (_) =>
+                      context.read<PersonCubit>().load(personId),
                 ),
             ],
           ),

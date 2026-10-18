@@ -297,6 +297,8 @@ class ProfileView extends StatelessWidget {
                   wish: w,
                   index: i,
                   unknownAuthor: AppStrings.profileWishAuthorUnknown,
+                  canModerate: w.authorProfileId != state.profile.id,
+                  onModerated: (_) => context.read<ProfileCubit>().refresh(),
                 ),
             ],
           ),

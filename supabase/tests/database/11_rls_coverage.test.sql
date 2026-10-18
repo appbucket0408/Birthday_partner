@@ -49,7 +49,10 @@ select is(
   -- it; it returns only what a feed card shows.
   -- mark_notifications_seen, my_notifications, my_unseen_notification_count
   -- (20261018000006): the Notifications screen, each scoped to auth.uid().
-  'feed_page,mark_notifications_seen,my_birthday_stats,my_celebrates,my_notifications,my_unseen_notification_count,ops_get_delivery_address,person_celebrator_count,register_device_token,rpc_celebrate_back,rpc_create_gift',
+  -- my_blocked_users, rpc_report_user, rpc_report_wish (20261018000007):
+  -- report and block, each scoped to auth.uid(). ops_open_reports and
+  -- ops_resolve_report raise for anyone who is not staff.
+  'feed_page,mark_notifications_seen,my_birthday_stats,my_blocked_users,my_celebrates,my_notifications,my_unseen_notification_count,ops_get_delivery_address,ops_open_reports,ops_resolve_report,person_celebrator_count,register_device_token,rpc_celebrate_back,rpc_create_gift,rpc_report_user,rpc_report_wish',
   'only intentionally client-callable public functions are executable'
 );
 

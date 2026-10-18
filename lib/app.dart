@@ -13,6 +13,8 @@ import 'repositories/avatar_repository.dart';
 import 'repositories/avatar_repository_impl.dart';
 import 'repositories/gift_interest_repository.dart';
 import 'repositories/gift_interest_repository_impl.dart';
+import 'repositories/moderation_repository.dart';
+import 'repositories/moderation_repository_impl.dart';
 import 'repositories/notification_repository.dart';
 import 'repositories/notification_repository_impl.dart';
 import 'features/notifications/notification_badge_cubit.dart';
@@ -56,6 +58,8 @@ class _BirthdayAppState extends State<BirthdayApp> {
       PushRepositoryImpl(ApiClient.instance, FirebaseMessaging.instance);
   late final NotificationRepository _notifications =
       NotificationRepositoryImpl(ApiClient.instance);
+  late final ModerationRepository _moderation =
+      ModerationRepositoryImpl(ApiClient.instance);
   // App-level, not in HomeShell: the bell lives in the tabs, but the
   // Notifications screen that clears it is a route above them.
   late final NotificationBadgeCubit _badge =
@@ -114,6 +118,7 @@ class _BirthdayAppState extends State<BirthdayApp> {
           value: _giftInterest,
         ),
         RepositoryProvider<PushRepository>.value(value: _push),
+        RepositoryProvider<ModerationRepository>.value(value: _moderation),
         RepositoryProvider<NotificationRepository>.value(
           value: _notifications,
         ),

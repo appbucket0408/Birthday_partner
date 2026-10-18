@@ -6,6 +6,8 @@ import '../core/app_colors.dart';
 import '../core/app_strings.dart';
 import '../repositories/ops_repository.dart';
 import '../repositories/ops_repository_impl.dart';
+import '../repositories/ops_reports_repository.dart';
+import '../repositories/ops_reports_repository_impl.dart';
 import '../repositories/staff_auth_repository.dart';
 import '../repositories/staff_auth_repository_impl.dart';
 import 'ops_router.dart';
@@ -28,6 +30,8 @@ class _OpsAppState extends State<OpsApp> {
   late final StaffAuthRepository _auth =
       StaffAuthRepositoryImpl(ApiClient.instance);
   late final OpsRepository _ops = OpsRepositoryImpl(ApiClient.instance);
+  late final OpsReportsRepository _reports =
+      OpsReportsRepositoryImpl(ApiClient.instance);
   late final SignInCubit _session = SignInCubit(_auth);
   late final _router = buildOpsRouter(_session);
 
@@ -37,6 +41,7 @@ class _OpsAppState extends State<OpsApp> {
       providers: [
         RepositoryProvider<StaffAuthRepository>.value(value: _auth),
         RepositoryProvider<OpsRepository>.value(value: _ops),
+        RepositoryProvider<OpsReportsRepository>.value(value: _reports),
       ],
       child: BlocProvider.value(
         value: _session,

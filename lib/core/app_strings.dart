@@ -438,4 +438,44 @@ abstract final class AppStrings {
       'A window already starts at that time on that date.';
   static const opsNoSlots = 'No delivery windows in this range.';
   static const opsDateInvalid = 'Enter the date as YYYY-MM-DD.';
+
+  // Report and block
+  static const reportPost = 'Report post';
+  static const reportUserTemplate = 'Report %s';
+  static const blockUserTemplate = 'Block %s';
+  static const reportWhyTitle = 'Why are you reporting this?';
+  static const reportReasonSpam = 'Spam';
+  static const reportReasonHarassment = 'Bullying or harassment';
+  static const reportReasonInappropriate = 'Nudity or sexual content';
+  static const reportReasonHate = 'Hate speech or violence';
+  static const reportReasonOther = 'Something else';
+  static const reportedPost =
+      "Thanks for telling us. We'll review it, and you won't see this post "
+      'again.';
+  static const reportedUser = "Thanks for telling us. We'll review it.";
+  static const blockTitleTemplate = 'Block %s?';
+  static const blockBody =
+      "You'll stop celebrating each other, and neither of you will see the "
+      "other's wishes. They won't be told. You can unblock them in Settings.";
+  static const blockConfirm = 'Block';
+  static const blockedTemplate = '%s is blocked.';
+  static const moreActions = 'More';
+  static const settingsBlocked = 'Blocked people';
+  static const blockedTitle = 'Blocked people';
+  static const blockedEmpty = "You haven't blocked anyone.";
+  static const unblock = 'Unblock';
+  static const unblockedTemplate = '%s is unblocked.';
+
+  // Ops: reports
+  static const opsReportsTab = 'Reports';
+  static const opsNoReports = 'No open reports.';
+  static const opsReportPost = 'Post report';
+  static const opsReportPerson = 'Person report';
+  static const opsReportedBy = 'Reported by';
+  static const opsReportCountTemplate = '%s open reports';
+  static const opsPostAlreadyGone = 'This post has already been deleted.';
+  static const opsRemovePost = 'Remove post';
+  static const opsDismiss = 'Dismiss';
+  static const opsRemoved = 'Post removed.';
+  static const opsDismissed = 'Report dismissed.';
 }

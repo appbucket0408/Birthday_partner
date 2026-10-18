@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../core/app_spacing.dart';
 import '../core/app_strings.dart';
 import 'catalog/ops_catalog_screen.dart';
+import 'reports/ops_reports_screen.dart';
 import 'slots/ops_slots_screen.dart';
 import 'signin/signin_cubit.dart';
 import 'signin/signin_screen.dart';
@@ -30,6 +31,10 @@ GoRouter buildOpsRouter(SignInCubit session) {
       GoRoute(
         path: '/catalog',
         builder: (_, __) => const OpsCatalogScreen(),
+      ),
+      GoRoute(
+        path: '/reports',
+        builder: (_, __) => const OpsReportsScreen(),
       ),
       GoRoute(
         path: '/slots',

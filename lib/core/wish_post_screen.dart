@@ -5,6 +5,7 @@ import 'app_spacing.dart';
 import 'app_strings.dart';
 import 'date_labels.dart';
 import 'initial_avatar.dart';
+import 'moderation_sheet.dart';
 import 'wish_photo.dart';
 
 
@@ -13,20 +14,32 @@ class WishPostScreen extends StatelessWidget {
     super.key,
     required this.wish,
     required this.unknownAuthor,
+    this.canModerate = false,
   });
 
   final Wish wish;
   final String unknownAuthor;
 
-  static Future<void> open(
+  /// Shows the report/block menu. False for the viewer's own posts, and on
+  /// any screen that does not reload after a report.
+  final bool canModerate;
+
+  /// Completes with the outcome when the post was reported or its author
+  /// blocked -- the screen pops itself then, since the post is gone from the
+  /// viewer's world -- and with null when simply closed.
+  static Future<ModerationOutcome?> open(
     BuildContext context, {
     required Wish wish,
     required String unknownAuthor,
+    bool canModerate = false,
   }) =>
       Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) =>
-              WishPostScreen(wish: wish, unknownAuthor: unknownAuthor),
+        MaterialPageRoute<ModerationOutcome>(
+          builder: (_) => WishPostScreen(
+            wish: wish,
+            unknownAuthor: unknownAuthor,
+            canModerate: canModerate,
+          ),
         ),
       );
 
@@ -37,7 +50,27 @@ class WishPostScreen extends StatelessWidget {
     final author = wish.authorName ?? unknownAuthor;
     final path = wish.photoPath;
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.wishPostTitle)),
+      appBar: AppBar(
+        title: const Text(AppStrings.wishPostTitle),
+        actions: [
+          if (canModerate)
+            IconButton(
+              key: const Key('wish_post_more'),
+              icon: const Icon(Icons.more_vert),
+              tooltip: AppStrings.moreActions,
+              onPressed: () async {
+                final outcome = await showWishModeration(
+                  context,
+                  wish: wish,
+                  authorName: author,
+                );
+                if (outcome != null && context.mounted) {
+                  Navigator.of(context).pop(outcome);
+                }
+              },
+            ),
+        ],
+      ),
       body: SafeArea(
         top: false,
         child: ListView(

@@ -116,4 +116,24 @@ abstract final class ApiParams {
   static const pSlotId = 'p_slot_id';
   static const pOccasionDate = 'p_occasion_date';
   static const pMessage = 'p_message';
+
+  // report and block (20261018000007)
+  static const blocks = 'blocks';
+  static const blockerProfileId = 'blocker_profile_id';
+  static const blockedProfileId = 'blocked_profile_id';
+  static const blockedAt = 'blocked_at';
+  static const pWishId = 'p_wish_id';
+  static const pProfileId = 'p_profile_id';
+  static const pReason = 'p_reason';
+  static const pReportId = 'p_report_id';
+  static const pAction = 'p_action';
+  static const reason = 'reason';
+  static const note = 'note';
+  static const wishBody = 'wish_body';
+  static const wishPhotoPath = 'wish_photo_path';
+  static const wishStillExists = 'wish_still_exists';
+  static const reportedProfileId = 'reported_profile_id';
+  static const reportedName = 'reported_name';
+  static const reporterName = 'reporter_name';
+  static const reportCount = 'report_count';
 }
