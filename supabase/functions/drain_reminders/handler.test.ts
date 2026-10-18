@@ -7,7 +7,7 @@
 // No server, no database, no Google: everything is injected.
 import { assertEquals } from "jsr:@std/assert@1";
 import { bodySaysUnregistered, type DrainDeps, handleDrain } from "./handler.ts";
-import { resetTokenCache } from "./fcm.ts";
+import { reminderBody, resetTokenCache } from "./fcm.ts";
 
 const SECRET = "test-drain-secret";
 
@@ -25,6 +25,8 @@ type Calls = {
   rpc: { fn: string; params: Record<string, unknown> }[];
   deleted: string[];
   fetched: string[];
+  /// The JSON body of every FCM send, so a test can pin the message shape.
+  sentBodies: unknown[];
 };
 
 function deps(opts: {
@@ -34,7 +36,7 @@ function deps(opts: {
   fcmBody?: string;
   tokenStatus?: number;
 } = {}): { deps: DrainDeps; calls: Calls } {
-  const calls: Calls = { rpc: [], deleted: [], fetched: [] };
+  const calls: Calls = { rpc: [], deleted: [], fetched: [], sentBodies: [] };
   const env: Record<string, string | undefined> = {
     DRAIN_SECRET: SECRET,
     SUPABASE_URL: "http://localhost",
@@ -59,8 +61,11 @@ function deps(opts: {
           return Promise.resolve({ error: null });
         },
       },
-      fetchImpl: ((url: string | URL) => {
+      fetchImpl: ((url: string | URL, init?: RequestInit) => {
         calls.fetched.push(String(url));
+        if (String(url).includes("fcm.googleapis.com")) {
+          calls.sentBodies.push(JSON.parse(String(init?.body)));
+        }
         if (String(url).includes("oauth2.googleapis.com")) {
           return Promise.resolve(
             new Response(
@@ -113,6 +118,34 @@ Deno.test("with no service account it dry-runs and claims nothing extra", async 
   assertEquals(calls.fetched.length, 0, "dry run must not reach the network");
   assertEquals(calls.rpc.map((c) => c.fn), ["rpc_next_reminder_batch"]);
 });
+
+Deno.test(
+  "a reminder is sent on the birthday_reminders channel, branded, with its "
+    + "body and person_id unchanged",
+  async () => {
+    resetTokenCache();
+    const { deps: d, calls } = deps({
+      batch: [reminder()],
+      serviceAccount: await serviceAccountJson(),
+    });
+
+    await handleDrain(post(), d);
+
+    // The whole message, not a field at a time: the app's channel, its tap
+    // routing (data.person_id) and the copy all ride on this one shape.
+    assertEquals(calls.sentBodies, [{
+      message: {
+        token: "device-token-abc",
+        notification: {
+          title: "Candlewish 🎂",
+          body: reminderBody("Asha", 0),
+        },
+        android: { notification: { channel_id: "birthday_reminders" } },
+        data: { person_id: "42" },
+      },
+    }]);
+  },
+);
 
 Deno.test(
   "REVIEW FOCUS 2: a 404 saying UNREGISTERED deletes that device's token",

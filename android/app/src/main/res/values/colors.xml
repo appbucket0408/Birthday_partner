@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The brand primary, AppColors.seed in lib/core/app_colors.dart. Tints
+         the notification's small icon and accents in the shade. Kept in
+         step with that file by hand: XML cannot read a Dart constant. -->
+    <color name="notification_accent">#D4473A</color>
+</resources>

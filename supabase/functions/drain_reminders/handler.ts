@@ -202,8 +202,18 @@ export async function handleDrain(
             message: {
               token: r.token,
               notification: {
-                title: "Birthday reminder",
+                title: "Candlewish 🎂",
                 body: reminderBody(r.subject_name, r.offset_days),
+              },
+              // The app creates this channel at startup (PushRepositoryImpl).
+              // Without it Android files a background notification under
+              // FCM's generic "Miscellaneous" channel, which the user can
+              // only silence wholesale. The manifest's
+              // default_notification_channel_id names the same channel, so
+              // this is belt and braces for older app builds, not the only
+              // thing routing it.
+              android: {
+                notification: { channel_id: "birthday_reminders" },
               },
               data: { person_id: String(r.subject_person_id) },
             },

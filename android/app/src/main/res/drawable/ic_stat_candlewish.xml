@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status-bar notification icon: the candle from
+     assets/icon/candlewish_icon_monochrome.svg, white on transparent.
+     Android draws a notification's small icon from its alpha channel only,
+     so anything opaque (like the full-colour launcher icon) renders as a
+     solid white square, which is what FCM showed before this existed.
+
+     Converted by hand, one SVG transform per <group> and in the same order,
+     so it stays traceable to the source: the outer three groups are the
+     SVG's `translate(512 512) scale(0.8) translate(-512 -528)`, and each
+     flame keeps its own `translate(...) rotate(...)`. The rounded rect is
+     spelled out as a path because VectorDrawable has no <rect>.
+
+     One deliberate departure: the source is drawn for the launcher's
+     adaptive-icon safe zone, so the candle fills only ~40% of its 1024
+     canvas and would be a sliver at 24dp. The viewport is cropped to a
+     538 square around the glyph (x 432..591, y 290..737 in source units)
+     so it fills 20 of the 24dp, Android's status-bar guideline. That crop is
+     folded into the outermost translate: the source's (512, 512) minus
+     (242.5, 244.5). The shapes themselves are untouched. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="538"
+    android:viewportHeight="538">
+    <group
+        android:translateX="269.5"
+        android:translateY="267.5">
+        <group
+            android:scaleX="0.8"
+            android:scaleY="0.8">
+            <group
+                android:translateX="-512"
+                android:translateY="-528">
+                <!-- Candle body: x 448..576, y 560..810, corner radius 36. -->
+                <path
+                    android:fillColor="#FFFFFFFF"
+                    android:pathData="M484,560 H540 A36,36 0 0 1 576,596 V774 A36,36 0 0 1 540,810 H484 A36,36 0 0 1 448,774 V596 A36,36 0 0 1 484,560 Z" />
+                <!-- Left flame. -->
+                <group
+                    android:translateX="490"
+                    android:translateY="446">
+                    <group android:rotation="-11">
+                        <path
+                            android:fillColor="#FFFFFFFF"
+                            android:pathData="M0,-200 C26,-150 76,-80 76,6 A76,76 0 0 1 -76,6 C-76,-80 -26,-150 0,-200 Z" />
+                    </group>
+                </group>
+                <!-- Right flame. -->
+                <group
+                    android:translateX="534"
+                    android:translateY="446">
+                    <group android:rotation="11">
+                        <path
+                            android:fillColor="#FFFFFFFF"
+                            android:pathData="M0,-200 C26,-150 76,-80 76,6 A76,76 0 0 1 -76,6 C-76,-80 -26,-150 0,-200 Z" />
+                    </group>
+                </group>
+            </group>
+        </group>
+    </group>
+</vector>

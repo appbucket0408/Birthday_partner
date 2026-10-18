@@ -164,6 +164,9 @@ abstract final class AppStrings {
   static const settingsSectionNotifications = 'Notifications';
   static const settingsSectionAccount = 'Account';
   static const settingsReminders = 'Birthday reminders';
+  static const reminderChannelName = 'Birthday reminders';
+  static const reminderChannelDescription =
+      'A heads-up before the birthdays you celebrate.';
   static const settingsRemindersBody =
       'Get a notification before each birthday you celebrate.';
   static const settingsSignOut = 'Sign out';
