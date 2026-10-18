@@ -62,7 +62,10 @@ schema_paths = []
 enabled = true
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-sql_paths = ["./seed.sql"]
+# local_dev_otp.sql makes every phone number accept OTP "123456" locally,
+# together with [auth.hook.send_sms] below. Seed files never reach a hosted
+# project through `db push`; see that file before changing this.
+sql_paths = ["./seed.sql", "./local_dev_otp.sql"]
 
 [db.network_restrictions]
 # Enable management of network restrictions.
@@ -363,6 +366,15 @@ max_frequency = "5s"
 # timebox = "24h"
 # Force log out if the user has been inactive longer than the specified duration.
 # inactivity_timeout = "8h"
+
+# LOCAL ONLY -- any phone number signs up / logs in with OTP "123456".
+# Replaces the placeholder Twilio below for every number not already in
+# [auth.sms.test_otp]: it sends nothing and the code is fixed by
+# supabase/local_dev_otp.sql (loaded by `db reset` via [db.seed]). Another
+# reason `supabase config push` must never run against a hosted project.
+[auth.hook.send_sms]
+enabled = true
+uri = "pg-functions://postgres/local_dev/send_sms"
 
 # This hook runs before a new user is created and allows developers to reject the request based on the incoming user object.
 # [auth.hook.before_user_created]

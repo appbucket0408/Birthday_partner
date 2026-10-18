@@ -38,15 +38,18 @@ fi
 # --- 1. nothing runs the command ----------------------------------------
 # git grep prints `path:lineno:content`; the filter drops content whose first
 # non-space character starts a comment.
-hits=$(git grep -n -- 'config push' -- \
+# `--include-seed` and `reset --linked` are here too: either would send
+# local_dev_otp.sql (any number signs in with "123456") to a hosted project.
+hits=$(git grep -n -E -- 'config push|include-seed|reset --linked' -- \
          '*.sh' '*.bash' '*.zsh' '*.yml' '*.yaml' '*.mk' \
          'Makefile' 'justfile' 'package.json' '.github/**' \
          ':!supabase/check-no-config-push.sh' \
        | grep -vE ':[0-9]+:[[:space:]]*#' || true)
 
 if [ -n "$hits" ]; then
-  echo "FAIL: a runnable tracked file invokes 'supabase config push' while"
-  echo "[auth.sms.test_otp] is present in supabase/config.toml."
+  echo "FAIL: a runnable tracked file invokes 'supabase config push',"
+  echo "'db push --include-seed' or 'db reset --linked' while local-only auth"
+  echo "backdoors ([auth.sms.test_otp], local_dev_otp.sql) are in the repo."
   echo "$hits"
   exit 1
 fi
