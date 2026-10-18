@@ -256,7 +256,7 @@ class _Post extends StatelessWidget {
     final radius = BorderRadius.circular(AppSpacing.md);
 
     final header = InkWell(
-      onTap: entry.subjectName == null
+      onTap: entry.subjectName == null || !entry.canOpenSubject
           ? null
           : () => context.push('/person/${wish.subjectPersonId}'),
       child: Padding(
@@ -316,7 +316,7 @@ class _Post extends StatelessWidget {
                 ],
               ),
             ),
-            if (entry.subjectName != null)
+            if (entry.subjectName != null && entry.canOpenSubject)
               Icon(
                 Icons.chevron_right,
                 size: 20,

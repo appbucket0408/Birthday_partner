@@ -330,7 +330,9 @@ class _WishComposeScreenState extends State<WishComposeScreen> {
                   Text(
                     posting
                         ? AppStrings.wishPosting
-                        : AppStrings.wishSheetSubtitle,
+                        : state is PersonLoaded && state.person.isClaimed
+                            ? AppStrings.wishSheetPublicSubtitle
+                            : AppStrings.wishSheetSubtitle,
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: scheme.onSurfaceVariant,

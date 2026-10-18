@@ -58,6 +58,13 @@ abstract final class ApiParams {
   static const photoPath = 'photo_path';
   static const wishPhotosBucket = 'wish_photos';
 
+  // feed_page
+  static const pBefore = 'p_before';
+  static const pLimit = 'p_limit';
+  static const authorName = 'author_name';
+  static const subjectName = 'subject_name';
+  static const canOpenSubject = 'can_open_subject';
+
   // my_birthday_stats
   static const statYear = 'stat_year';
   static const wishesSent = 'wishes_sent';

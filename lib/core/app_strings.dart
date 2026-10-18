@@ -195,6 +195,9 @@ abstract final class AppStrings {
   static const wishComposerTitle = 'Create a wish';
   static const wishComposerForTemplate = 'Wishing %s a happy birthday';
   static const wishSheetSubtitle = 'Your wish shows on their wish wall.';
+  static const wishSheetPublicSubtitle =
+      'Public: your wish shows on their wall and in the feed, where everyone '
+      'on Candlewish can see it.';
   static const wishSuggestions = [
     'Happy birthday! 🎂',
     'Have an amazing year ahead ✨',

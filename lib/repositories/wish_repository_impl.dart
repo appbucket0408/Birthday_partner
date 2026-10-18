@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../api/api_endpoints.dart';
 import '../api/api_error_mapper.dart';
 import '../api/api_params.dart';
 import '../core/logger.dart';
@@ -58,53 +59,23 @@ class WishRepositoryImpl implements WishRepository {
   @override
   Future<List<FeedEntry>> feed({DateTime? before, int limit = 20}) async {
     try {
-      var query = _client.from(ApiParams.wishes).select();
-      if (before != null) {
-        query = query.lt(ApiParams.createdAt, before.toUtc().toIso8601String());
-      }
-      final rows = await query
-          .order(ApiParams.createdAt, ascending: false)
-          .limit(limit);
-
-      final wishes = (rows as List)
-          .map((r) => Wish.fromRow(r as Map<String, dynamic>))
-          .toList();
-      if (wishes.isEmpty) return const [];
-
-      // Names come from `people`, as on the wall: authors outside the
-      // viewer's graph come back missing and render unattributed.
-      final authorIds =
-          wishes.map((w) => w.authorProfileId).toSet().toList(growable: false);
-      final subjectIds =
-          wishes.map((w) => w.subjectPersonId).toSet().toList(growable: false);
-      final lookups = await Future.wait([
-        _client
-            .from(ApiParams.people)
-            .select('${ApiParams.profileId}, ${ApiParams.displayName}')
-            .inFilter(ApiParams.profileId, authorIds),
-        _client
-            .from(ApiParams.people)
-            .select('${ApiParams.id}, ${ApiParams.displayName}')
-            .inFilter(ApiParams.id, subjectIds),
-      ]);
-
-      final authors = <String, String>{
-        for (final p in lookups[0] as List)
-          (p as Map<String, dynamic>)[ApiParams.profileId] as String:
-              p[ApiParams.displayName] as String,
-      };
-      final subjects = <int, String>{
-        for (final p in lookups[1] as List)
-          (p as Map<String, dynamic>)[ApiParams.id] as int:
-              p[ApiParams.displayName] as String,
-      };
+      final rows = await _client.rpc(
+        ApiEndpoints.rpcFeedPage,
+        params: {
+          ApiParams.pBefore: before?.toUtc().toIso8601String(),
+          ApiParams.pLimit: limit,
+        },
+      );
 
       return [
-        for (final w in wishes)
-          FeedEntry(
-            wish: w.withAuthorName(authors[w.authorProfileId]),
-            subjectName: subjects[w.subjectPersonId],
-          ),
+        for (final r in rows as List)
+          if (r case final Map<String, dynamic> row)
+            FeedEntry(
+              wish: Wish.fromRow(row)
+                  .withAuthorName(row[ApiParams.authorName] as String?),
+              subjectName: row[ApiParams.subjectName] as String?,
+              canOpenSubject: row[ApiParams.canOpenSubject] as bool? ?? false,
+            ),
       ];
     } catch (e) {
       throw mapError(e);

@@ -28,7 +28,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-EXPECTED_TEST_OTP=26
+EXPECTED_TEST_OTP=27
 
 if ! grep -q '^\[auth.sms.test_otp\]' supabase/config.toml; then
   echo "note: no [auth.sms.test_otp] block; both checks are moot."
