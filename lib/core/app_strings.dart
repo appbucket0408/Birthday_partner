@@ -237,6 +237,9 @@ abstract final class AppStrings {
       'first one.';
   static const feedSeeBirthdays = 'See upcoming birthdays';
   static const feedLoadMoreFailed = 'Older wishes could not be loaded.';
+  static const feedEnd = "You're all caught up";
+  static const feedEndBody = "That's every wish from your circle for now.";
+  static const feedBackToTop = 'Back to top';
 
   // Bottom navigation
   static const navFeed = 'Feed';

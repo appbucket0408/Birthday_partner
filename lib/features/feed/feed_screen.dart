@@ -152,15 +152,90 @@ class _Footer extends StatelessWidget {
         child: Center(child: CircularProgressIndicator()),
       );
     }
-    return const SizedBox.shrink();
+    return const _CaughtUp();
   }
 }
 
-/// One wish as a post card. The person who was wished is the point of it,
-/// so their name is bold and in colour, and tapping the header opens them.
-/// A photo leads with a short caption under it; a text-only wish is set as
-/// a coloured note, the same palette the wish walls use, so it reads as a
-/// post rather than a stray line.
+class _CaughtUp extends StatelessWidget {
+  const _CaughtUp();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final rule = Expanded(
+      child: Divider(
+        thickness: 1,
+        color: scheme.outlineVariant.withValues(alpha: 0.6),
+      ),
+    );
+    return Padding(
+      key: const Key('feed_end'),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.xl,
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              rule,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: scheme.primaryContainer,
+                    border: Border.all(
+                      color: scheme.primary.withValues(alpha: 0.25),
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.check_rounded,
+                    size: 30,
+                    color: scheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+              rule,
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            AppStrings.feedEnd,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            AppStrings.feedEndBody,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          FilledButton.tonalIcon(
+            key: const Key('feed_back_to_top'),
+            onPressed: () => Scrollable.of(context).position.animateTo(
+                  0,
+                  duration: const Duration(milliseconds: 450),
+                  curve: Curves.easeOutCubic,
+                ),
+            icon: const Icon(Icons.arrow_upward_rounded, size: 18),
+            label: const Text(AppStrings.feedBackToTop),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Post extends StatelessWidget {
   const _Post({required this.entry, required this.me, required this.now});
 
