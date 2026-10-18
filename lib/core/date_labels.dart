@@ -1,4 +1,5 @@
 import '../models/birthday.dart';
+import 'app_strings.dart';
 
 /// Month names for the few places that print a date. The app has no `intl`
 /// dependency, and English month names do not justify adding one.
@@ -25,6 +26,24 @@ abstract final class DateLabels {
   /// "Saturday, 21 October".
   static String dayHeading(DateTime date) =>
       '${weekdays[date.weekday - 1]}, ${date.day} ${months[date.month - 1]}';
+
+  /// How long ago, the way a feed says it: "Just now", "12m", "3h",
+  /// "Yesterday", then "17 October" -- with the year only when it is not
+  /// this one.
+  static String ago(DateTime date, DateTime now) {
+    final local = date.toLocal();
+    final current = now.toLocal();
+    final elapsed = current.difference(local);
+    if (elapsed.inMinutes < 1) return AppStrings.feedJustNow;
+    if (elapsed.inMinutes < 60) return '${elapsed.inMinutes}m';
+    final today = DateTime(current.year, current.month, current.day);
+    final day = DateTime(local.year, local.month, local.day);
+    final days = today.difference(day).inDays;
+    if (days == 0) return '${elapsed.inHours}h';
+    if (days == 1) return AppStrings.feedYesterday;
+    final label = '${local.day} ${months[local.month - 1]}';
+    return local.year == current.year ? label : '$label ${local.year}';
+  }
 
   /// "21 October 2026", in local time -- when a wish was posted.
   static String posted(DateTime date) {

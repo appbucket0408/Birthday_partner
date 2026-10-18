@@ -37,7 +37,10 @@ class FeedScreen extends StatelessWidget {
 /// Split out from [FeedScreen] so a widget test can drive it with its own
 /// [FeedCubit], same as `CalendarView`.
 class FeedView extends StatelessWidget {
-  const FeedView({super.key});
+  const FeedView({super.key, this.now = DateTime.now});
+
+  /// For each post's "3h" / "Yesterday".
+  final DateTime Function() now;
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +76,7 @@ class FeedView extends StatelessWidget {
             ),
           FeedLoaded() => RefreshIndicator(
               onRefresh: () => context.read<FeedCubit>().refresh(),
-              child: _List(state: state),
+              child: _List(state: state, now: now()),
             ),
         },
       ),
@@ -82,9 +85,10 @@ class FeedView extends StatelessWidget {
 }
 
 class _List extends StatelessWidget {
-  const _List({required this.state});
+  const _List({required this.state, required this.now});
 
   final FeedLoaded state;
+  final DateTime now;
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +103,10 @@ class _List extends StatelessWidget {
     return ListView.builder(
       key: const Key('feed_list'),
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+      padding: const EdgeInsets.only(
+        top: AppSpacing.sm,
+        bottom: AppSpacing.lg,
+      ),
       itemCount: entries.length + 1,
       itemBuilder: (context, i) {
         if (i == entries.length) return _Footer(state: state);
@@ -108,7 +115,7 @@ class _List extends StatelessWidget {
         if (i >= entries.length - 3 && state.hasMore && !state.moreFailed) {
           WidgetsBinding.instance.addPostFrameCallback((_) => cubit.loadMore());
         }
-        return _Post(entry: entries[i], me: me);
+        return _Post(entry: entries[i], me: me, now: now);
       },
     );
   }
@@ -149,14 +156,17 @@ class _Footer extends StatelessWidget {
   }
 }
 
-/// One wish as a post: who wished whom and when, the photo when there is
-/// one, then the message. Tapping the header opens the person who was
-/// wished.
+/// One wish as a post card. The person who was wished is the point of it,
+/// so their name is bold and in colour, and tapping the header opens them.
+/// A photo leads with a short caption under it; a text-only wish is set as
+/// a coloured note, the same palette the wish walls use, so it reads as a
+/// post rather than a stray line.
 class _Post extends StatelessWidget {
-  const _Post({required this.entry, required this.me});
+  const _Post({required this.entry, required this.me, required this.now});
 
   final FeedEntry entry;
   final Profile? me;
+  final DateTime now;
 
   @override
   Widget build(BuildContext context) {
@@ -167,99 +177,175 @@ class _Post extends StatelessWidget {
     final author = wish.authorName ?? AppStrings.feedAuthorUnknown;
     final subject = entry.subjectName ?? AppStrings.feedSubjectUnknown;
     final isCake = wish.kind == 'cake';
-    final action = (isCake
-            ? AppStrings.feedSentCakeTemplate
-            : AppStrings.feedWishedTemplate)
-        .replaceFirst('%s', subject);
     final path = wish.photoPath;
+    final radius = BorderRadius.circular(AppSpacing.md);
 
-    return Padding(
-      key: Key('feed_post_${wish.id}'),
-      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          InkWell(
-            onTap: entry.subjectName == null
-                ? null
-                : () => context.push('/person/${wish.subjectPersonId}'),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.md,
-                AppSpacing.sm + 4,
-                AppSpacing.md,
-                AppSpacing.sm + 4,
-              ),
-              child: Row(
+    final header = InkWell(
+      onTap: entry.subjectName == null
+          ? null
+          : () => context.push('/person/${wish.subjectPersonId}'),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.sm + 4,
+          AppSpacing.sm + 4,
+          AppSpacing.sm,
+          AppSpacing.sm + 4,
+        ),
+        child: Row(
+          children: [
+            if (mine)
+              ProfileAvatar(
+                name: me!.displayName,
+                path: me!.avatarPath,
+                radius: 20,
+              )
+            else
+              InitialAvatar(name: author, radius: 20),
+            const SizedBox(width: AppSpacing.sm + 4),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (mine)
-                    ProfileAvatar(
-                      name: me!.displayName,
-                      path: me!.avatarPath,
-                      radius: 18,
-                    )
-                  else
-                    InitialAvatar(name: author, radius: 18),
-                  const SizedBox(width: AppSpacing.sm + 4),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  Text.rich(
+                    TextSpan(
                       children: [
-                        Text.rich(
-                          TextSpan(
-                            children: [
-                              TextSpan(
-                                text: author,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              TextSpan(text: ' $action'),
-                            ],
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyMedium,
+                        TextSpan(
+                          text: author,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
-                        Text(
-                          DateLabels.posted(wish.createdAt),
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: scheme.onSurfaceVariant),
+                        TextSpan(
+                          text: isCake
+                              ? ' ${AppStrings.feedSentCakeTo} '
+                              : ' ${AppStrings.feedWished} ',
+                          style: TextStyle(color: scheme.onSurfaceVariant),
+                        ),
+                        TextSpan(
+                          text: subject,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: scheme.primary,
+                          ),
                         ),
                       ],
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    DateLabels.ago(wish.createdAt, now),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
                   ),
                 ],
               ),
             ),
-          ),
-          if (path != null)
-            LayoutBuilder(
-              // Tall photos are cut at 4:5, so one post never fills the
-              // whole screen.
-              builder: (context, constraints) => ConstrainedBox(
-                constraints:
-                    BoxConstraints(maxHeight: constraints.maxWidth * 1.25),
-                child: WishPhoto(path: path, fit: BoxFit.fitWidth),
+            if (entry.subjectName != null)
+              Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: scheme.onSurfaceVariant,
+              ),
+          ],
+        ),
+      ),
+    );
+
+    final Widget content;
+    if (path != null) {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            child: ClipRRect(
+              borderRadius: radius,
+              child: LayoutBuilder(
+                // Tall photos are cut at 4:5, so one post never fills the
+                // whole screen.
+                builder: (context, constraints) => ConstrainedBox(
+                  constraints:
+                      BoxConstraints(maxHeight: constraints.maxWidth * 1.25),
+                  child: WishPhoto(path: path, fit: BoxFit.fitWidth),
+                ),
               ),
             ),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.md,
               AppSpacing.sm + 4,
               AppSpacing.md,
-              AppSpacing.sm,
+              AppSpacing.md,
             ),
             child: Text(
-              isCake ? AppStrings.feedCakeBody : wish.body,
+              wish.body,
               style: theme.textTheme.bodyLarge?.copyWith(height: 1.4),
             ),
           ),
-          Divider(
-            height: AppSpacing.md,
-            color: scheme.outlineVariant.withValues(alpha: 0.5),
-          ),
         ],
+      );
+    } else {
+      final (background, foreground) = switch (wish.id % 3) {
+        0 => (scheme.primaryContainer, scheme.onPrimaryContainer),
+        1 => (scheme.secondaryContainer, scheme.onSecondaryContainer),
+        _ => (scheme.tertiaryContainer, scheme.onTertiaryContainer),
+      };
+      content = Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.sm,
+          0,
+          AppSpacing.sm,
+          AppSpacing.sm,
+        ),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 132),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.lg,
+          ),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(color: background, borderRadius: radius),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isCake) ...[
+                Icon(Icons.cake_outlined, size: 40, color: foreground),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+              Text(
+                isCake ? AppStrings.feedCakeBody : wish.body,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: foreground,
+                  fontWeight: FontWeight.w600,
+                  height: 1.35,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      key: Key('feed_post_${wish.id}'),
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        0,
+        AppSpacing.md,
+        AppSpacing.md - 4,
+      ),
+      elevation: 0,
+      color: scheme.surfaceContainerLow,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppSpacing.lg - 4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [header, content],
       ),
     );
   }

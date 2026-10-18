@@ -223,8 +223,10 @@ abstract final class AppStrings {
 
   // Feed
   static const feedTitle = 'Feed';
-  static const feedWishedTemplate = 'wished %s';
-  static const feedSentCakeTemplate = 'sent %s a cake';
+  static const feedWished = 'wished';
+  static const feedSentCakeTo = 'sent a cake to';
+  static const feedJustNow = 'Just now';
+  static const feedYesterday = 'Yesterday';
   static const feedCakeBody = 'Sent a birthday cake 🎂';
   static const feedAuthorUnknown = 'Someone';
   static const feedSubjectUnknown = 'someone';
