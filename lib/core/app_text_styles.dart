@@ -5,7 +5,8 @@ abstract final class AppTextStyles {
 
   static TextStyle sectionHeader(BuildContext context) =>
       Theme.of(context).textTheme.titleSmall!.copyWith(
-            fontWeight: FontWeight.w600,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.1,
+            color: Theme.of(context).colorScheme.onSurface,
           );
 }

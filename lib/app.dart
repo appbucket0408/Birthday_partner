@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'api/api_client.dart';
-import 'core/app_colors.dart';
+import 'core/app_theme.dart';
 import 'core/app_strings.dart';
 import 'repositories/auth_repository.dart';
 import 'repositories/auth_repository_impl.dart';
@@ -110,9 +110,8 @@ class _BirthdayAppState extends State<BirthdayApp> {
         child: MaterialApp.router(
           debugShowCheckedModeBanner: false,
           title: AppStrings.appName,
-          theme: ThemeData(colorScheme: AppColors.light(), useMaterial3: true),
-          darkTheme:
-              ThemeData(colorScheme: AppColors.dark(), useMaterial3: true),
+          theme: AppTheme.light(),
+          darkTheme: AppTheme.dark(),
           routerConfig: _router,
         ),
       ),

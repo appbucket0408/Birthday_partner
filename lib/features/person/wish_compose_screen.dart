@@ -190,6 +190,14 @@ class _WishComposeScreenState extends State<WishComposeScreen> {
                   padding: const EdgeInsets.only(right: AppSpacing.sm),
                   child: FilledButton(
                     key: const Key('wish_post'),
+                    // Compact in the app bar; the theme's 48dp suits body
+                    // buttons, not a toolbar action.
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 40),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md + 2,
+                      ),
+                    ),
                     onPressed: busy ? null : _submit,
                     child: posting
                         ? const SizedBox(

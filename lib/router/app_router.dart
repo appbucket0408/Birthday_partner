@@ -179,6 +179,26 @@ class _Splash extends StatelessWidget {
   const _Splash();
 
   @override
-  Widget build(BuildContext context) =>
-      const Scaffold(body: Center(child: CircularProgressIndicator()));
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              AppStrings.appName,
+              style: theme.textTheme.headlineMedium
+                  ?.copyWith(color: theme.colorScheme.primary),
+            ),
+            const SizedBox(height: 24),
+            const SizedBox.square(
+              dimension: 24,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

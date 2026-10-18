@@ -75,7 +75,7 @@ class CalendarView extends StatelessWidget {
                 ),
                 children: [
                   _MonthHeader(state: state, now: now()),
-                  const SizedBox(height: AppSpacing.sm),
+                  const SizedBox(height: AppSpacing.md - 4),
                   _MonthCard(state: state, now: now()),
                   const SizedBox(height: AppSpacing.md),
                   _DayCard(state: state, now: now()),
@@ -123,9 +123,9 @@ class _MonthHeader extends StatelessWidget {
                 Text(
                   DateLabels.monthYear(state.month),
                   key: const Key('calendar_month_label'),
-                  style: theme.textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w700),
+                  style: theme.textTheme.titleLarge,
                 ),
+                const SizedBox(height: 2),
                 Text(
                   summary,
                   key: const Key('calendar_month_summary'),
@@ -142,14 +142,21 @@ class _MonthHeader extends StatelessWidget {
             onPressed: cubit.goToToday,
             child: const Text(AppStrings.calendarToday),
           ),
-        IconButton.filledTonal(
+        IconButton.outlined(
           key: const Key('calendar_prev_month'),
+          style: IconButton.styleFrom(
+            side: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
           icon: const Icon(Icons.chevron_left),
           tooltip: AppStrings.calendarPreviousMonth,
           onPressed: () => cubit.changeMonth(-1),
         ),
-        IconButton.filledTonal(
+        const SizedBox(width: AppSpacing.xs),
+        IconButton.outlined(
           key: const Key('calendar_next_month'),
+          style: IconButton.styleFrom(
+            side: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
           icon: const Icon(Icons.chevron_right),
           tooltip: AppStrings.calendarNextMonth,
           onPressed: () => cubit.changeMonth(1),
@@ -185,9 +192,14 @@ class _MonthCard extends StatelessWidget {
       child: Card(
         margin: EdgeInsets.zero,
         elevation: 0,
-        color: scheme.surfaceContainerLow,
+        color: scheme.surfaceContainerLowest,
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.sm),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.sm + 2,
+            AppSpacing.sm,
+            AppSpacing.sm + 2,
+            AppSpacing.sm + 2,
+          ),
           child: GridView.count(
             crossAxisCount: 7,
             shrinkWrap: true,
@@ -329,7 +341,7 @@ class _DayCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       elevation: 0,
-      color: scheme.surfaceContainerLow,
+      color: scheme.surfaceContainerLowest,
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -354,12 +366,12 @@ class _DayCard extends StatelessWidget {
                 if (_sameDay(day, now))
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm,
-                      vertical: 2,
+                      horizontal: AppSpacing.sm + 2,
+                      vertical: AppSpacing.xs,
                     ),
                     decoration: BoxDecoration(
                       color: scheme.primary,
-                      borderRadius: BorderRadius.circular(AppSpacing.sm),
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
                     ),
                     child: Text(
                       AppStrings.calendarToday,

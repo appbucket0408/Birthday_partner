@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
+import '../../core/app_text_styles.dart';
 import '../../core/countdown_pill.dart';
 import '../../core/date_labels.dart';
 import '../../core/initial_avatar.dart';
@@ -99,17 +100,24 @@ class PersonView extends StatelessWidget {
           state.wishes.isEmpty
               ? AppStrings.personWishesTitle
               : '${AppStrings.personWishesTitle} · ${state.wishes.length}',
-          style: theme.textTheme.titleSmall
-              ?.copyWith(fontWeight: FontWeight.w600),
+          style: AppTextStyles.sectionHeader(context),
         ),
-        const SizedBox(height: AppSpacing.sm),
+        const SizedBox(height: AppSpacing.sm + 2),
         if (state.wishes.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.xl,
+            ),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+            ),
             child: Text(
               AppStrings.personWallEmpty,
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
           )
         else
@@ -171,8 +179,7 @@ class _Header extends StatelessWidget {
             Text(
               person.displayName,
               textAlign: TextAlign.center,
-              style: theme.textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w700),
+              style: theme.textTheme.headlineSmall,
             ),
             const SizedBox(height: AppSpacing.xs),
             if (birthday == null) ...[
@@ -285,8 +292,9 @@ class _Header extends StatelessWidget {
                     vertical: AppSpacing.sm + 2,
                   ),
                   decoration: BoxDecoration(
-                    color: scheme.surfaceContainerHighest.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(AppSpacing.lg),
+                    color: scheme.surfaceContainerLow,
+                    border: Border.all(color: scheme.outlineVariant),
+                    borderRadius: BorderRadius.circular(AppRadius.xl),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,

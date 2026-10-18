@@ -413,10 +413,11 @@ class _Post extends StatelessWidget {
         AppSpacing.md - 4,
       ),
       elevation: 0,
-      color: scheme.surfaceContainerLow,
+      color: scheme.surfaceContainerLowest,
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppSpacing.lg - 4),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        side: BorderSide(color: scheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

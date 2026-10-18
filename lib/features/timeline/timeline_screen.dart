@@ -180,14 +180,39 @@ class _TimelineView extends StatelessWidget {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          Container(
+                            width: 88,
+                            height: 88,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .primaryContainer,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.cake_outlined,
+                              size: 40,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
                           Text(
                             AppStrings.timelineEmptyTitle,
+                            textAlign: TextAlign.center,
                             style: Theme.of(context).textTheme.headlineSmall,
                           ),
                           const SizedBox(height: AppSpacing.sm),
-                          const Text(
+                          Text(
                             AppStrings.timelineEmptyBody,
                             textAlign: TextAlign.center,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
                           ),
                           const SizedBox(height: AppSpacing.lg),
                           FilledButton.icon(
@@ -337,22 +362,36 @@ class _MeHeader extends StatelessWidget {
       if (profile.city case final c? when c.isNotEmpty) c,
     ].join(' · ');
 
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Card(
       key: const Key('dashboard_me_header'),
       margin: const EdgeInsets.fromLTRB(
         AppSpacing.md,
+        AppSpacing.xs,
+        AppSpacing.md,
         AppSpacing.sm,
-        AppSpacing.md,
-        AppSpacing.md,
+      ),
+      color: scheme.primaryContainer.withValues(alpha: 0.55),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Row(
           children: [
-            ProfileAvatar(
-              name: profile.displayName,
-              path: profile.avatarPath,
-              radius: 26,
+            // A light ring lifts the photo off the tinted card.
+            Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: scheme.surfaceContainerLowest,
+              ),
+              child: ProfileAvatar(
+                name: profile.displayName,
+                path: profile.avatarPath,
+                radius: 28,
+              ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
@@ -361,12 +400,18 @@ class _MeHeader extends StatelessWidget {
                 children: [
                   Text(
                     profile.displayName,
-                    style: Theme.of(context).textTheme.titleMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: scheme.onPrimaryContainer,
+                    ),
                   ),
-                  const SizedBox(height: AppSpacing.xs),
+                  const SizedBox(height: 2),
                   Text(
                     details,
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: scheme.onPrimaryContainer.withValues(alpha: 0.8),
+                    ),
                   ),
                 ],
               ),
@@ -392,6 +437,7 @@ class _AddPeopleRow extends StatelessWidget {
     final scheme = theme.colorScheme;
     return ListTile(
       key: const Key('dashboard_add_people_row'),
+      contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       onTap: onTap,
       leading: CircleAvatar(
         radius: 20,
@@ -438,7 +484,7 @@ class _Section extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.md,
-        AppSpacing.md,
+        AppSpacing.lg - 4,
         AppSpacing.md,
         0,
       ),
@@ -448,7 +494,7 @@ class _Section extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(
               left: AppSpacing.xs,
-              bottom: AppSpacing.sm,
+              bottom: AppSpacing.sm + 2,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -473,8 +519,16 @@ class _Section extends StatelessWidget {
             margin: EdgeInsets.zero,
             elevation: 0,
             color: highlighted
-                ? scheme.primaryContainer.withValues(alpha: 0.6)
-                : scheme.surfaceContainerLow,
+                ? scheme.primaryContainer.withValues(alpha: 0.5)
+                : scheme.surfaceContainerLowest,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              side: BorderSide(
+                color: highlighted
+                    ? scheme.primary.withValues(alpha: 0.25)
+                    : scheme.outlineVariant,
+              ),
+            ),
             clipBehavior: Clip.antiAlias,
             child: Column(
               children: [
@@ -483,7 +537,9 @@ class _Section extends StatelessWidget {
                     Divider(
                       height: 1,
                       indent: 72,
-                      color: scheme.outlineVariant.withValues(alpha: 0.5),
+                      color: highlighted
+                          ? scheme.primary.withValues(alpha: 0.15)
+                          : scheme.outlineVariant.withValues(alpha: 0.7),
                     ),
                   child,
                 ],
