@@ -21,6 +21,7 @@ abstract final class ApiParams {
   static const displayName = 'display_name';
   static const city = 'city';
   static const remindersEnabled = 'reminders_enabled';
+  static const wishNotificationsEnabled = 'wish_notifications_enabled';
 
   /// The profile photo's Storage PATH inside the `avatars` bucket, not a URL
   /// (see 20261017000001_avatars.sql).

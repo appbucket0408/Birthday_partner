@@ -23,4 +23,42 @@ void main() {
     expect(routeForPayload({'person_id': '-1'}), isNull);
     expect(routeForPayload({'person_id': '0'}), isNull);
   });
+
+  group('a wish payload', () {
+    test('routes to the wall with the wish opened', () {
+      expect(
+        routeForPayload({'person_id': '7', 'wish_id': '99'}),
+        '/person/7?wish=99',
+      );
+    });
+
+    test('rebuilds the query from the parsed id, never the raw text', () {
+      // '99&admin=1' is not an integer, so nothing of it reaches the route.
+      expect(
+        routeForPayload({'person_id': '7', 'wish_id': '99&admin=1'}),
+        '/person/7',
+      );
+    });
+
+    test('a malformed wish_id still lands on the wall', () {
+      for (final bad in ['', 'abc', '0', '-5', '../settings']) {
+        expect(
+          routeForPayload({'person_id': '7', 'wish_id': bad}),
+          '/person/7',
+          reason: 'wish_id "$bad"',
+        );
+      }
+      expect(routeForPayload({'person_id': '7', 'wish_id': 99}), '/person/7');
+    });
+
+    test('a wish_id without a valid person_id routes nowhere', () {
+      expect(routeForPayload({'wish_id': '99'}), isNull);
+      expect(routeForPayload({'person_id': 'x', 'wish_id': '99'}), isNull);
+    });
+
+    test('a tapped foreground banner routes the same way', () {
+      final payload = localPayloadFor({'person_id': '7', 'wish_id': '99'});
+      expect(routeForLocalPayload(payload), '/person/7?wish=99');
+    });
+  });
 }

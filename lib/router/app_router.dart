@@ -108,6 +108,12 @@ GoRouter buildRouter(SessionCubit session) {
         path: '/person/:personId',
         builder: (_, state) => PersonScreen(
           personId: int.parse(state.pathParameters['personId']!),
+          openWishId: switch (int.tryParse(
+            state.uri.queryParameters['wish'] ?? '',
+          )) {
+            final id? when id > 0 => id,
+            _ => null,
+          },
         ),
       ),
       GoRoute(

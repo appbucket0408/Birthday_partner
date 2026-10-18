@@ -1,13 +1,7 @@
-// Tests for index.ts's HANDLER, which before the whole-branch review had no
-// tests at all. Review Focus 2 ("a permanently dead FCM token burns attempts
-// forever") was previously evidenced by `assertEquals(isDeadToken(404), true)`
-// -- a predicate over an integer literal, which cannot fail if the delete
-// call is missing, misspelled, unfiltered, or placed after the `continue`.
-//
-// No server, no database, no Google: everything is injected.
+
 import { assertEquals } from "jsr:@std/assert@1";
 import { bodySaysUnregistered, type DrainDeps, handleDrain } from "./handler.ts";
-import { reminderBody, resetTokenCache } from "./fcm.ts";
+import { reminderBody, resetTokenCache, wishBody } from "./fcm.ts";
 
 const SECRET = "test-drain-secret";
 
@@ -144,6 +138,102 @@ Deno.test(
         data: { person_id: "42" },
       },
     }]);
+  },
+);
+
+// A wish row as rpc_next_reminder_batch returns it (20261018000003):
+// subject_person_id is the recipient's own person, the wall the wish is on.
+const wishRow = (over: Record<string, unknown> = {}) =>
+  reminder({
+    kind: "wish",
+    subject_name: "Me Myself",
+    subject_person_id: 7,
+    offset_days: null,
+    occasion_date: null,
+    author_name: "Asha",
+    wish_id: 99,
+    ...over,
+  });
+
+Deno.test(
+  "a wish is sent on the wishes channel, naming its author, routed to the "
+    + "recipient's wall and the wish",
+  async () => {
+    resetTokenCache();
+    const { deps: d, calls } = deps({
+      batch: [wishRow()],
+      serviceAccount: await serviceAccountJson(),
+    });
+
+    const res = await handleDrain(post(), d);
+
+    assertEquals(calls.sentBodies, [{
+      message: {
+        token: "device-token-abc",
+        notification: {
+          title: "Candlewish 🎂",
+          body: "Asha left you a birthday wish.",
+        },
+        android: { notification: { channel_id: "wishes" } },
+        data: { person_id: "7", wish_id: "99" },
+      },
+    }]);
+    assertEquals(await res.json(), { dryRun: false, sent: 1, failed: 0 });
+  },
+);
+
+Deno.test("a wish author's name goes through safeName like a reminder's", async () => {
+  resetTokenCache();
+  const { deps: d, calls } = deps({
+    batch: [wishRow({ author_name: "Asha\nYour account is locked" })],
+    serviceAccount: await serviceAccountJson(),
+  });
+
+  await handleDrain(post(), d);
+
+  const body = (calls.sentBodies[0] as { message: { notification: { body: string } } })
+    .message.notification.body;
+  assertEquals(body, wishBody("Asha\nYour account is locked"));
+  assertEquals(body.includes("\n"), false, "a name must not forge a second line");
+});
+
+Deno.test(
+  "a row with no kind is a reminder: a batch from before the wish migration",
+  async () => {
+    resetTokenCache();
+    const legacy = reminder();
+    const { deps: d, calls } = deps({
+      batch: [legacy],
+      serviceAccount: await serviceAccountJson(),
+    });
+
+    await handleDrain(post(), d);
+
+    const msg = (calls.sentBodies[0] as {
+      message: { android: unknown; data: unknown };
+    }).message;
+    assertEquals(msg.android, { notification: { channel_id: "birthday_reminders" } });
+    assertEquals(msg.data, { person_id: "42" });
+  },
+);
+
+Deno.test(
+  "an unknown kind is marked failed and never sent",
+  async () => {
+    resetTokenCache();
+    const { deps: d, calls } = deps({
+      batch: [reminder({ kind: "anniversary" })],
+      serviceAccount: await serviceAccountJson(),
+    });
+
+    const res = await handleDrain(post(), d);
+
+    assertEquals(calls.sentBodies, [], "nothing guessed at goes to a phone");
+    assertEquals(
+      calls.rpc.find((c) => c.fn === "rpc_mark_reminder_failed")?.params,
+      { p_outbox_id: 1, p_error: "unknown kind anniversary" },
+    );
+    assertEquals(await res.json(), { dryRun: false, sent: 0, failed: 1 });
   },
 );
 

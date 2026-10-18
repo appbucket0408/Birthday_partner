@@ -10,13 +10,19 @@ class SettingsRepositoryImpl implements SettingsRepository {
   final SupabaseClient _client;
 
   @override
-  Future<void> setRemindersEnabled(bool enabled) async {
+  Future<void> setRemindersEnabled(bool enabled) =>
+      _setOwn(ApiParams.remindersEnabled, enabled);
+
+  @override
+  Future<void> setWishNotificationsEnabled(bool enabled) =>
+      _setOwn(ApiParams.wishNotificationsEnabled, enabled);
+  Future<void> _setOwn(String column, bool value) async {
     final id = _client.auth.currentUser?.id;
     if (id == null) throw const AuthFailure('no session');
     try {
       await _client
           .from(ApiParams.profiles)
-          .update({ApiParams.remindersEnabled: enabled})
+          .update({column: value})
           .eq(ApiParams.id, id);
     } catch (e) {
       throw mapError(e);

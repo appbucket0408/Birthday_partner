@@ -167,8 +167,14 @@ abstract final class AppStrings {
   static const reminderChannelName = 'Birthday reminders';
   static const reminderChannelDescription =
       'A heads-up before the birthdays you celebrate.';
+  static const wishChannelName = 'New wishes';
+  static const wishChannelDescription =
+      'When someone leaves a wish on your wall.';
   static const settingsRemindersBody =
       'Get a notification before each birthday you celebrate.';
+  static const settingsWishNotifications = 'New wishes';
+  static const settingsWishNotificationsBody =
+      'Get a notification when someone leaves a wish on your wall.';
   static const settingsSignOut = 'Sign out';
   static const settingsDeleteAccount = 'Delete account';
   static const settingsDeleteTitle = 'Delete your account?';

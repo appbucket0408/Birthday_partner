@@ -14,6 +14,7 @@ class Profile {
     required this.handle,
     required this.displayName,
     required this.remindersEnabled,
+    this.wishNotificationsEnabled = true,
     this.city,
     this.birthday,
     this.avatarPath,
@@ -23,11 +24,9 @@ class Profile {
   final String handle;
   final String displayName;
   final bool remindersEnabled;
+  final bool wishNotificationsEnabled;
   final String? city;
   final Birthday? birthday;
-
-  /// Where the profile photo is stored in the `avatars` bucket, or null for
-  /// no photo. A path, not a URL: shown through a short-lived signed URL.
   final String? avatarPath;
 
   bool get hasCompletedOnboarding => birthday != null;
@@ -37,6 +36,8 @@ class Profile {
         handle: row[ApiParams.handle] as String,
         displayName: row[ApiParams.displayName] as String,
         remindersEnabled: row[ApiParams.remindersEnabled] as bool,
+        wishNotificationsEnabled:
+            row[ApiParams.wishNotificationsEnabled] as bool? ?? true,
         city: row[ApiParams.city] as String?,
         birthday: Birthday.fromRow(row),
         avatarPath: row[ApiParams.avatarUrl] as String?,

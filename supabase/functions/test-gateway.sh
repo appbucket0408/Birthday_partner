@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Gateway-level verify_jwt check for the confirm endpoint and its five siblings.
+# Gateway-level verify_jwt check: the gated functions are stopped by Kong, and
+# the exempt ones (confirm, drain_reminders -- see config.toml's [functions]
+# blocks) reach their own handlers.
 #
 # NOT INTERCHANGEABLE WITH test.sh -- the two scripts require OPPOSITE server
 # flags and must never share a running `supabase functions serve` process:
@@ -34,11 +36,17 @@ cd "$(dirname "$0")/../.."
 
 URL="${SUPABASE_URL:-http://127.0.0.1:54321}"
 
-EXEMPT="confirm"
+# drain_reminders is exempt because its caller, the cron's trigger_drain,
+# sends no JWT; its handler's x-drain-secret check is its guard. Without an
+# Authorization header it must get the HANDLER's {"error": ...} 401, never
+# Kong's -- which is exactly what check_exempt below distinguishes.
+EXEMPT=(
+  confirm
+  drain_reminders
+)
 GATED=(
   claim_profile
   delete_account
-  drain_reminders
   resolve_contacts
   add_celebrations
 )
@@ -105,11 +113,11 @@ check_exempt() {
   # as the handler responding, which is exactly what this check exists to
   # confirm is still possible.
   if [[ "$status" == "000" ]]; then
-    failures+=("$name: no response at all (curl could not connect) -- confirm looks unreachable, not gateway-exempt")
+    failures+=("$name: no response at all (curl could not connect) -- it looks unreachable, not gateway-exempt")
     return
   fi
   if [[ "$status" == "404" ]] && echo "$body" | grep -qi "function not found"; then
-    failures+=("$name: got Kong's \"Function not found\" (404) -- confirm looks undeployed/unreachable, not gateway-exempt: $body")
+    failures+=("$name: got Kong's \"Function not found\" (404) -- it looks undeployed/unreachable, not gateway-exempt: $body")
     return
   fi
   if [[ "$status" == "401" ]] && is_kong_shaped "$body"; then
@@ -126,7 +134,9 @@ echo
 for name in "${GATED[@]}"; do
   check_gated "$name"
 done
-check_exempt "$EXEMPT"
+for name in "${EXEMPT[@]}"; do
+  check_exempt "$name"
+done
 
 if [[ ${#failures[@]} -gt 0 ]]; then
   echo
@@ -138,4 +148,4 @@ if [[ ${#failures[@]} -gt 0 ]]; then
 fi
 
 echo
-echo "ok | 6 checked | 0 failed -- the 5 gated functions are still blocked at the gateway, confirm passes through"
+echo "ok | $(( ${#GATED[@]} + ${#EXEMPT[@]} )) checked | 0 failed -- the ${#GATED[@]} gated functions are still blocked at the gateway; ${EXEMPT[*]} pass through"

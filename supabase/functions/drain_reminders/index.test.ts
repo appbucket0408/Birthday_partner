@@ -8,6 +8,7 @@ import {
   isRejectedBearer,
   resetTokenCache,
   safeName,
+  wishBody,
 } from "./fcm.ts";
 
 Deno.test("a plain name passes through untouched", () => {
@@ -292,4 +293,17 @@ Deno.test("a 401 or 403 from FCM means the bearer is dead", () => {
   assertEquals(isRejectedBearer(403), true);
   assertEquals(isRejectedBearer(404), false);
   assertEquals(isRejectedBearer(503), false);
+});
+
+Deno.test("a wish body names its author", () => {
+  assertEquals(wishBody("Asha"), "Asha left you a birthday wish.");
+});
+
+Deno.test("a wish from an empty or missing name falls back to Someone", () => {
+  assertEquals(wishBody(""), "Someone left you a birthday wish.");
+  assertEquals(wishBody(null), "Someone left you a birthday wish.");
+});
+
+Deno.test("a wish author's bidi overrides cannot reorder the sentence", () => {
+  assertEquals(wishBody("\u202EAsha"), "Asha left you a birthday wish.");
 });

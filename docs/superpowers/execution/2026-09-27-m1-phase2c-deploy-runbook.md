@@ -1,5 +1,10 @@
 # M1 Phase 2c — hosted deploy runbook
 
+> **Superseded** by `2026-10-18-push-deploy-runbook.md`, which covers the
+> current backend (every migration, all six functions, the phone-hash pepper,
+> the drain's JWT setting) and a real-device test. Kept for history; do not
+> follow this one.
+
 **Spec:** `docs/superpowers/specs/2026-09-27-m1-phase2c-push-design.md`
 
 Run in order. Steps 1–3 need credentials only the project owner has.

@@ -523,12 +523,25 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 # Kong answers before the handler is reached and returns its own
 # {"msg": "Error: ..."} body, so the endpoint could never work deployed.
 #
-# This is the project's FIRST [functions] block. Every other function is
-# absent from this section deliberately and keeps verify_jwt = true.
-# confirm/index.test.ts proves the other five still refuse an unauthenticated
+# This is the project's FIRST [functions] block. Every function absent from
+# this section deliberately keeps verify_jwt = true (drain_reminders, below,
+# is the one other exemption).
+# confirm/index.test.ts proves the others still refuse an unauthenticated
 # caller at the HANDLER level (defence in depth, under --no-verify-jwt).
 # supabase/functions/test-gateway.sh proves the GATEWAY itself still blocks
-# those five while confirm passes through, so this block cannot have
-# silently widened them.
+# them while the exempt functions pass through, so these blocks cannot have
+# silently widened the rest.
 [functions.confirm]
+verify_jwt = false
+
+# drain_reminders is called by the */10 cron, through private.trigger_drain
+# (20260927000002), which sends only `x-drain-secret` -- no JWT. With the
+# gateway's JWT check on, every cron call was rejected with Kong's 401
+# "Missing authorization header" before the handler ran, so nothing ever
+# drained on its own. The check bought nothing here anyway: the publishable
+# key is a valid JWT that ships inside every APK. The handler's own
+# DRAIN_SECRET comparison is the real guard and stays. `supabase functions
+# deploy` reads this block; it is a functions setting, not [auth.*], and
+# reaches hosted without `config push`.
+[functions.drain_reminders]
 verify_jwt = false

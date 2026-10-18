@@ -360,6 +360,34 @@ void main() {
       },
     );
 
+    // A tapped "new wish" notification routes to /person/<id>?wish=<id>.
+    // The guard matches on the path, so the query must not bounce it, and
+    // the router hands the page only a positive id -- a deep link can carry
+    // any query string at all.
+    for (final (query, expected) in [
+      ('?wish=9', 9),
+      ('?wish=0', null),
+      ('?wish=abc', null),
+      ('?wish=-3', null),
+      ('', null),
+    ]) {
+      testWidgets(
+        '/person/1$query reaches the page with openWishId $expected',
+        (tester) async {
+          final fixture = _routerAt('/person/1$query');
+          addTearDown(() => _disposeFixture(fixture));
+
+          await tester.pumpWidget(_appWith(fixture.router));
+          await tester.pumpAndSettle();
+
+          expect(
+            tester.widget<PersonView>(find.byType(PersonView)).openWishId,
+            expected,
+          );
+        },
+      );
+    }
+
     // Task 5's own version of the exact same bug: '/gift/new/:personId' is
     // the one other signed-in route with a path parameter, so it needs the
     // identical prefix check (`onGiftCatalogPage` in app_router.dart) rather

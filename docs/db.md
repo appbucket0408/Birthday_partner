@@ -102,7 +102,14 @@ days" is expressed as a real DOB with that month and day, not as
 ## Things that must not change casually
 
 - `private.config.phone_pepper`: rotating it invalidates every stored
-  `people.phone_e164_hash`, orphaning the whole contact graph.
+  `people.phone_e164_hash`, orphaning the whole contact graph. There is no
+  default: `private.phone_hash` raises `phone_pepper is not configured`
+  until one is set (20261018000005). Local and CI get a local-only value from
+  `supabase/seed.sql`; a hosted project sets its own once, before the first
+  sign-up (deploy runbook, step 3). A project that already hashed data with
+  the old public placeholder keeps it, with a migration WARNING, because
+  removing it would orphan that data; re-keying means re-hashing every
+  number from its source.
 - `private.gift_transitions`: the legal state graph. Add rows; do not delete
   them without checking `gift_events` history.
 - `tests.race_last_slot`'s connection string dials the container's own address

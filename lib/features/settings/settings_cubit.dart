@@ -36,7 +36,12 @@ class SettingsCubit extends Cubit<SettingsState> {
     emit(const SettingsLoading());
     try {
       final profile = await _auth.loadProfile();
-      emit(SettingsLoaded(remindersEnabled: profile.remindersEnabled));
+      emit(
+        SettingsLoaded(
+          remindersEnabled: profile.remindersEnabled,
+          wishNotificationsEnabled: profile.wishNotificationsEnabled,
+        ),
+      );
     } on AppFailure catch (f) {
       emit(SettingsLoadError(f.message));
     } catch (_) {
@@ -57,14 +62,15 @@ class SettingsCubit extends Cubit<SettingsState> {
     if (current is! SettingsLoaded) return;
     if (!_inFlight.add('toggle')) return;
     final previous = current.remindersEnabled;
-    emit(SettingsLoaded(remindersEnabled: enabled, savingReminders: true));
+    emit(current.copyWith(remindersEnabled: enabled, savingReminders: true));
     try {
       await _settings.setRemindersEnabled(enabled);
-      emit(SettingsLoaded(remindersEnabled: enabled));
+      emit(_loaded.copyWith(remindersEnabled: enabled, savingReminders: false));
     } catch (_) {
       emit(
-        SettingsLoaded(
+        _loaded.copyWith(
           remindersEnabled: previous,
+          savingReminders: false,
           error: AppStrings.somethingWentWrong,
         ),
       );
@@ -73,12 +79,40 @@ class SettingsCubit extends Cubit<SettingsState> {
     }
   }
 
-  /// Deletes this device's token BEFORE clearing the session -- not after,
-  /// and not concurrently. Once the session is gone, `device_tokens_all_own`
-  /// makes the row unreachable by this client (RLS scopes it to
-  /// `auth.uid()`), and a signed-out device that keeps its token keeps
-  /// receiving someone else's birthday reminders. The order is the whole of
-  /// what makes this method correct.
+  Future<void> toggleWishNotifications(bool enabled) async {
+    final current = state;
+    if (current is! SettingsLoaded) return;
+    if (!_inFlight.add('toggleWish')) return;
+    final previous = current.wishNotificationsEnabled;
+    emit(
+      current.copyWith(
+        wishNotificationsEnabled: enabled,
+        savingWishNotifications: true,
+      ),
+    );
+    try {
+      await _settings.setWishNotificationsEnabled(enabled);
+      emit(
+        _loaded.copyWith(
+          wishNotificationsEnabled: enabled,
+          savingWishNotifications: false,
+        ),
+      );
+    } catch (_) {
+      emit(
+        _loaded.copyWith(
+          wishNotificationsEnabled: previous,
+          savingWishNotifications: false,
+          error: AppStrings.somethingWentWrong,
+        ),
+      );
+    } finally {
+      _inFlight.remove('toggleWish');
+    }
+  }
+
+  SettingsLoaded get _loaded => state as SettingsLoaded;
+
   Future<void> signOut() async {
     if (!_inFlight.add('signOut')) return;
     final current = state;
@@ -88,21 +122,13 @@ class SettingsCubit extends Cubit<SettingsState> {
       emit(const SettingsSignedOut());
     } catch (_) {
       if (current is SettingsLoaded) {
-        emit(
-          SettingsLoaded(
-            remindersEnabled: current.remindersEnabled,
-            error: AppStrings.somethingWentWrong,
-          ),
-        );
+        emit(current.copyWith(error: AppStrings.somethingWentWrong));
       }
     } finally {
       _inFlight.remove('signOut');
     }
   }
 
-  /// Deletes the account. [AuthRepository.deleteAccount] is itself the
-  /// two-step body (invoke the Edge Function, then sign out locally) --
-  /// this cubit does not repeat that ordering, only reports the outcome.
   Future<void> deleteAccount() async {
     if (!_inFlight.add('deleteAccount')) return;
     final current = state;
@@ -111,12 +137,7 @@ class SettingsCubit extends Cubit<SettingsState> {
       emit(const SettingsSignedOut());
     } catch (_) {
       if (current is SettingsLoaded) {
-        emit(
-          SettingsLoaded(
-            remindersEnabled: current.remindersEnabled,
-            error: AppStrings.somethingWentWrong,
-          ),
-        );
+        emit(current.copyWith(error: AppStrings.somethingWentWrong));
       }
     } finally {
       _inFlight.remove('deleteAccount');

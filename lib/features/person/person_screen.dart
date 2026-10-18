@@ -9,6 +9,7 @@ import '../../core/countdown_pill.dart';
 import '../../core/date_labels.dart';
 import '../../core/initial_avatar.dart';
 import '../../core/wish_card.dart';
+import '../../core/wish_post_screen.dart';
 import '../../repositories/graph_repository.dart';
 import '../../repositories/person_repository.dart';
 import '../../repositories/wish_repository.dart';
@@ -20,10 +21,15 @@ class PersonScreen extends StatelessWidget {
   const PersonScreen({
     super.key,
     required this.personId,
+    this.openWishId,
     DateTime Function()? now,
   }) : _now = now;
 
   final int personId;
+
+  /// A wish to open once the wall has loaded -- set when a "new wish"
+  /// notification is tapped (`/person/<id>?wish=<id>`).
+  final int? openWishId;
   final DateTime Function()? _now;
 
   @override
@@ -35,7 +41,11 @@ class PersonScreen extends StatelessWidget {
         context.read<GraphRepository>(),
         now: _now,
       )..load(personId),
-      child: PersonView(personId: personId, now: _now),
+      child: PersonView(
+        personId: personId,
+        openWishId: openWishId,
+        now: _now,
+      ),
     );
   }
 }
@@ -44,14 +54,43 @@ class PersonView extends StatelessWidget {
   const PersonView({
     super.key,
     required this.personId,
+    this.openWishId,
     DateTime Function()? now,
   }) : _now = now;
 
   final int personId;
+  final int? openWishId;
   final DateTime Function()? _now;
 
   @override
   Widget build(BuildContext context) {
+    return BlocListener<PersonCubit, PersonState>(
+      // Only on the load that FIRST produces the wall, not on every later
+      // PersonLoaded (posting a wish re-emits one). A wish that is no longer
+      // there -- deleted since the notification went out -- simply leaves
+      // the user on their wall, which is where the notification pointed.
+      listenWhen: (previous, current) =>
+          openWishId != null &&
+          previous is! PersonLoaded &&
+          current is PersonLoaded,
+      listener: (context, state) {
+        final loaded = state as PersonLoaded;
+        for (final wish in loaded.wishes) {
+          if (wish.id == openWishId) {
+            WishPostScreen.open(
+              context,
+              wish: wish,
+              unknownAuthor: AppStrings.wishAuthorUnknown,
+            );
+            return;
+          }
+        }
+      },
+      child: _buildScaffold(context),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     return BlocBuilder<PersonCubit, PersonState>(
       builder: (context, state) {
         return Scaffold(

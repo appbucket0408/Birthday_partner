@@ -18,17 +18,31 @@ import 'package:flutter_test/flutter_test.dart';
 /// signOut ordering test (assertion 3) assert across a repository boundary,
 /// not just within one fake.
 class _FakeSettings implements SettingsRepository {
-  _FakeSettings({required this.calls, this.setRemindersEnabledError});
+  _FakeSettings({
+    required this.calls,
+    this.setRemindersEnabledError,
+    this.setWishNotificationsEnabledError,
+  });
 
   final List<String> calls;
   Object? setRemindersEnabledError;
+  Object? setWishNotificationsEnabledError;
 
   int setRemindersEnabledCalls = 0;
+  final wishNotificationWrites = <bool>[];
 
   @override
   Future<void> setRemindersEnabled(bool enabled) async {
     setRemindersEnabledCalls++;
     if (setRemindersEnabledError != null) throw setRemindersEnabledError!;
+  }
+
+  @override
+  Future<void> setWishNotificationsEnabled(bool enabled) async {
+    wishNotificationWrites.add(enabled);
+    if (setWishNotificationsEnabledError != null) {
+      throw setWishNotificationsEnabledError!;
+    }
   }
 }
 
@@ -154,11 +168,15 @@ class _FakeAuth implements AuthRepository {
   }
 }
 
-Profile _profile({bool remindersEnabled = true}) => Profile(
+Profile _profile({
+  bool remindersEnabled = true,
+  bool wishNotificationsEnabled = true,
+}) => Profile(
   id: 'p1',
   handle: 'handle',
   displayName: 'Name',
   remindersEnabled: remindersEnabled,
+  wishNotificationsEnabled: wishNotificationsEnabled,
 );
 
 void main() {
@@ -389,6 +407,106 @@ void main() {
 
     expect(calls.where((c) => c == 'deleteThisDeviceToken').length, 1);
   });
+
+  group('the New wishes switch', () {
+    test('load reads wishNotificationsEnabled off the profile', () async {
+      final cubit = SettingsCubit(
+        _FakeSettings(calls: []),
+        _FakeAuth(
+          calls: [],
+          profile: _profile(wishNotificationsEnabled: false),
+        ),
+        _FakePush(calls: []),
+      );
+
+      await cubit.load();
+
+      final state = cubit.state as SettingsLoaded;
+      expect(state.wishNotificationsEnabled, isFalse);
+      expect(state.remindersEnabled, isTrue);
+    });
+
+    late _FakeSettings settings;
+    blocTest<SettingsCubit, SettingsState>(
+      'toggleWishNotifications(false) emits saving then the new value, '
+      'and writes it',
+      build: () {
+        settings = _FakeSettings(calls: []);
+        return SettingsCubit(
+          settings,
+          _FakeAuth(calls: []),
+          _FakePush(calls: []),
+        );
+      },
+      seed: () => const SettingsLoaded(remindersEnabled: true),
+      act: (c) => c.toggleWishNotifications(false),
+      expect: () => [
+        isA<SettingsLoaded>()
+            .having((s) => s.wishNotificationsEnabled, 'wish', false)
+            .having((s) => s.savingWishNotifications, 'saving', true),
+        isA<SettingsLoaded>()
+            .having((s) => s.wishNotificationsEnabled, 'wish', false)
+            .having((s) => s.savingWishNotifications, 'saving', false)
+            .having((s) => s.error, 'error', isNull),
+      ],
+      verify: (_) => expect(settings.wishNotificationWrites, [false]),
+    );
+
+    blocTest<SettingsCubit, SettingsState>(
+      'a failed wish toggle reverts to the last-known-good value',
+      build: () => SettingsCubit(
+        _FakeSettings(
+          calls: [],
+          setWishNotificationsEnabledError: const ServerFailure('boom'),
+        ),
+        _FakeAuth(calls: []),
+        _FakePush(calls: []),
+      ),
+      seed: () => const SettingsLoaded(remindersEnabled: true),
+      act: (c) => c.toggleWishNotifications(false),
+      expect: () => [
+        isA<SettingsLoaded>()
+            .having((s) => s.wishNotificationsEnabled, 'wish', false),
+        isA<SettingsLoaded>()
+            .having((s) => s.wishNotificationsEnabled, 'wish', true)
+            .having((s) => s.error, 'error', AppStrings.somethingWentWrong),
+      ],
+    );
+
+    // Two switches share one state. Rebuilding it from scratch on each emit
+    // -- what the single-switch cubit did -- would reset the other switch.
+    blocTest<SettingsCubit, SettingsState>(
+      'each switch leaves the other alone',
+      build: () => SettingsCubit(
+        _FakeSettings(calls: []),
+        _FakeAuth(calls: []),
+        _FakePush(calls: []),
+      ),
+      seed: () => const SettingsLoaded(
+        remindersEnabled: false,
+        wishNotificationsEnabled: false,
+      ),
+      act: (c) async {
+        await c.toggleReminders(true);
+        await c.toggleWishNotifications(true);
+      },
+      verify: (c) {
+        final s = c.state as SettingsLoaded;
+        expect(s.remindersEnabled, isTrue);
+        expect(s.wishNotificationsEnabled, isTrue);
+      },
+      expect: () => [
+        isA<SettingsLoaded>()
+            .having((s) => s.wishNotificationsEnabled, 'wish untouched', false),
+        isA<SettingsLoaded>()
+            .having((s) => s.wishNotificationsEnabled, 'wish untouched', false),
+        isA<SettingsLoaded>()
+            .having((s) => s.remindersEnabled, 'reminders untouched', true),
+        isA<SettingsLoaded>()
+            .having((s) => s.remindersEnabled, 'reminders untouched', true),
+      ],
+    );
+  });
 }
 
 /// A [PushRepository] whose [deleteThisDeviceToken] always throws, isolated
@@ -415,4 +533,5 @@ class _FailingDeleteTokenPush implements PushRepository {
 
   @override
   Future<String?> initialRoute() async => null;
+
 }

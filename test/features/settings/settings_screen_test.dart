@@ -1,3 +1,4 @@
+import 'package:birthday_app/core/app_strings.dart';
 import 'package:birthday_app/features/settings/settings_screen.dart';
 import 'package:birthday_app/models/birthday.dart';
 import 'package:birthday_app/models/profile.dart';
@@ -11,8 +12,14 @@ import 'package:flutter_test/flutter_test.dart';
 /// Real fakes, not mocks -- same pattern as
 /// test/features/settings/settings_cubit_test.dart.
 class _FakeSettings implements SettingsRepository {
+  final wishNotificationWrites = <bool>[];
+
   @override
   Future<void> setRemindersEnabled(bool enabled) async {}
+
+  @override
+  Future<void> setWishNotificationsEnabled(bool enabled) async =>
+      wishNotificationWrites.add(enabled);
 }
 
 class _FakePush implements PushRepository {
@@ -132,5 +139,34 @@ void main() {
       find.byKey(const Key('settings_back_button')),
     );
     expect(back.onPressed, isNotNull);
+  });
+
+  testWidgets('the New wishes switch shows the saved value and writes a flip', (
+    tester,
+  ) async {
+    final settings = _FakeSettings();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MultiRepositoryProvider(
+          providers: [
+            RepositoryProvider<AuthRepository>.value(value: _FakeAuth()),
+            RepositoryProvider<PushRepository>.value(value: _FakePush()),
+          ],
+          child: SettingsScreen(repository: settings),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final finder = find.byKey(const Key('wish_notifications_switch'));
+    expect(find.text(AppStrings.settingsWishNotifications), findsOneWidget);
+    // _FakeAuth's profile leaves it at its default: on.
+    expect(tester.widget<SwitchListTile>(finder).value, isTrue);
+
+    await tester.tap(finder);
+    await tester.pumpAndSettle();
+
+    expect(settings.wishNotificationWrites, [false]);
+    expect(tester.widget<SwitchListTile>(finder).value, isFalse);
   });
 }

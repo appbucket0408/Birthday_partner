@@ -50,6 +50,9 @@ export function safeName(raw: string): string {
   const final = clamped.trim();
   return final === "" ? "Someone" : final;
 }
+export function wishBody(authorName: string | null): string {
+  return `${safeName(authorName ?? "")} left you a birthday wish.`;
+}
 
 export function reminderBody(name: string, offsetDays: number): string {
   const safe = safeName(name);

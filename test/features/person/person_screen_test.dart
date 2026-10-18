@@ -386,4 +386,69 @@ void main() {
       expect(find.byKey(const Key('gift_send_cake_button')), findsOneWidget);
     });
   });
+
+  group('opened from a "new wish" notification', () {
+    // The wall loads FROM a loading state, as it does on a real tap: the
+    // listener acts only on the load that first produces the wall.
+    Future<void> pumpOpening(
+      WidgetTester tester,
+      _MockPersonCubit cubit,
+      PersonLoaded loaded, {
+      required int openWishId,
+    }) async {
+      whenListen(
+        cubit,
+        Stream<PersonState>.value(loaded),
+        initialState: const PersonLoading(),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BlocProvider<PersonCubit>.value(
+            value: cubit,
+            child: PersonView(
+              personId: 1,
+              openWishId: openWishId,
+              now: _fixedNow,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the wish it names is opened once the wall loads',
+        (tester) async {
+      await pumpOpening(
+        tester,
+        cubit,
+        PersonLoaded(
+          person: _person(1, birthday: const Birthday(month: 4, day: 15)),
+          celebratorCount: 1,
+          wishes: [_wish(5, authorName: 'Asha'), _wish(9, authorName: 'Ravi')],
+          viewerCelebrates: false,
+        ),
+        openWishId: 9,
+      );
+
+      expect(find.byKey(const Key('wish_post_9')), findsOneWidget);
+    });
+
+    testWidgets('a wish deleted since leaves the user on their wall',
+        (tester) async {
+      await pumpOpening(
+        tester,
+        cubit,
+        PersonLoaded(
+          person: _person(1, birthday: const Birthday(month: 4, day: 15)),
+          celebratorCount: 1,
+          wishes: [_wish(5, authorName: 'Asha')],
+          viewerCelebrates: false,
+        ),
+        openWishId: 9,
+      );
+
+      expect(find.byKey(const Key('person_header')), findsOneWidget);
+      expect(find.byKey(const Key('wish_post_9')), findsNothing);
+    });
+  });
 }

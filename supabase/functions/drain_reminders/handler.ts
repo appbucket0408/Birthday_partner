@@ -18,17 +18,64 @@ import {
   isRejectedBearer,
   reminderBody,
   type ServiceAccount,
+  wishBody,
 } from "./fcm.ts";
 
+/// One row of rpc_next_reminder_batch. The outbox carries two kinds
+/// (20261018000003): a birthday 'reminder', and a 'wish' someone left on the
+/// recipient's wall. `kind` is optional here on purpose: a batch from a
+/// database that predates that migration has no such column, and every row
+/// it returns is a reminder.
 type Reminder = {
   outbox_id: number;
   token: string;
   platform: string;
   subject_name: string;
   subject_person_id: number;
-  offset_days: number;
-  occasion_date: string;
+  offset_days: number | null;
+  occasion_date: string | null;
+  kind?: string;
+  author_name?: string | null;
+  wish_id?: number | null;
 };
+
+type Outgoing = {
+  body: string;
+  channel: string;
+  data: Record<string, string>;
+};
+
+/// What to send for one row, or null for a kind this drain does not know.
+/// Unknown is refused rather than guessed at: a row from a newer schema
+/// rendered as a reminder would tell someone a birthday is "in null days".
+///
+/// Each kind has its own Android channel, created by the app at startup
+/// (PushRepositoryImpl), so a user can silence wishes in the OS settings
+/// without losing birthday reminders -- the same split as the two Settings
+/// switches. `data` carries only ids; the app validates and rebuilds the
+/// route from them (routeForPayload).
+export function outgoingFor(r: Reminder): Outgoing | null {
+  const kind = r.kind ?? "reminder";
+  if (kind === "reminder" && r.offset_days !== null) {
+    return {
+      body: reminderBody(r.subject_name, r.offset_days),
+      channel: "birthday_reminders",
+      data: { person_id: String(r.subject_person_id) },
+    };
+  }
+  if (kind === "wish" && r.wish_id != null) {
+    return {
+      body: wishBody(r.author_name ?? null),
+      channel: "wishes",
+      // person_id is the recipient's OWN person: the wall the wish is on.
+      data: {
+        person_id: String(r.subject_person_id),
+        wish_id: String(r.wish_id),
+      },
+    };
+  }
+  return null;
+}
 
 
 /// FCM v1 reports an unregistered token as UNREGISTERED (or
@@ -189,6 +236,19 @@ export async function handleDrain(
     // `sent_at is null` — so once ANY device succeeds, a device that failed in the
     // same batch is never retried. Accepted at pilot scale; the real fix is
     // per-device delivery tracking.
+    const outgoing = outgoingFor(r);
+    if (outgoing === null) {
+      const { error: failError } = await admin.rpc("rpc_mark_reminder_failed", {
+        p_outbox_id: r.outbox_id,
+        p_error: `unknown kind ${r.kind}`,
+      });
+      if (failError) {
+        console.error("mark_reminder_failed failed", r.outbox_id, failError.message);
+      }
+      failed++;
+      continue;
+    }
+
     try {
       const res = await deps.fetchImpl(
         `https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`,
@@ -203,19 +263,18 @@ export async function handleDrain(
               token: r.token,
               notification: {
                 title: "Candlewish 🎂",
-                body: reminderBody(r.subject_name, r.offset_days),
+                body: outgoing.body,
               },
-              // The app creates this channel at startup (PushRepositoryImpl).
-              // Without it Android files a background notification under
-              // FCM's generic "Miscellaneous" channel, which the user can
-              // only silence wholesale. The manifest's
-              // default_notification_channel_id names the same channel, so
-              // this is belt and braces for older app builds, not the only
-              // thing routing it.
+              // The app creates both channels at startup
+              // (PushRepositoryImpl). Without one Android files a background
+              // notification under FCM's generic "Miscellaneous" channel,
+              // which the user can only silence wholesale. The manifest's
+              // default_notification_channel_id is birthday_reminders, the
+              // fallback for an app build that predates the wishes channel.
               android: {
-                notification: { channel_id: "birthday_reminders" },
+                notification: { channel_id: outgoing.channel },
               },
-              data: { person_id: String(r.subject_person_id) },
+              data: outgoing.data,
             },
           }),
         },

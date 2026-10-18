@@ -151,6 +151,26 @@ class _SettingsView extends StatelessWidget {
                   ? null
                   : (value) => cubit.toggleReminders(value),
             ),
+            SwitchListTile(
+              key: const Key('wish_notifications_switch'),
+              contentPadding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.xs,
+                AppSpacing.sm,
+                AppSpacing.xs,
+              ),
+              secondary: _IconTile(
+                icon: Icons.chat_bubble_outline_rounded,
+                background: scheme.secondaryContainer,
+                foreground: scheme.onSecondaryContainer,
+              ),
+              title: Text(AppStrings.settingsWishNotifications, style: rowTitle),
+              subtitle: const Text(AppStrings.settingsWishNotificationsBody),
+              value: state.wishNotificationsEnabled,
+              onChanged: state.savingWishNotifications
+                  ? null
+                  : (value) => cubit.toggleWishNotifications(value),
+            ),
           ],
         ),
         const SizedBox(height: AppSpacing.lg),

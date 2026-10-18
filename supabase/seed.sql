@@ -2,6 +2,16 @@
 -- to hosted environments by `supabase db push`.
 create schema if not exists tests;
 
+-- The local phone-hash pepper. 20261018000005 removed the placeholder the
+-- schema used to seed, so private.phone_hash refuses to run until one is
+-- set; this sets it for local development and CI only. It is deliberately
+-- not a real secret and must never be copied to a hosted project, which sets
+-- its own (runbook step 3). `do nothing`: a database that already has a
+-- pepper keeps it, since changing it orphans every stored hash.
+insert into private.config (key, value)
+values ('phone_pepper', 'local-dev-only-pepper-never-use-on-hosted-0000000000')
+on conflict (key) do nothing;
+
 create or replace function tests.as_user(p_uid uuid)
 returns void
 language plpgsql

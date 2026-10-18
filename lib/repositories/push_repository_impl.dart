@@ -82,13 +82,14 @@ class PushRepositoryImpl implements PushRepository {
     description: AppStrings.reminderChannelDescription,
     importance: Importance.high,
   );
+  static const _wishChannel = AndroidNotificationChannel(
+    'wishes',
+    AppStrings.wishChannelName,
+    description: AppStrings.wishChannelDescription,
+    importance: Importance.high,
+  );
 
-  /// The drawable FCM also uses (default_notification_icon), named without
-  /// its extension the way Android resources are looked up.
   static const _smallIcon = 'ic_stat_candlewish';
-
-  /// Android only: iOS has no Firebase configuration yet, and the plugin's
-  /// iOS initialisation needs settings this app does not have.
   Future<void> _initLocalNotifications() async {
     if (!Platform.isAndroid) return;
     try {
@@ -96,22 +97,17 @@ class PushRepositoryImpl implements PushRepository {
         settings: const InitializationSettings(
           android: AndroidInitializationSettings(_smallIcon),
         ),
-        // A tap on a foreground reminder goes through the same
-        // routeForPayload and the same stream as a tap on an FCM one, so
-        // app.dart's single listener handles both.
         onDidReceiveNotificationResponse: (response) {
           final route = routeForLocalPayload(response.payload);
           if (route != null) _routes.add(route);
         },
       );
-      await _local
-          .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >()
-          ?.createNotificationChannel(_channel);
+      final android = _local.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >();
+      await android?.createNotificationChannel(_channel);
+      await android?.createNotificationChannel(_wishChannel);
     } catch (e, s) {
-      // Reminders still arrive in the background without this; only the
-      // foreground banner is lost. Not worth failing app startup over.
       Log.error('local notifications setup failed', e, s);
     }
   }
@@ -121,6 +117,11 @@ class PushRepositoryImpl implements PushRepository {
     // Data-only messages have nothing to show.
     if (notification == null || !Platform.isAndroid) return;
     await _localReady;
+    // The server names the channel per kind; anything else, including a
+    // message from a drain that predates the wishes channel, is a reminder.
+    final channel = notification.android?.channelId == _wishChannel.id
+        ? _wishChannel
+        : _channel;
     try {
       await _local.show(
         // One notification per message. messageId is unique per send; the
@@ -130,9 +131,9 @@ class PushRepositoryImpl implements PushRepository {
         body: notification.body,
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
-            _channel.id,
-            _channel.name,
-            channelDescription: _channel.description,
+            channel.id,
+            channel.name,
+            channelDescription: channel.description,
             importance: Importance.high,
             // Below Android 8 there are no channels, and priority is what
             // decides whether a heads-up banner appears.
@@ -155,10 +156,6 @@ class PushRepositoryImpl implements PushRepository {
       AuthorizationStatus.authorized ||
       AuthorizationStatus.provisional =>
         PushPermission.granted,
-      // deniedPermanently is the state Android 13 puts the app in after a
-      // SECOND refusal. Treating it as anything but denied would have the
-      // cubit call requestPermission() forever against an OS that will
-      // never show a prompt again.
       AuthorizationStatus.denied ||
       AuthorizationStatus.deniedPermanently =>
         PushPermission.denied,
