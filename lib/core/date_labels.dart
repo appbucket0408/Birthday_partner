@@ -25,4 +25,10 @@ abstract final class DateLabels {
   /// "Saturday, 21 October".
   static String dayHeading(DateTime date) =>
       '${weekdays[date.weekday - 1]}, ${date.day} ${months[date.month - 1]}';
+
+  /// "21 October 2026", in local time -- when a wish was posted.
+  static String posted(DateTime date) {
+    final local = date.toLocal();
+    return '${local.day} ${months[local.month - 1]} ${local.year}';
+  }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/app_strings.dart';
+import '../../core/photo_picker.dart';
 import '../../core/reentrancy_guard.dart';
 import '../../core/result.dart';
 import '../../repositories/graph_repository.dart';
@@ -104,7 +105,8 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
     }
   }
 
-  Future<void> postWish(String body) => guard('post', () async {
+  Future<void> postWish(String body, {PhotoPicked? photo}) =>
+      guard('post', () async {
         final current = state;
         if (current is! PersonLoaded) return;
         final birthday = current.person.birthday;
@@ -147,14 +149,45 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
             posting: true,
           ),
         );
+        // Uploaded before the wish exists, so a failure here has its own
+        // message: nothing was posted, and the composer keeps the photo for
+        // a retry.
+        String? photoPath;
+        if (photo != null) {
+          try {
+            photoPath = await _wishes.uploadPhoto(
+              photo.bytes,
+              extension: photo.extension,
+            );
+          } catch (_) {
+            emit(
+              PersonLoaded(
+                person: current.person,
+                celebratorCount: current.celebratorCount,
+                wishes: current.wishes,
+                viewerCelebrates: current.viewerCelebrates,
+                celebratesViewer: current.celebratesViewer,
+                postError: AppStrings.wishPhotoUploadFailed,
+              ),
+            );
+            return;
+          }
+        }
         try {
           final occasionYear = birthday.occasionYear(_now());
           await _wishes.post(
             personId: current.person.id,
             body: body,
             occasionYear: occasionYear,
+            photoPath: photoPath,
           );
         } on AppFailure catch (f) {
+          // Only a refusal with a SQLSTATE is certain the row was not
+          // written. A timeout may have landed server-side, and deleting the
+          // photo then would break a wish that was really posted.
+          if (photoPath != null && f is ServerFailure && f.code != null) {
+            await _wishes.removePhoto(photoPath);
+          }
           // 23505 is wishes_one_message_per_year: the viewer already wished
           // this person for this occasion year. Not a fault -- say so.
           final alreadyWished = f is ServerFailure && f.code == '23505';

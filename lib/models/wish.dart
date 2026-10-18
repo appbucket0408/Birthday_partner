@@ -17,6 +17,7 @@ class Wish {
     required this.body,
     required this.occasionYear,
     required this.createdAt,
+    this.photoPath,
     this.authorName,
   });
 
@@ -26,6 +27,10 @@ class Wish {
   final String body;
   final int occasionYear;
   final DateTime createdAt;
+
+  /// Storage path of the attached photo in the `wish_photos` bucket, or null
+  /// for a text-only wish.
+  final String? photoPath;
   final String? authorName;
 
   // Deliberately no `isMine` getter. Authorship is decided by comparing
@@ -39,6 +44,7 @@ class Wish {
         body: body,
         occasionYear: occasionYear,
         createdAt: createdAt,
+        photoPath: photoPath,
         authorName: name,
       );
 
@@ -49,5 +55,6 @@ class Wish {
         body: row[ApiParams.body] as String,
         occasionYear: row[ApiParams.occasionYear] as int,
         createdAt: DateTime.parse(row[ApiParams.createdAt] as String),
+        photoPath: row[ApiParams.photoPath] as String?,
       );
 }

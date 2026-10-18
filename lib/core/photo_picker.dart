@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'app_strings.dart';
 
-/// What the user did in [pickProfilePhoto].
+/// What the user did in [pickProfilePhoto] or [pickWishPhoto].
 sealed class PhotoChoice {
   const PhotoChoice();
 }
@@ -81,6 +81,24 @@ Future<PhotoChoice?> pickProfilePhoto(
     imageQuality: 85,
     preferredCameraDevice: CameraDevice.front,
   );
+  return _toChoice(file);
+}
+
+/// Gallery only, one photo, resized on the device to 1440px -- enough for a
+/// full-width post, small enough to stay well under the wish_photos bucket's
+/// 5 MB limit. Returns null when the user backs out. Throws the picker's
+/// PlatformException when photo access is denied.
+Future<PhotoChoice?> pickWishPhoto({ImagePicker? picker}) async {
+  final file = await (picker ?? ImagePicker()).pickImage(
+    source: ImageSource.gallery,
+    maxWidth: 1440,
+    maxHeight: 1440,
+    imageQuality: 85,
+  );
+  return _toChoice(file);
+}
+
+Future<PhotoChoice?> _toChoice(XFile? file) async {
   if (file == null) return null;
 
   final extension = switch (file.name.split('.').last.toLowerCase()) {

@@ -53,6 +53,11 @@ abstract final class ApiParams {
   static const occasionYear = 'occasion_year';
   static const createdAt = 'created_at';
 
+  /// The wish photo's Storage PATH inside the `wish_photos` bucket, not a URL
+  /// (see 20261018000001_wish_photos.sql).
+  static const photoPath = 'photo_path';
+  static const wishPhotosBucket = 'wish_photos';
+
   // my_birthday_stats
   static const statYear = 'stat_year';
   static const wishesSent = 'wishes_sent';

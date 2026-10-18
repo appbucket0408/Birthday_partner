@@ -189,8 +189,9 @@ abstract final class AppStrings {
       'You can write them a wish on their birthday.';
   static const personWishOpensTemplate = 'Wishes open on %s';
   static const wishAuthorUnknown = 'Someone who celebrates them';
-  static const wishHint = 'Say something nice';
-  static const wishSheetTitleTemplate = 'Wish %s';
+  static const wishHint = 'Say something nice 🎂';
+  static const wishComposerTitle = 'Create a wish';
+  static const wishComposerForTemplate = 'Wishing %s a happy birthday';
   static const wishSheetSubtitle = 'Your wish shows on their wish wall.';
   static const wishSuggestions = [
     'Happy birthday! 🎂',
@@ -205,6 +206,20 @@ abstract final class AppStrings {
       'You have already wished them for this birthday.';
   static const wishEmpty = 'Write something first.';
   static const wishPostFailed = 'That wish could not be posted.';
+  static const wishPosting = 'Posting your wish…';
+  static const wishPosted = 'Wish posted';
+  static const wishAddPhoto = 'Add a photo';
+  static const wishAddPhotoHint = 'One photo from your gallery';
+  static const wishReplacePhoto = 'Replace';
+  static const wishRemovePhoto = 'Remove photo';
+  static const wishPhotoUploadFailed =
+      'Your photo could not be uploaded. Nothing was posted -- try again.';
+  static const wishPhotoAccessDenied =
+      'Allow photo access in Settings to add a photo.';
+  static const wishPhotoUnreadable = 'That photo could not be opened.';
+  static const wishPhotoTooLarge =
+      'That photo is too large. Please choose another.';
+  static const wishPostTitle = 'Wish';
 
   // Bottom navigation
   static const navDashboard = 'Dashboard';

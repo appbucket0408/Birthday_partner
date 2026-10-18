@@ -122,22 +122,30 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
-  // Profile photos live in Storage, which no foreign key reaches: deleting
-  // the user would orphan them. Removed first, and a failure stops the
-  // delete -- a "deleted" account whose photo is still stored is the one
-  // outcome worse than a retry.
+  // Profile and wish photos live in Storage, which no foreign key reaches:
+  // deleting the user would orphan them. Removed first, and a failure stops
+  // the delete -- a "deleted" account whose photo is still stored is the one
+  // outcome worse than a retry. Removed a page at a time: list() returns at
+  // most `limit` objects, and years of wish photos can exceed one page.
   const folder = userData.user.id;
-  const { data: photos, error: listError } = await admin.storage
-    .from("avatars")
-    .list(folder);
-  const removeError = listError ??
-    (photos && photos.length > 0
-      ? (await admin.storage
-        .from("avatars")
-        .remove(photos.map((p) => `${folder}/${p.name}`))).error
-      : null);
+  let removeError: { message: string } | null = null;
+  for (const bucket of ["avatars", "wish_photos"]) {
+    while (!removeError) {
+      const { data: photos, error: listError } = await admin.storage
+        .from(bucket)
+        .list(folder, { limit: 1000 });
+      if (listError) {
+        removeError = listError;
+        break;
+      }
+      if (!photos || photos.length === 0) break;
+      removeError = (await admin.storage
+        .from(bucket)
+        .remove(photos.map((p) => `${folder}/${p.name}`))).error;
+    }
+  }
   if (removeError) {
-    console.error("avatar cleanup failed", removeError.message);
+    console.error("photo cleanup failed", removeError.message);
     return new Response(JSON.stringify({ error: "delete failed" }), {
       status: 500,
       headers: { "content-type": "application/json" },

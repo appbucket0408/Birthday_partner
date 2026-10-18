@@ -193,7 +193,23 @@ class _FakeWishes implements WishRepository {
     required int personId,
     required String body,
     required int occasionYear,
+    String? photoPath,
   }) async =>
+      throw UnimplementedError('not used by ProfileCubit');
+
+  @override
+  Future<String> uploadPhoto(
+    Uint8List bytes, {
+    required String extension,
+  }) async =>
+      throw UnimplementedError('not used by ProfileCubit');
+
+  @override
+  Future<void> removePhoto(String path) async =>
+      throw UnimplementedError('not used by ProfileCubit');
+
+  @override
+  Future<String> photoUrl(String path) async =>
       throw UnimplementedError('not used by ProfileCubit');
 }
 

@@ -195,7 +195,23 @@ class _FakeWishRepository implements WishRepository {
     required int personId,
     required String body,
     required int occasionYear,
+    String? photoPath,
   }) async {}
+
+  @override
+  Future<String> uploadPhoto(
+    Uint8List bytes, {
+    required String extension,
+  }) async =>
+      throw UnimplementedError('not used by the router');
+
+  @override
+  Future<void> removePhoto(String path) async =>
+      throw UnimplementedError('not used by the router');
+
+  @override
+  Future<String> photoUrl(String path) async =>
+      throw UnimplementedError('not used by the router');
 }
 
 Profile _readyProfile() => const Profile(

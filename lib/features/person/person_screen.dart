@@ -13,7 +13,7 @@ import '../../repositories/person_repository.dart';
 import '../../repositories/wish_repository.dart';
 import 'person_cubit.dart';
 import 'person_state.dart';
-import 'wish_compose_sheet.dart';
+import 'wish_compose_screen.dart';
 
 class PersonScreen extends StatelessWidget {
   const PersonScreen({
@@ -269,7 +269,7 @@ class _Header extends StatelessWidget {
                   ),
                   icon: const Icon(Icons.edit),
                   label: const Text(AppStrings.personWriteWish),
-                  onPressed: () => showWishComposeSheet(context),
+                  onPressed: () => openWishComposer(context),
                 )
               else
                 // Says when wishing opens, in the slot the button will take:

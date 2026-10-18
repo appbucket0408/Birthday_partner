@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../models/wish.dart';
 import 'app_spacing.dart';
+import 'wish_photo.dart';
+import 'wish_post_screen.dart';
 
-/// One wish as a coloured card: the message, and who sent it underneath.
-/// Used by every wish grid (your profile, and another person's page) so they
-/// always look the same. Cards cycle through the theme's three container
-/// colours so a grid of them reads as separate notes rather than one block.
 class WishCard extends StatelessWidget {
   const WishCard({
     super.key,
@@ -34,6 +32,60 @@ class WishCard extends StatelessWidget {
       _ => (scheme.tertiaryContainer, scheme.onTertiaryContainer),
     };
 
+    final author = Text(
+      wish.authorName ?? unknownAuthor,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: theme.textTheme.labelLarge?.copyWith(
+        color: foreground,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+
+    final path = wish.photoPath;
+    if (path != null) {
+      return Material(
+        key: Key('wish_${wish.id}'),
+        color: background,
+        clipBehavior: Clip.antiAlias,
+        borderRadius: BorderRadius.circular(AppSpacing.md),
+        child: InkWell(
+          onTap: () => WishPostScreen.open(
+            context,
+            wish: wish,
+            unknownAuthor: unknownAuthor,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: WishPhoto(path: path)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.sm + 2,
+                  AppSpacing.sm,
+                  AppSpacing.sm + 2,
+                  AppSpacing.sm,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      wish.body,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: foreground),
+                    ),
+                    author,
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Container(
       key: Key('wish_${wish.id}'),
       padding: const EdgeInsets.all(AppSpacing.md - AppSpacing.xs),
@@ -55,15 +107,7 @@ class WishCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          Text(
-            wish.authorName ?? unknownAuthor,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: foreground,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          author,
         ],
       ),
     );

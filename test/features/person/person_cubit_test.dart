@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:birthday_app/core/app_strings.dart';
+import 'package:birthday_app/core/photo_picker.dart';
 import 'package:birthday_app/core/result.dart';
 import 'package:birthday_app/features/person/person_cubit.dart';
 import 'package:birthday_app/features/person/person_state.dart';
@@ -48,6 +51,10 @@ class _FakeWish implements WishRepository {
   int postCalls = 0;
   int wishesForCalls = 0;
   int? lastOccasionYear;
+  String? lastPhotoPath;
+  Object? uploadError;
+  final uploaded = <String>[];
+  final removed = <String>[];
 
   @override
   Future<List<Wish>> wishesToMe() async =>
@@ -65,11 +72,31 @@ class _FakeWish implements WishRepository {
     required int personId,
     required String body,
     required int occasionYear,
+    String? photoPath,
   }) async {
     postCalls++;
     lastOccasionYear = occasionYear;
+    lastPhotoPath = photoPath;
     if (postError != null) throw postError!;
   }
+
+  @override
+  Future<String> uploadPhoto(
+    Uint8List bytes, {
+    required String extension,
+  }) async {
+    if (uploadError != null) throw uploadError!;
+    final path = 'me/${uploaded.length}.$extension';
+    uploaded.add(path);
+    return path;
+  }
+
+  @override
+  Future<void> removePhoto(String path) async => removed.add(path);
+
+  @override
+  Future<String> photoUrl(String path) async =>
+      throw UnimplementedError('not used by PersonCubit');
 }
 
 /// [celebrationsList] is the SIGNED-IN VIEWER'S OWN celebration edges --
@@ -465,5 +492,75 @@ void main() {
       (cubit.state as PersonLoaded).postError,
       AppStrings.personWishOnBirthday,
     );
+  });
+
+  group('postWish() with a photo', () {
+    final photo = PhotoPicked(Uint8List.fromList([1, 2, 3]), 'jpg');
+
+    Future<(PersonCubit, _FakeWish)> loaded(_FakeWish wish) async {
+      final cubit = PersonCubit(
+        _FakePerson(
+          personToReturn:
+              _person(1, birthday: const Birthday(month: 1, day: 5)),
+        ),
+        wish,
+        _FakeGraph(celebrationsList: [_celeb(1)]),
+        now: _fixedNow,
+      );
+      await cubit.load(1);
+      return (cubit, wish);
+    }
+
+    test('uploads first, then posts the wish pointing at the upload',
+        () async {
+      final (cubit, wish) = await loaded(_FakeWish());
+
+      await cubit.postWish('Happy birthday! 🎂', photo: photo);
+
+      expect(wish.uploaded, ['me/0.jpg']);
+      expect(wish.lastPhotoPath, 'me/0.jpg');
+      expect(wish.removed, isEmpty);
+      expect((cubit.state as PersonLoaded).postError, isNull);
+    });
+
+    test('a failed upload posts nothing and says the photo failed', () async {
+      final (cubit, wish) = await loaded(
+        _FakeWish()..uploadError = const ServerFailure('storage down'),
+      );
+
+      await cubit.postWish('Happy birthday!', photo: photo);
+
+      expect(wish.postCalls, 0);
+      expect(
+        (cubit.state as PersonLoaded).postError,
+        AppStrings.wishPhotoUploadFailed,
+      );
+    });
+
+    test('a refused wish removes the photo it uploaded', () async {
+      final (cubit, wish) = await loaded(
+        _FakeWish(postError: const ServerFailure('dup', code: '23505')),
+      );
+
+      await cubit.postWish('Again', photo: photo);
+
+      expect(wish.removed, ['me/0.jpg']);
+      expect(
+        (cubit.state as PersonLoaded).postError,
+        AppStrings.wishAlreadyThisYear,
+      );
+    });
+
+    // A timeout may have landed server-side; deleting the photo then would
+    // break a wish that really posted.
+    test('a failure with no SQLSTATE keeps the photo', () async {
+      final (cubit, wish) = await loaded(
+        _FakeWish(postError: const ServerFailure('timed out')),
+      );
+
+      await cubit.postWish('Happy birthday!', photo: photo);
+
+      expect(wish.removed, isEmpty);
+    });
   });
 }
