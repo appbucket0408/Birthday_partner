@@ -1,4 +1,4 @@
-package com.birthdayapp.birthday_app
+package com.flutzo.candlewish
 
 import android.content.Intent
 import android.os.Build

@@ -1,0 +1,8 @@
+# Copy to android/key.properties (gitignored) and fill in. Never commit the
+# real file or the keystore. storeFile is an absolute path to the .jks, kept
+# outside this repository and backed up somewhere safe: losing it (or its
+# passwords) means asking Google support to reset the upload key.
+storeFile=/Users/<you>/keystores/candlewish-upload.jks
+storePassword=
+keyAlias=upload
+keyPassword=
