@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../api/api_client.dart';
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
+import '../../core/app_text_styles.dart';
 import '../../repositories/auth_repository.dart';
 import '../../repositories/push_repository.dart';
 import '../../repositories/settings_repository.dart';
@@ -44,9 +45,9 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
-/// The whole screen's layout lives on this one class, inline in [build] --
-/// same convention as TimelineScreen's `_TimelineView`: nothing here is
-/// reused elsewhere or complex enough to earn its own widget.
+/// The screen's layout lives on this class, inline in [build] -- same
+/// convention as TimelineScreen's `_TimelineView`. Only the purely visual
+/// pieces (section label, card group, icon tile) are split out below.
 class _SettingsView extends StatelessWidget {
   const _SettingsView();
 
@@ -115,32 +116,71 @@ class _SettingsView extends StatelessWidget {
 
   Widget _buildLoaded(BuildContext context, SettingsLoaded state) {
     final cubit = context.read<SettingsCubit>();
-    final errorColor = Theme.of(context).colorScheme.error;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final rowTitle =
+        theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600);
     return ListView(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.xs,
+        AppSpacing.md,
+        AppSpacing.lg,
+      ),
       children: [
-        SwitchListTile(
-          key: const Key('reminders_switch'),
-          title: const Text(AppStrings.settingsReminders),
-          subtitle: const Text(AppStrings.settingsRemindersBody),
-          value: state.remindersEnabled,
-          onChanged: state.savingReminders
-              ? null
-              : (value) => cubit.toggleReminders(value),
+        const _SectionLabel(AppStrings.settingsSectionNotifications),
+        _Group(
+          children: [
+            SwitchListTile(
+              key: const Key('reminders_switch'),
+              contentPadding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.xs,
+                AppSpacing.sm,
+                AppSpacing.xs,
+              ),
+              secondary: _IconTile(
+                icon: Icons.notifications_none_rounded,
+                background: scheme.primaryContainer,
+                foreground: scheme.onPrimaryContainer,
+              ),
+              title: Text(AppStrings.settingsReminders, style: rowTitle),
+              subtitle: const Text(AppStrings.settingsRemindersBody),
+              value: state.remindersEnabled,
+              onChanged: state.savingReminders
+                  ? null
+                  : (value) => cubit.toggleReminders(value),
+            ),
+          ],
         ),
-        const Divider(height: 1),
-        ListTile(
-          key: const Key('sign_out_tile'),
-          title: const Text(AppStrings.settingsSignOut),
-          onTap: cubit.signOut,
-        ),
-        ListTile(
-          key: const Key('delete_account_tile'),
-          title: Text(
-            AppStrings.settingsDeleteAccount,
-            style: TextStyle(color: errorColor),
-          ),
-          iconColor: errorColor,
-          onTap: () => _confirmDelete(context, cubit),
+        const SizedBox(height: AppSpacing.lg),
+        const _SectionLabel(AppStrings.settingsSectionAccount),
+        _Group(
+          children: [
+            ListTile(
+              key: const Key('sign_out_tile'),
+              leading: _IconTile(
+                icon: Icons.logout_rounded,
+                background: scheme.surfaceContainerHigh,
+                foreground: scheme.onSurfaceVariant,
+              ),
+              title: Text(AppStrings.settingsSignOut, style: rowTitle),
+              onTap: cubit.signOut,
+            ),
+            ListTile(
+              key: const Key('delete_account_tile'),
+              leading: _IconTile(
+                icon: Icons.delete_outline_rounded,
+                background: scheme.error.withValues(alpha: 0.12),
+                foreground: scheme.error,
+              ),
+              title: Text(
+                AppStrings.settingsDeleteAccount,
+                style: rowTitle?.copyWith(color: scheme.error),
+              ),
+              onTap: () => _confirmDelete(context, cubit),
+            ),
+          ],
         ),
       ],
     );
@@ -159,6 +199,11 @@ class _SettingsView extends StatelessWidget {
           ),
           FilledButton(
             key: const Key('delete_confirm_button'),
+            // Destructive, so it reads as such.
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text(AppStrings.settingsDeleteConfirm),
           ),
@@ -171,4 +216,75 @@ class _SettingsView extends StatelessWidget {
     if (confirmed != true || !context.mounted) return;
     cubit.deleteAccount();
   }
+}
+
+/// A small heading above a group of rows.
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(
+          left: AppSpacing.xs,
+          top: AppSpacing.sm,
+          bottom: AppSpacing.sm,
+        ),
+        child: Text(text, style: AppTextStyles.sectionHeader(context)),
+      );
+}
+
+/// Rows on one white card, hairline dividers between them -- the same
+/// grouping as the Dashboard's sections.
+class _Group extends StatelessWidget {
+  const _Group({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          for (final (i, child) in children.indexed) ...[
+            if (i > 0)
+              Divider(
+                height: 1,
+                indent: 68,
+                color: scheme.outlineVariant.withValues(alpha: 0.7),
+              ),
+            child,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A row's icon on a soft rounded square.
+class _IconTile extends StatelessWidget {
+  const _IconTile({
+    required this.icon,
+    required this.background,
+    required this.foreground,
+  });
+
+  final IconData icon;
+  final Color background;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
+        child: Icon(icon, size: 20, color: foreground),
+      );
 }
