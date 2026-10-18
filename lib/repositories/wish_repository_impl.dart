@@ -6,15 +6,13 @@ import '../api/api_error_mapper.dart';
 import '../api/api_params.dart';
 import '../core/logger.dart';
 import '../core/result.dart';
+import '../models/feed_entry.dart';
 import '../models/wish.dart';
 import 'wish_repository.dart';
 
 class WishRepositoryImpl implements WishRepository {
   WishRepositoryImpl(this._client);
   final SupabaseClient _client;
-
-  // Same reuse window as AvatarRepositoryImpl: a wall rebuild must not mint
-  // a new URL, or NetworkImage (which caches by URL) re-downloads the photo.
   static const _urlLifetime = Duration(hours: 1);
   static const _reuseFor = Duration(minutes: 50);
   final _urls = <String, ({String url, DateTime at})>{};
@@ -35,12 +33,6 @@ class WishRepositoryImpl implements WishRepository {
           .map((r) => Wish.fromRow(r as Map<String, dynamic>))
           .toList();
       if (wishes.isEmpty) return wishes;
-
-      // Second step, and it cannot be avoided: profiles_select_own restricts
-      // profiles to their owner, and there is no FK from wishes to people, so
-      // PostgREST cannot embed the author. Resolve names from `people`, where
-      // RLS filters to authors already in the viewer's graph. Anyone else
-      // comes back missing and their wish renders unattributed -- intended.
       final authorIds =
           wishes.map((w) => w.authorProfileId).toSet().toList(growable: false);
 
@@ -58,6 +50,62 @@ class WishRepositoryImpl implements WishRepository {
       return wishes
           .map((w) => w.withAuthorName(names[w.authorProfileId]))
           .toList(growable: false);
+    } catch (e) {
+      throw mapError(e);
+    }
+  }
+
+  @override
+  Future<List<FeedEntry>> feed({DateTime? before, int limit = 20}) async {
+    try {
+      var query = _client.from(ApiParams.wishes).select();
+      if (before != null) {
+        query = query.lt(ApiParams.createdAt, before.toUtc().toIso8601String());
+      }
+      final rows = await query
+          .order(ApiParams.createdAt, ascending: false)
+          .limit(limit);
+
+      final wishes = (rows as List)
+          .map((r) => Wish.fromRow(r as Map<String, dynamic>))
+          .toList();
+      if (wishes.isEmpty) return const [];
+
+      // Names come from `people`, as on the wall: authors outside the
+      // viewer's graph come back missing and render unattributed.
+      final authorIds =
+          wishes.map((w) => w.authorProfileId).toSet().toList(growable: false);
+      final subjectIds =
+          wishes.map((w) => w.subjectPersonId).toSet().toList(growable: false);
+      final lookups = await Future.wait([
+        _client
+            .from(ApiParams.people)
+            .select('${ApiParams.profileId}, ${ApiParams.displayName}')
+            .inFilter(ApiParams.profileId, authorIds),
+        _client
+            .from(ApiParams.people)
+            .select('${ApiParams.id}, ${ApiParams.displayName}')
+            .inFilter(ApiParams.id, subjectIds),
+      ]);
+
+      final authors = <String, String>{
+        for (final p in lookups[0] as List)
+          (p as Map<String, dynamic>)[ApiParams.profileId] as String:
+              p[ApiParams.displayName] as String,
+      };
+      final subjects = <int, String>{
+        for (final p in lookups[1] as List)
+          (p as Map<String, dynamic>)[ApiParams.id] as int:
+              p[ApiParams.displayName] as String,
+      };
+
+      return [
+        for (final w in wishes)
+          FeedEntry(
+            wish: w.withAuthorName(authors[w.authorProfileId]),
+            subjectName: subjects[w.subjectPersonId],
+          ),
+      ];
     } catch (e) {
       throw mapError(e);
     }

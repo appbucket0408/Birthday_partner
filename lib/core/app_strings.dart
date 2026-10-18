@@ -221,7 +221,23 @@ abstract final class AppStrings {
       'That photo is too large. Please choose another.';
   static const wishPostTitle = 'Wish';
 
+  // Feed
+  static const feedTitle = 'Feed';
+  static const feedWishedTemplate = 'wished %s';
+  static const feedSentCakeTemplate = 'sent %s a cake';
+  static const feedCakeBody = 'Sent a birthday cake 🎂';
+  static const feedAuthorUnknown = 'Someone';
+  static const feedSubjectUnknown = 'someone';
+  static const feedEmptyTitle = 'Your feed is quiet';
+  static const feedEmptyBody =
+      'Birthday wishes and photos from the people you celebrate show up '
+      'here. Add people, and wish them on their birthday to share the '
+      'first one.';
+  static const feedSeeBirthdays = 'See upcoming birthdays';
+  static const feedLoadMoreFailed = 'Older wishes could not be loaded.';
+
   // Bottom navigation
+  static const navFeed = 'Feed';
   static const navDashboard = 'Dashboard';
   static const navCalendar = 'Calendar';
   static const navProfile = 'Profile';

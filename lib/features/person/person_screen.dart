@@ -59,7 +59,9 @@ class PersonView extends StatelessWidget {
               key: const Key('person_back_button'),
               icon: const Icon(Icons.arrow_back),
               tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-              onPressed: () => context.go('/timeline'),
+              onPressed: () => context.canPop()
+                  ? context.pop()
+                  : context.go('/timeline'),
             ),
           ),
           body: switch (state) {

@@ -3,24 +3,16 @@ import 'package:go_router/go_router.dart';
 
 import '../core/app_strings.dart';
 import 'active_tab.dart';
-
-/// The bottom navigation bar around the three signed-in tabs: Dashboard
-/// ('/timeline'), Calendar ('/calendar') and Profile ('/profile').
-///
-/// Each tab is a branch of a `StatefulShellRoute.indexedStack`, so switching
-/// tabs keeps every tab's scroll position and loaded state instead of
-/// rebuilding it. Material 3's [NavigationBar] pads itself by the bottom
-/// system inset, which keeps it clear of Android's gesture bar or
-/// three-button bar without an extra SafeArea.
 class HomeShell extends StatelessWidget {
   const HomeShell({super.key, required this.shell});
 
   final StatefulNavigationShell shell;
 
   // Branch order in app_router.dart's StatefulShellRoute.
-  static const dashboardTab = 0;
-  static const calendarTab = 1;
-  static const profileTab = 2;
+  static const feedTab = 0;
+  static const dashboardTab = 1;
+  static const calendarTab = 2;
+  static const profileTab = 3;
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +30,12 @@ class HomeShell extends StatelessWidget {
           initialLocation: index == shell.currentIndex,
         ),
         destinations: const [
+          NavigationDestination(
+            key: Key('nav_feed'),
+            icon: Icon(Icons.dynamic_feed_outlined),
+            selectedIcon: Icon(Icons.dynamic_feed),
+            label: AppStrings.navFeed,
+          ),
           NavigationDestination(
             key: Key('nav_dashboard'),
             icon: Icon(Icons.home_outlined),

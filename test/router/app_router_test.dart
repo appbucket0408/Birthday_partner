@@ -6,6 +6,7 @@ import 'package:birthday_app/features/gifting/gift_list_screen.dart';
 import 'package:birthday_app/features/person/person_screen.dart';
 import 'package:birthday_app/core/app_strings.dart';
 import 'package:birthday_app/features/connections/connections_screen.dart';
+import 'package:birthday_app/features/feed/feed_screen.dart';
 import 'package:birthday_app/models/birthday.dart';
 import 'package:birthday_app/models/birthday_stat.dart';
 import 'package:birthday_app/models/celebration.dart';
@@ -15,6 +16,7 @@ import 'package:birthday_app/models/person.dart';
 import 'package:birthday_app/models/product.dart';
 import 'package:birthday_app/models/profile.dart';
 import 'package:birthday_app/models/service_area.dart';
+import 'package:birthday_app/models/feed_entry.dart';
 import 'package:birthday_app/models/wish.dart';
 import 'package:birthday_app/repositories/auth_repository.dart';
 import 'package:birthday_app/repositories/avatar_repository.dart';
@@ -212,6 +214,10 @@ class _FakeWishRepository implements WishRepository {
   @override
   Future<String> photoUrl(String path) async =>
       throw UnimplementedError('not used by the router');
+
+  @override
+  Future<List<FeedEntry>> feed({DateTime? before, int limit = 20}) async =>
+      const [];
 }
 
 Profile _readyProfile() => const Profile(
@@ -527,10 +533,55 @@ void main() {
     );
   });
 
-  // The bottom bar wraps exactly the three tabs. '/timeline' is never
+  // The bottom bar wraps exactly the four tabs. '/timeline' is never
   // pumped here for the reason _routerAt's doc gives (it reaches for a real
-  // Supabase client), so the tab tests start from Profile and Calendar.
+  // Supabase client), so the tab tests start from Feed, Profile and Calendar.
   group('bottom navigation', () {
+    testWidgets('a signed-in session lands on the Feed', (tester) async {
+      final fixture = _routerAt('/splash');
+      addTearDown(() => _disposeFixture(fixture));
+
+      await tester.pumpWidget(_appWith(fixture.router));
+      await tester.pumpAndSettle();
+
+      expect(_locationOf(fixture.router), '/feed');
+      expect(find.byType(FeedView), findsOneWidget);
+      final bar = tester.widget<NavigationBar>(
+        find.byKey(const Key('home_nav_bar')),
+      );
+      expect(bar.selectedIndex, 0);
+    });
+
+    testWidgets('the tabs are Feed, Dashboard, Calendar, Profile in order',
+        (tester) async {
+      final fixture = _routerAt('/feed');
+      addTearDown(() => _disposeFixture(fixture));
+
+      await tester.pumpWidget(_appWith(fixture.router));
+      await tester.pumpAndSettle();
+
+      final keys = tester
+          .widgetList<NavigationDestination>(find.byType(NavigationDestination))
+          .map((d) => (d.key! as ValueKey<String>).value)
+          .toList();
+      expect(keys, ['nav_feed', 'nav_dashboard', 'nav_calendar', 'nav_profile']);
+    });
+
+    testWidgets('tapping the Feed tab on Profile arrives at /feed',
+        (tester) async {
+      final fixture = _routerAt('/profile');
+      addTearDown(() => _disposeFixture(fixture));
+
+      await tester.pumpWidget(_appWith(fixture.router));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('nav_feed')));
+      await tester.pumpAndSettle();
+
+      expect(_locationOf(fixture.router), '/feed');
+      expect(find.byType(FeedView), findsOneWidget);
+    });
+
     testWidgets('/calendar is reachable and shows the bottom bar',
         (tester) async {
       final fixture = _routerAt('/calendar');
@@ -589,25 +640,15 @@ void main() {
 
         expect(find.byKey(const Key('router_error_go_home')), findsOneWidget);
 
-        // Deliberately NOT followed by `tester.pump()`: navigating home
-        // builds the REAL TimelineScreen, which falls back to
-        // GraphRepositoryImpl(ApiClient.instance) because it takes no
-        // repository argument at all (see _routerAt's own doc), and this
-        // test never initializes Supabase, so that build throws mid
-        // page-transition -- which leaves a pending high-performance-mode
-        // request undisposed (go_router's page transition requests one) and
-        // fails this test on an unrelated framework invariant, not on
-        // anything this fix is responsible for. `context.go` itself runs
-        // synchronously inside `onPressed`, updating the router's own
-        // location before any frame is pumped, so the assertion below is
-        // already meaningful without ever letting that doomed frame build.
         await tester.tap(find.byKey(const Key('router_error_go_home')));
+        await tester.pumpAndSettle();
 
         expect(
           _locationOf(router),
-          '/timeline',
-          reason: 'the error page\'s home button did not navigate to /timeline',
+          '/feed',
+          reason: 'the error page\'s home button did not navigate to /feed',
         );
+        expect(find.byType(FeedView), findsOneWidget);
       },
     );
   });

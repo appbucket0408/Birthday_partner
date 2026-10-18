@@ -17,6 +17,7 @@ class Wish {
     required this.body,
     required this.occasionYear,
     required this.createdAt,
+    this.kind = 'message',
     this.photoPath,
     this.authorName,
   });
@@ -27,6 +28,9 @@ class Wish {
   final String body;
   final int occasionYear;
   final DateTime createdAt;
+
+  /// 'message' (typed) or 'cake' (posted automatically on delivery).
+  final String kind;
 
   /// Storage path of the attached photo in the `wish_photos` bucket, or null
   /// for a text-only wish.
@@ -44,6 +48,7 @@ class Wish {
         body: body,
         occasionYear: occasionYear,
         createdAt: createdAt,
+        kind: kind,
         photoPath: photoPath,
         authorName: name,
       );
@@ -55,6 +60,7 @@ class Wish {
         body: row[ApiParams.body] as String,
         occasionYear: row[ApiParams.occasionYear] as int,
         createdAt: DateTime.parse(row[ApiParams.createdAt] as String),
+        kind: row[ApiParams.kind] as String? ?? 'message',
         photoPath: row[ApiParams.photoPath] as String?,
       );
 }

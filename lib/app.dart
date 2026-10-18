@@ -62,7 +62,7 @@ class _BirthdayAppState extends State<BirthdayApp> {
     // could subscribe, so it is fetched rather than listened for -- and then
     // held until the session resolves. Navigating the moment it arrives
     // loses it: the session is still SessionUnknown, and the router bounces
-    // everything but '/splash' there, then on to '/timeline'.
+    // everything but '/splash' there, then on to '/feed'.
     unawaited(_openInitialRoute());
     _tapSub = _push.notificationRoutes.listen((r) {
       if (mounted) _router.go(r);

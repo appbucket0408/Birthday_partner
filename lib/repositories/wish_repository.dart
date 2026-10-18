@@ -1,20 +1,13 @@
 import 'dart:typed_data';
 
+import '../models/feed_entry.dart';
 import '../models/wish.dart';
 
-/// The wish wall. One responsibility: reading and writing wishes.
 abstract interface class WishRepository {
-  /// A person's wall, newest first, with author names resolved where the
-  /// viewer is connected to the author and null where they are not.
+
   Future<List<Wish>> wishesFor(int personId);
-
-  /// The signed-in user's own wall: [wishesFor] their own `people` row, or
-  /// empty when they have none yet (it is created when they claim it).
   Future<List<Wish>> wishesToMe();
-
-  /// Posts a wish. RLS refuses unless the caller celebrates [personId].
-  /// [occasionYear] comes from `Birthday.occasionYear`, never from the user.
-  /// [photoPath] is a path returned by [uploadPhoto].
+  Future<List<FeedEntry>> feed({DateTime? before, int limit = 20});
   Future<void> post({
     required int personId,
     required String body,

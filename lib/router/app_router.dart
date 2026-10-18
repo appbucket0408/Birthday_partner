@@ -7,6 +7,7 @@ import '../core/app_strings.dart';
 import '../features/calendar/calendar_screen.dart';
 import '../features/connections/connections_screen.dart';
 import '../features/contacts_import/import_disclosure_screen.dart';
+import '../features/feed/feed_screen.dart';
 import '../features/gifting/cake_coming_soon_screen.dart';
 import '../features/gifting/gift_list_screen.dart';
 import '../features/onboarding/phone_screen.dart';
@@ -37,12 +38,6 @@ GoRouter buildRouter(SessionCubit session) {
   return GoRouter(
     initialLocation: '/splash',
     refreshListenable: _CubitRefresh(session.stream),
-    // Whole-branch review §8 should-fix 4: Task 8 fixed the one KNOWN
-    // instance of this (a live '/gifts' dead end), but with no errorBuilder
-    // configured at all, that fix closed one symptom, not the class -- any
-    // OTHER unmatched location (a typo, a stale deep link, a future route
-    // rename) still fell through to go_router's own default error page,
-    // which has no way back into the app.
     errorBuilder: (context, state) => Scaffold(
       appBar: AppBar(title: const Text(AppStrings.routeNotFoundTitle)),
       body: Center(
@@ -55,7 +50,7 @@ GoRouter buildRouter(SessionCubit session) {
               const SizedBox(height: 16),
               FilledButton(
                 key: const Key('router_error_go_home'),
-                onPressed: () => context.go('/timeline'),
+                onPressed: () => context.go('/feed'),
                 child: const Text(AppStrings.routeNotFoundAction),
               ),
             ],
@@ -66,20 +61,18 @@ GoRouter buildRouter(SessionCubit session) {
     routes: [
       GoRoute(path: '/splash', builder: (_, __) => const _Splash()),
       GoRoute(path: '/phone', builder: (_, __) => const PhoneScreen()),
-      // Deliberately no '/otp' route: OtpScreen is reached only via
-      // Navigator.push from PhoneScreen, handed the live PhoneCubit through
-      // BlocProvider.value. The screen has no meaning on its own -- it
-      // renders the phone number held in that cubit's memory, and a
-      // URL-addressable '/otp' would have nothing to verify against. A
-      // signed-out user landing on '#/otp' being redirected back to '/phone'
-      // by the guard below is correct, not a missing route.
       GoRoute(path: '/setup', builder: (_, __) => const ProfileSetupScreen()),
-      // The three bottom-bar tabs. Every other signed-in screen stays a
-      // top-level route, so it opens full screen over the bar rather than
-      // inside a tab.
       StatefulShellRoute.indexedStack(
         builder: (_, __, shell) => HomeShell(shell: shell),
         branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/feed',
+                builder: (_, __) => const FeedScreen(),
+              ),
+            ],
+          ),
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -117,14 +110,6 @@ GoRouter buildRouter(SessionCubit session) {
           personId: int.parse(state.pathParameters['personId']!),
         ),
       ),
-      // Carries a path parameter, so -- like '/person/:personId' -- it is
-      // matched by prefix below, not added to the literal `signedIn` set.
-      // The slot picker and the draft screen that follow it are
-      // parameterless but cannot carry the selection (person, birthday,
-      // product, slot) accumulating across the three screens, so both are
-      // pushed rather than routed (see task-5-brief.md and CatalogScreen's
-      // doc). '/gifts' (below) is the one screen after this point that IS a
-      // real route: it carries nothing forward, so it can be.
       GoRoute(
         path: '/gift/new/:personId',
         // Coming soon until payments exist; the catalog flow is kept for
@@ -133,13 +118,6 @@ GoRouter buildRouter(SessionCubit session) {
           personId: int.parse(state.pathParameters['personId']!),
         ),
       ),
-      // Parameterless and genuinely addressable -- unlike the slot picker and
-      // draft screens that precede it, it only loads the signed-in user's
-      // own gifts, so it needs nothing carried forward from another screen.
-      // Literal `signedIn` membership is therefore correct here, unlike
-      // '/person/:personId' and '/gift/new/:personId' below, which carry a
-      // path parameter and so need prefix matching instead (see those
-      // routes' own comments).
       GoRoute(path: '/gifts', builder: (_, __) => const GiftListScreen()),
       // Both counts on the Profile tab open the same screen, each on its own
       // tab -- Instagram's Following / Followers.
@@ -157,16 +135,8 @@ GoRouter buildRouter(SessionCubit session) {
     redirect: (context, state) {
       final s = session.state;
       final at = state.matchedLocation;
-
-      // Once ready, the user moves freely between the signed-in screens.
-      //
-      // '/person/:personId' cannot go in the set as a literal string: unlike
-      // every other entry here, it carries a path parameter, so `matchedLocation`
-      // is the substituted location (e.g. '/person/42'), never the bare
-      // '/person' the route is declared with. A literal-set membership check
-      // would never match it and the guard would bounce every visit straight
-      // back to '/timeline' -- checked separately, by prefix, for that reason.
       const signedIn = {
+        '/feed',
         '/timeline',
         '/calendar',
         '/import',
@@ -177,28 +147,7 @@ GoRouter buildRouter(SessionCubit session) {
         '/gifts',
       };
       final onPersonPage = at.startsWith('/person/');
-      // '/gift/new/:personId' carries a path parameter for the same reason
-      // '/person/:personId' does, so it needs the same prefix treatment --
-      // a literal `signedIn` membership test never matches the substituted
-      // location and the screen becomes unreachable while still compiling
-      // and analyzing clean, exactly as '/person/:personId' once did.
       final onGiftCatalogPage = at.startsWith('/gift/new/');
-
-      // Whole-branch review §8 should-fix 4, found while writing that item's
-      // own test: EVERY location this guard does not recognize -- not just
-      // ones outside the signed-in set -- fell through to the unconditional
-      // `return at == target ? null : target` below, which bounces it to
-      // some session's default page rather than ever letting go_router's own
-      // matching (and therefore `errorBuilder`, added below) see it. That
-      // silently steers a typo or a stale deep link somewhere plausible
-      // instead of surfacing it -- and it is precisely how a route/guard
-      // mismatch stays invisible: '/person/:personId' and
-      // '/gift/new/:personId' each already broke this way once (see their
-      // own comments above) purely because a matching check was subtly
-      // wrong, with nothing forcing that failure to be loud. A location that
-      // is not even a candidate for any session state at all is this
-      // guard's cue to step aside, not to guess -- go_router's own matching
-      // then fails it for real, and `errorBuilder` is what the user sees.
       const recognizedElsewhere = {'/splash', '/phone', '/setup', ...signedIn};
       if (!recognizedElsewhere.contains(at) &&
           !onPersonPage &&
@@ -212,7 +161,7 @@ GoRouter buildRouter(SessionCubit session) {
       final target = switch (s) {
         SessionSignedOut() => '/phone',
         SessionNeedsSetup() => '/setup',
-        SessionReady() => '/timeline',
+        SessionReady() => '/feed',
         SessionUnknown() => '/splash',
       };
 

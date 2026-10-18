@@ -80,6 +80,24 @@ void main() {
     expect(wishes.single.occasionYear, 2026);
   });
 
+  test('feed() pages the visible wishes newest first, with names', () async {
+    final summary = await contacts.addCelebrations([
+      const DeviceContact(name: 'Wish Target Feed', phoneE164: '+919999444603'),
+    ]);
+    final personId = summary.results.single.personId!;
+    for (final year in [2024, 2025, 2026]) {
+      await wish.post(personId: personId, body: 'Wish $year', occasionYear: year);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+
+    final first = await wish.feed(limit: 2);
+    expect(first.map((e) => e.wish.body).toList(), ['Wish 2026', 'Wish 2025']);
+    expect(first.every((e) => e.subjectName == 'Wish Target Feed'), isTrue);
+
+    final rest = await wish.feed(before: first.last.wish.createdAt, limit: 2);
+    expect(rest.map((e) => e.wish.body).toList(), ['Wish 2024']);
+  });
+
   test('wishesFor() returns newest first', () async {
     final summary = await contacts.addCelebrations([
       const DeviceContact(name: 'Wish Target Two', phoneE164: '+919999444602'),

@@ -1,12 +1,4 @@
--- One optional photo on a typed wish.
---
--- wishes.photo_path holds the object PATH inside the private `wish_photos`
--- bucket, never a URL -- the same convention as profiles.avatar_url. The text
--- stays mandatory (wishes_body_length is unchanged): a photo goes WITH a wish.
---
--- Layout: wish_photos/<author uuid>/<file>. The check below ties a wish's
--- photo to its own author's folder, so a wish cannot point at someone else's
--- upload.
+
 alter table public.wishes add column photo_path text;
 
 alter table public.wishes

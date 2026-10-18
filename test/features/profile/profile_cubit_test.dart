@@ -10,6 +10,7 @@ import 'package:birthday_app/models/birthday_stat.dart';
 import 'package:birthday_app/models/celebration.dart';
 import 'package:birthday_app/models/person.dart';
 import 'package:birthday_app/models/profile.dart';
+import 'package:birthday_app/models/feed_entry.dart';
 import 'package:birthday_app/models/wish.dart';
 import 'package:birthday_app/repositories/auth_repository.dart';
 import 'package:birthday_app/repositories/avatar_repository.dart';
@@ -210,6 +211,10 @@ class _FakeWishes implements WishRepository {
 
   @override
   Future<String> photoUrl(String path) async =>
+      throw UnimplementedError('not used by ProfileCubit');
+
+  @override
+  Future<List<FeedEntry>> feed({DateTime? before, int limit = 20}) async =>
       throw UnimplementedError('not used by ProfileCubit');
 }
 
