@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Gateway-level verify_jwt check: the gated functions are stopped by Kong, and
-# the exempt ones (confirm, drain_reminders -- see config.toml's [functions]
-# blocks) reach their own handlers.
+# the exempt ones (confirm, drain_reminders, send_sms -- see config.toml's
+# [functions] blocks) reach their own handlers.
 #
 # NOT INTERCHANGEABLE WITH test.sh -- the two scripts require OPPOSITE server
 # flags and must never share a running `supabase functions serve` process:
@@ -40,9 +40,12 @@ URL="${SUPABASE_URL:-http://127.0.0.1:54321}"
 # sends no JWT; its handler's x-drain-secret check is its guard. Without an
 # Authorization header it must get the HANDLER's {"error": ...} 401, never
 # Kong's -- which is exactly what check_exempt below distinguishes.
+# send_sms is exempt because its caller, GoTrue's Send SMS hook, signs with
+# standard webhooks, not a JWT; unsigned, it gets the handler's own error.
 EXEMPT=(
   confirm
   drain_reminders
+  send_sms
 )
 GATED=(
   claim_profile

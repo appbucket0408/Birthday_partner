@@ -524,8 +524,8 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 # {"msg": "Error: ..."} body, so the endpoint could never work deployed.
 #
 # This is the project's FIRST [functions] block. Every function absent from
-# this section deliberately keeps verify_jwt = true (drain_reminders, below,
-# is the one other exemption).
+# this section deliberately keeps verify_jwt = true (drain_reminders and
+# send_sms, below, are the only other exemptions).
 # confirm/index.test.ts proves the others still refuse an unauthenticated
 # caller at the HANDLER level (defence in depth, under --no-verify-jwt).
 # supabase/functions/test-gateway.sh proves the GATEWAY itself still blocks
@@ -544,4 +544,12 @@ verify_jwt = false
 # deploy` reads this block; it is a functions setting, not [auth.*], and
 # reaches hosted without `config push`.
 [functions.drain_reminders]
+verify_jwt = false
+
+# send_sms is the HOSTED Send SMS Auth Hook (MSG91). GoTrue calls it with a
+# standard-webhooks signature, not a JWT, so the gateway check would refuse
+# every OTP. The handler's signature check (SEND_SMS_HOOK_SECRET) is its
+# guard. Locally [auth.hook.send_sms] above stays on the pg-function, so this
+# function is only ever wired up in the hosted dashboard.
+[functions.send_sms]
 verify_jwt = false
