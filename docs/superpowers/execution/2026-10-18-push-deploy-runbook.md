@@ -194,6 +194,23 @@ grep -n 'enable_confirmations' supabase/config.toml
 
 In the dashboard: Auth → Providers → Phone has **no** test numbers.
 
+### 9. Production auth: phone-only users, no email delivery
+
+Real users sign in by phone OTP only; the app sends no email, so the
+project needs **no custom SMTP**. In the dashboard:
+
+- Auth → Providers → **Phone**: enabled, with the SMS provider configured
+  (and, in India, a DLT-registered sender and OTP template). No test numbers.
+- Auth → Providers → **Email**: leave it **on**, with **Confirm email on**.
+  Do not turn it off: the ops console signs staff in with email + password
+  (`StaffAuthRepositoryImpl.signIn`). Create staff in Auth → Users with
+  "Auto Confirm User". A stranger's email sign-up can never confirm, because
+  hosted's built-in mailer reaches only organization members.
+- Before paid traffic: CAPTCHA (Attack Protection), the SMS rate limit
+  (Rate Limits), a +91-only geo permission and a billing alert at the SMS
+  provider.
+- Store builds are made **without** `EMAIL_SIGN_IN`.
+
 ---
 
 ## Part 2 — Real Android device, end to end
@@ -211,17 +228,20 @@ Hosted has **no SMS provider**, and phone OTP is the app's front door:
 
 So the device test uses one or two accounts you pre-create as admin.
 
+**The launch app is phone-only** (decided 2026-10-22). Its sign-in screen
+has no Email tab; only a test build made with
+`--dart-define=EMAIL_SIGN_IN=true` shows one (`PhoneScreen.emailSignInEnabled`).
+Email sign-in below is a testing back door for hosted projects with no SMS
+provider, never something real users see.
+
 #### One-time dashboard setup for email sign-in
 
-1. Auth → Providers → **Email**: enabled. You can leave "Allow new users to
-   sign up" off; these accounts already exist.
-2. Auth → Email Templates → **Magic Link** *and* **Confirm signup**: replace
-   the body with the contents of `supabase/templates/email_otp.html`. The app
-   asks for a 6-digit code, and hosted's default templates send a link
-   instead. (Locally `config.toml` sets this; hosted needs it by hand.)
-3. Hosted's built-in email only delivers to **members of your Supabase
-   organization**, a few per hour. Use your own address(es), or configure
-   custom SMTP.
+1. Auth → Providers → **Email**: enabled (it already is on a new project,
+   and the ops console's staff sign-in needs it anyway).
+2. Hosted now **locks email template editing until custom SMTP is set up**,
+   so the default Magic Link email carries a link, not the 6-digit code the
+   app asks for. Do not set up SMTP just for this: read the code with the
+   admin API instead (Step 2 below).
 
 #### Pre-create the test account(s)
 
@@ -247,7 +267,8 @@ no phone or device; create it the same way with another email and number.
 ```bash
 fvm flutter build apk --release \
   --dart-define=SUPABASE_URL=https://<ref>.supabase.co \
-  --dart-define=SUPABASE_ANON_KEY=<the anon / publishable key>
+  --dart-define=SUPABASE_ANON_KEY=<the anon / publishable key> \
+  --dart-define=EMAIL_SIGN_IN=true      # test builds ONLY; never in a store build
 adb install -r build/app/outputs/flutter-apk/app-release.apk
 ```
 
@@ -258,7 +279,20 @@ key is designed to ship in the app; the service-role key must never be a
 
 ### Step 2 — Sign in
 
-1. Open the app → **email** → your address → enter the 6-digit code.
+1. Open the app → **Email** tab → your address → **Send code**. Then mint a
+   fresh code yourself (the email that arrives holds only a link), and type
+   it in:
+
+   ```bash
+   curl -sS -X POST "$SUPABASE_URL/auth/v1/admin/generate_link" \
+     -H "apikey: $SERVICE_ROLE_KEY" -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"type":"magiclink","email":"you@example.com"}' \
+     | python3 -c 'import json,sys; print(json.load(sys.stdin)["email_otp"])'
+   ```
+
+   Generating replaces the code the app's own request created, so run it
+   **after** tapping Send code, and use the newest one.
 2. Profile setup: name, handle, birthday. There should be **no** phone step.
    If one appears, the account was not created with `phone_confirm: true`.
 3. You land on the Dashboard. Android asks for notification permission:

@@ -17,7 +17,7 @@ abstract final class AppStrings {
       "That page doesn't exist, or the link is out of date.";
   static const routeNotFoundAction = 'Go to timeline';
 
-  // Onboarding — sign in (phone or email)
+  // Onboarding — sign in (phone; email only in EMAIL_SIGN_IN test builds)
   static const signInTitle = 'Welcome to Candlewish';
   static const signInSubtitle =
       'Never miss the birthdays of the people you love.';

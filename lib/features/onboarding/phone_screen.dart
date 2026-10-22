@@ -8,18 +8,28 @@ import 'otp_screen.dart';
 import 'phone_cubit.dart';
 import 'phone_state.dart';
 
-/// The one entry screen for new and returning users alike: a phone number or
-/// an email address, then a code. Whether the person already has an account
-/// is only decided AFTER the code is verified -- asking first would let
-/// anyone probe which numbers and addresses are registered.
+/// The one entry screen for new and returning users alike: a phone number
+/// (or, in builds with [emailSignInEnabled], an email address), then a code.
+/// Whether the person already has an account is only decided AFTER the code
+/// is verified -- asking first would let anyone probe which numbers and
+/// addresses are registered.
 class PhoneScreen extends StatelessWidget {
-  const PhoneScreen({super.key});
+  const PhoneScreen({super.key, this.allowEmail = emailSignInEnabled});
+
+  /// The launch app is phone-only: every account needs a verified phone
+  /// anyway, and hosted email delivery needs custom SMTP. Email sign-in stays
+  /// for test builds (--dart-define=EMAIL_SIGN_IN=true), which is how a
+  /// hosted project without an SMS provider can still be signed into.
+  static const emailSignInEnabled = bool.fromEnvironment('EMAIL_SIGN_IN');
+
+  /// Whether the Phone/Email switch is shown. Tests set it directly.
+  final bool allowEmail;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (c) => PhoneCubit(c.read<AuthRepository>()),
-      child: const _PhoneView(),
+      child: _PhoneView(allowEmail: allowEmail),
     );
   }
 }
@@ -27,7 +37,9 @@ class PhoneScreen extends StatelessWidget {
 enum _Method { phone, email }
 
 class _PhoneView extends StatefulWidget {
-  const _PhoneView();
+  const _PhoneView({required this.allowEmail});
+
+  final bool allowEmail;
 
   @override
   State<_PhoneView> createState() => _PhoneViewState();
@@ -107,27 +119,29 @@ class _PhoneViewState extends State<_PhoneView> {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xl),
-                  SegmentedButton<_Method>(
-                    key: const Key('signin_method'),
-                    segments: const [
-                      ButtonSegment(
-                        value: _Method.phone,
-                        icon: Icon(Icons.phone_outlined),
-                        label: Text(AppStrings.signInPhoneTab),
-                      ),
-                      ButtonSegment(
-                        value: _Method.email,
-                        icon: Icon(Icons.mail_outline),
-                        label: Text(AppStrings.signInEmailTab),
-                      ),
-                    ],
-                    selected: {_method},
-                    showSelectedIcon: false,
-                    onSelectionChanged: sending
-                        ? null
-                        : (s) => setState(() => _method = s.single),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
+                  if (widget.allowEmail) ...[
+                    SegmentedButton<_Method>(
+                      key: const Key('signin_method'),
+                      segments: const [
+                        ButtonSegment(
+                          value: _Method.phone,
+                          icon: Icon(Icons.phone_outlined),
+                          label: Text(AppStrings.signInPhoneTab),
+                        ),
+                        ButtonSegment(
+                          value: _Method.email,
+                          icon: Icon(Icons.mail_outline),
+                          label: Text(AppStrings.signInEmailTab),
+                        ),
+                      ],
+                      selected: {_method},
+                      showSelectedIcon: false,
+                      onSelectionChanged: sending
+                          ? null
+                          : (s) => setState(() => _method = s.single),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                  ],
                   if (_method == _Method.phone)
                     TextField(
                       key: const Key('phone_field'),
