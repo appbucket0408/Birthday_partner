@@ -17,6 +17,21 @@ abstract final class AppStrings {
       "That page doesn't exist, or the link is out of date.";
   static const routeNotFoundAction = 'Go to timeline';
 
+  // Force update -- Remote Config's min_supported_build is above this build.
+  static const forceUpdateTitle = 'A better Candlewish is ready';
+  static const forceUpdateBody =
+      "Your friends' wishes are waiting. Update now to keep every birthday "
+      'reminder and wish coming your way. It only takes a moment.';
+  static const forceUpdateAction = 'Get the update';
+
+  // Soft update -- Remote Config's latest_build is above this build.
+  static const softUpdateTitle = 'Something new is here';
+  static const softUpdateBody =
+      'A fresh version of Candlewish is ready, with improvements to help '
+      'you celebrate the people you love. It only takes a moment.';
+  static const softUpdateAction = 'Update';
+  static const softUpdateLater = 'Later';
+
   // Onboarding — sign in (phone; email only in EMAIL_SIGN_IN test builds)
   static const signInTitle = 'Welcome to Candlewish';
   static const signInSubtitle =

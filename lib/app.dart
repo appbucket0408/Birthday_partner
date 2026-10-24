@@ -1,12 +1,18 @@
 import 'dart:async';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'api/api_client.dart';
 import 'core/app_theme.dart';
 import 'core/app_strings.dart';
+import 'features/force_update/force_update_cubit.dart';
+import 'features/force_update/force_update_screen.dart';
+import 'features/force_update/soft_update_dialog.dart';
+import 'repositories/app_update_repository.dart';
+import 'repositories/app_update_repository_impl.dart';
 import 'repositories/auth_repository.dart';
 import 'repositories/auth_repository_impl.dart';
 import 'repositories/avatar_repository.dart';
@@ -61,6 +67,11 @@ class _BirthdayAppState extends State<BirthdayApp> {
   late final NotificationBadgeCubit _badge =
       NotificationBadgeCubit(_notifications);
   late final SessionCubit _session = SessionCubit(_auth)..load();
+  // Checked alongside the session load, not before it: launch never waits
+  // on Remote Config.
+  late final ForceUpdateCubit _forceUpdate = ForceUpdateCubit(
+    AppUpdateRepositoryImpl(FirebaseRemoteConfig.instance),
+  )..check();
   late final _router = buildRouter(_session);
   late final StreamSubscription<String> _tapSub;
 
@@ -92,10 +103,23 @@ class _BirthdayAppState extends State<BirthdayApp> {
     );
   }
 
+  /// The optional-update prompt. Shown on the router's navigator: this
+  /// widget sits above it, so its own context has no Navigator to push on.
+  Future<void> _offerUpdate() async {
+    final context = _router.routerDelegate.navigatorKey.currentContext;
+    if (context == null) return;
+    if (await showSoftUpdateDialog(context)) {
+      await _forceUpdate.openStore();
+    } else {
+      await _forceUpdate.later();
+    }
+  }
+
   @override
   void dispose() {
     _tapSub.cancel();
     _badge.close();
+    _forceUpdate.close();
     super.dispose();
   }
 
@@ -122,6 +146,7 @@ class _BirthdayAppState extends State<BirthdayApp> {
         providers: [
           BlocProvider.value(value: _session),
           BlocProvider.value(value: _badge),
+          BlocProvider.value(value: _forceUpdate),
         ],
         child: MaterialApp.router(
           debugShowCheckedModeBanner: false,
@@ -129,6 +154,16 @@ class _BirthdayAppState extends State<BirthdayApp> {
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
           routerConfig: _router,
+          // Above the router, so no route, deep link or push tap gets past it.
+          builder: (context, child) =>
+              BlocConsumer<ForceUpdateCubit, UpdateStatus>(
+            listenWhen: (prev, next) =>
+                next == UpdateStatus.optional && prev != next,
+            listener: (_, __) => unawaited(_offerUpdate()),
+            builder: (context, status) => status == UpdateStatus.required
+                ? const ForceUpdateScreen()
+                : child!,
+          ),
         ),
       ),
     );
