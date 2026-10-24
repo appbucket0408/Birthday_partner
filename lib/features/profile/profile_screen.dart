@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../core/analytics.dart';
 import '../../core/app_links.dart';
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
@@ -229,11 +230,14 @@ class ProfileView extends StatelessWidget {
                 key: const Key('profile_invite_friends'),
                 icon: const Icon(Icons.person_add_alt_1, size: 18),
                 label: const Text(AppStrings.profileInviteFriends),
-                onPressed: () => share(
-                  AppStrings.profileInviteMessageTemplate
-                      .replaceFirst('%1', profile.handle)
-                      .replaceFirst('%2', AppLinks.download),
-                ),
+                onPressed: () {
+                  Analytics.inviteSent('profile').ignore();
+                  share(
+                    AppStrings.profileInviteMessageTemplate
+                        .replaceFirst('%1', profile.handle)
+                        .replaceFirst('%2', AppLinks.download),
+                  );
+                },
               ),
             ),
           ],

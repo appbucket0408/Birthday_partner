@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:phone_numbers_parser/phone_numbers_parser.dart';
 
 import '../../api/api_client.dart';
+import '../../core/analytics.dart';
 import '../../core/app_strings.dart';
 import '../../core/logger.dart';
 import '../../core/result.dart';
@@ -95,6 +96,7 @@ class ImportCubit extends Cubit<ImportState> {
         toSend,
         onProgress: (done, total) => emit(ImportCommitting(done, total)),
       );
+      Analytics.contactsImported(summary.added).ignore();
       emit(ImportDone(summary));
     } on AppFailure catch (f) {
       emit(ImportFailed(f.message));

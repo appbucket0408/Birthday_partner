@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../core/analytics.dart';
 import '../../core/app_strings.dart';
 import '../../core/photo_picker.dart';
 import '../../core/reentrancy_guard.dart';
@@ -181,6 +182,7 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
             occasionYear: occasionYear,
             photoPath: photoPath,
           );
+          Analytics.wishPosted(withPhoto: photoPath != null).ignore();
         } on AppFailure catch (f) {
           // Only a refusal with a SQLSTATE is certain the row was not
           // written. A timeout may have landed server-side, and deleting the

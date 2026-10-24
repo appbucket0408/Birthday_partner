@@ -46,6 +46,8 @@ dependencies:
   package_info_plus: ^9.0.1
   url_launcher: ^6.3.3
   shared_preferences: ^2.5.6
+  firebase_analytics: ^12.6.1
+  firebase_crashlytics: ^5.4.1
 
 dev_dependencies:
   flutter_test:

@@ -35,8 +35,12 @@ class _CubitRefresh extends ChangeNotifier {
   }
 }
 
-GoRouter buildRouter(SessionCubit session) {
+GoRouter buildRouter(
+  SessionCubit session, {
+  List<NavigatorObserver> observers = const [],
+}) {
   return GoRouter(
+    observers: observers,
     initialLocation: '/splash',
     refreshListenable: _CubitRefresh(session.stream),
     errorBuilder: (context, state) => Scaffold(

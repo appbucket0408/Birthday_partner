@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'api/api_client.dart';
+import 'core/analytics.dart';
 import 'core/app_theme.dart';
 import 'core/app_strings.dart';
 import 'features/force_update/force_update_cubit.dart';
@@ -37,6 +39,7 @@ import 'repositories/wish_repository_impl.dart';
 import 'router/app_router.dart';
 import 'router/deep_link.dart';
 import 'router/session_cubit.dart';
+import 'router/session_state.dart';
 
 class BirthdayApp extends StatefulWidget {
   const BirthdayApp({super.key});
@@ -72,8 +75,15 @@ class _BirthdayAppState extends State<BirthdayApp> {
   late final ForceUpdateCubit _forceUpdate = ForceUpdateCubit(
     AppUpdateRepositoryImpl(FirebaseRemoteConfig.instance),
   )..check();
-  late final _router = buildRouter(_session);
+  late final _router = buildRouter(
+    _session,
+    observers: [
+      if (Analytics.enabled)
+        FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
+    ],
+  );
   late final StreamSubscription<String> _tapSub;
+  late final StreamSubscription<SessionState> _userSub;
 
   @override
   void initState() {
@@ -86,6 +96,10 @@ class _BirthdayAppState extends State<BirthdayApp> {
     unawaited(_openInitialRoute());
     _tapSub = _push.notificationRoutes.listen((r) {
       if (mounted) _router.go(r);
+    });
+    _userSub = _session.stream.listen((s) {
+      if (s is SessionReady) Analytics.setUser(s.profile.id).ignore();
+      if (s is SessionSignedOut) Analytics.setUser(null).ignore();
     });
   }
 
@@ -118,6 +132,7 @@ class _BirthdayAppState extends State<BirthdayApp> {
   @override
   void dispose() {
     _tapSub.cancel();
+    _userSub.cancel();
     _badge.close();
     _forceUpdate.close();
     super.dispose();

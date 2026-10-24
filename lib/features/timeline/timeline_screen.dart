@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../api/api_client.dart';
+import '../../core/analytics.dart';
 import '../../core/app_links.dart';
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
@@ -308,7 +309,10 @@ class _TimelineView extends StatelessWidget {
                   style: FilledButton.styleFrom(
                     visualDensity: VisualDensity.compact,
                   ),
-                  onPressed: () => share(_inviteMessage(person.displayName)),
+                  onPressed: () {
+                    Analytics.inviteSent('timeline').ignore();
+                    share(_inviteMessage(person.displayName));
+                  },
                   icon: const Icon(Icons.send, size: 16),
                   label: const Text(AppStrings.timelineInvite),
                 )
