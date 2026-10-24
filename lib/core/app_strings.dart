@@ -474,4 +474,39 @@ abstract final class AppStrings {
       'A window already starts at that time on that date.';
   static const opsNoSlots = 'No delivery windows in this range.';
   static const opsDateInvalid = 'Enter the date as YYYY-MM-DD.';
+
+  // moderation
+  static const moreOptions = 'More options';
+  static const reportWish = 'Report wish';
+  static const reportPerson = 'Report';
+  static const reportTitle = 'Why are you reporting this?';
+  static const reportReasonSpam = 'Spam';
+  static const reportReasonHarassment = 'Bullying or harassment';
+  static const reportReasonInappropriate = 'Inappropriate or offensive';
+  static const reportReasonImpersonation = 'Pretending to be someone else';
+  static const reportReasonOther = 'Something else';
+  static const reportSent = "Thanks. We'll review it.";
+  static const reportFailed = 'That report could not be sent.';
+  static const reportDailyLimit =
+      "You've sent a lot of reports today. Try again tomorrow.";
+  static const blockAction = 'Block';
+  static const blockNamed = 'Block %1';
+  static const blockTitle = 'Block %1?';
+  static const blockBody =
+      "You won't see each other's wishes, and they can't post on your wall. "
+      "They won't be told.";
+  static const blockDone = '%1 is blocked';
+  static const blockFailed = 'Could not block them.';
+  static const blockSomeone = 'this person';
+  static const wishDelete = 'Delete wish';
+  static const wishDeleteTitle = 'Delete this wish?';
+  static const wishDeleteBody = 'It will be removed for everyone.';
+  static const wishDeleteConfirm = 'Delete';
+  static const wishDeleted = 'Wish deleted';
+  static const wishDeleteFailed = 'That wish could not be deleted.';
+  static const settingsBlocked = 'Blocked people';
+  static const blockedTitle = 'Blocked people';
+  static const blockedEmpty = "You haven't blocked anyone.";
+  static const unblock = 'Unblock';
+  static const unblockFailed = 'Could not unblock them.';
 }

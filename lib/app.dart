@@ -33,6 +33,8 @@ import 'repositories/profile_repository.dart';
 import 'repositories/push_repository.dart';
 import 'repositories/push_repository_impl.dart';
 import 'repositories/profile_repository_impl.dart';
+import 'repositories/moderation_repository.dart';
+import 'repositories/moderation_repository_impl.dart';
 import 'repositories/wish_repository.dart';
 import 'repositories/wish_repository_impl.dart';
 import 'router/app_router.dart';
@@ -54,6 +56,8 @@ class _BirthdayAppState extends State<BirthdayApp> {
   late final PersonRepository _person =
       PersonRepositoryImpl(ApiClient.instance);
   late final WishRepository _wish = WishRepositoryImpl(ApiClient.instance);
+  late final ModerationRepository _moderation =
+      ModerationRepositoryImpl(ApiClient.instance);
   late final ProfileRepository _profile =
       ProfileRepositoryImpl(ApiClient.instance);
   late final GraphRepository _graph = GraphRepositoryImpl(ApiClient.instance);
@@ -149,6 +153,7 @@ class _BirthdayAppState extends State<BirthdayApp> {
         RepositoryProvider<AvatarRepository>.value(value: _avatar),
         RepositoryProvider<PersonRepository>.value(value: _person),
         RepositoryProvider<WishRepository>.value(value: _wish),
+        RepositoryProvider<ModerationRepository>.value(value: _moderation),
         RepositoryProvider<ProfileRepository>.value(value: _profile),
         RepositoryProvider<GraphRepository>.value(value: _graph),
         RepositoryProvider<GiftRepository>.value(value: _gift),

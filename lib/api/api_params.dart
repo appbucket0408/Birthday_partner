@@ -58,6 +58,15 @@ abstract final class ApiParams {
   /// (see 20261018000001_wish_photos.sql).
   static const photoPath = 'photo_path';
   static const wishPhotosBucket = 'wish_photos';
+  static const canDelete = 'can_delete';
+
+  // moderation
+  static const blocks = 'blocks';
+  static const blockerProfileId = 'blocker_profile_id';
+  static const blockedProfileId = 'blocked_profile_id';
+  static const pWishId = 'p_wish_id';
+  static const pReason = 'p_reason';
+  static const pNote = 'p_note';
 
   // my_notifications
   static const seen = 'seen';

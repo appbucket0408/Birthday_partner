@@ -4,6 +4,7 @@ import '../../core/analytics.dart';
 import '../../core/app_strings.dart';
 import '../../core/reentrancy_guard.dart';
 import '../../core/result.dart';
+import '../../models/feed_entry.dart';
 import '../../repositories/wish_repository.dart';
 import 'feed_state.dart';
 
@@ -89,5 +90,23 @@ class FeedCubit extends Cubit<FeedState> with ReentrancyGuard {
         emit(FeedLoaded(current.entries, hasMore: true, moreFailed: true));
       }
     });
+  }
+
+  /// Drops a deleted wish without a refetch.
+  void removeWish(int wishId) => _removeWhere((e) => e.wish.id == wishId);
+
+  /// Drops posts by someone just blocked; posts on their wall go on refresh.
+  void removeAuthor(String profileId) =>
+      _removeWhere((e) => e.wish.authorProfileId == profileId);
+
+  void _removeWhere(bool Function(FeedEntry) test) {
+    final current = state;
+    if (current is! FeedLoaded) return;
+    final kept = current.entries.where((e) => !test(e)).toList();
+    emit(
+      kept.isEmpty && !current.hasMore
+          ? const FeedEmpty()
+          : FeedLoaded(kept, hasMore: current.hasMore),
+    );
   }
 }

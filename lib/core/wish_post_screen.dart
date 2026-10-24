@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../features/moderation/moderation_menu.dart';
 import '../models/wish.dart';
 import 'app_spacing.dart';
 import 'app_strings.dart';
@@ -13,22 +14,30 @@ class WishPostScreen extends StatelessWidget {
     super.key,
     required this.wish,
     required this.unknownAuthor,
+    this.canDelete = false,
   });
 
   final Wish wish;
   final String unknownAuthor;
+  final bool canDelete;
 
-  static Future<void> open(
+  /// True when the wish was deleted or its author blocked: reload the wall.
+  static Future<bool> open(
     BuildContext context, {
     required Wish wish,
     required String unknownAuthor,
-  }) =>
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) =>
-              WishPostScreen(wish: wish, unknownAuthor: unknownAuthor),
+    bool canDelete = false,
+  }) async =>
+      await Navigator.of(context).push(
+        MaterialPageRoute<bool>(
+          builder: (_) => WishPostScreen(
+            wish: wish,
+            unknownAuthor: unknownAuthor,
+            canDelete: canDelete,
+          ),
         ),
-      );
+      ) ??
+      false;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +46,17 @@ class WishPostScreen extends StatelessWidget {
     final author = wish.authorName ?? unknownAuthor;
     final path = wish.photoPath;
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.wishPostTitle)),
+      appBar: AppBar(
+        title: const Text(AppStrings.wishPostTitle),
+        actions: [
+          WishMenuButton(
+            wish: wish,
+            canDelete: canDelete,
+            onDeleted: () => Navigator.of(context).pop(true),
+            onBlocked: (_) => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
       body: SafeArea(
         top: false,
         child: ListView(

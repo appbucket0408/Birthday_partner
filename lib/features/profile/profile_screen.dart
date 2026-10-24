@@ -304,6 +304,9 @@ class ProfileView extends StatelessWidget {
                   wish: w,
                   index: i,
                   unknownAuthor: AppStrings.profileWishAuthorUnknown,
+                  // Own wall: the owner may delete anything on it.
+                  canDelete: true,
+                  onChanged: context.read<ProfileCubit>().refresh,
                 ),
             ],
           ),

@@ -8,6 +8,7 @@ import '../../core/date_labels.dart';
 import '../../core/initial_avatar.dart';
 import '../../core/profile_avatar.dart';
 import '../../core/wish_photo.dart';
+import '../moderation/moderation_menu.dart';
 import '../notifications/notification_bell.dart';
 import '../../models/feed_entry.dart';
 import '../../models/profile.dart';
@@ -339,6 +340,12 @@ class _Post extends StatelessWidget {
                 size: 20,
                 color: scheme.onSurfaceVariant,
               ),
+            WishMenuButton(
+              wish: wish,
+              canDelete: entry.canDelete,
+              onDeleted: () => context.read<FeedCubit>().removeWish(wish.id),
+              onBlocked: context.read<FeedCubit>().removeAuthor,
+            ),
           ],
         ),
       ),

@@ -11,9 +11,13 @@ import '../../core/date_labels.dart';
 import '../../core/initial_avatar.dart';
 import '../../core/wish_card.dart';
 import '../../core/wish_post_screen.dart';
+import '../../models/wish.dart';
 import '../../repositories/graph_repository.dart';
 import '../../repositories/person_repository.dart';
 import '../../repositories/wish_repository.dart';
+import '../../router/session_cubit.dart';
+import '../../router/session_state.dart';
+import '../moderation/moderation_menu.dart';
 import 'person_cubit.dart';
 import 'person_state.dart';
 import 'wish_compose_screen.dart';
@@ -84,17 +88,53 @@ class PersonView extends StatelessWidget {
         final loaded = state as PersonLoaded;
         for (final wish in loaded.wishes) {
           if (wish.id == openWishId) {
-            WishPostScreen.open(
-              context,
-              wish: wish,
-              unknownAuthor: AppStrings.wishAuthorUnknown,
-            );
+            _openWish(context, wish);
             return;
           }
         }
       },
       child: _buildScaffold(context),
     );
+  }
+
+  Future<void> _openWish(BuildContext context, Wish wish) async {
+    final cubit = context.read<PersonCubit>();
+    final changed = await WishPostScreen.open(
+      context,
+      wish: wish,
+      unknownAuthor: AppStrings.wishAuthorUnknown,
+      canDelete: _canDelete(context, wish),
+    );
+    if (changed) cubit.refreshWishes();
+  }
+
+  // Only the author here; the wall owner deletes from their own profile.
+  static bool _canDelete(BuildContext context, Wish wish) {
+    final session = context.read<SessionCubit>().state;
+    return session is SessionReady &&
+        wish.kind == 'message' &&
+        wish.authorProfileId == session.profile.id;
+  }
+
+  Widget? _menu(BuildContext context, PersonState state) {
+    final session = context.read<SessionCubit>().state;
+    final meId = session is SessionReady ? session.profile.id : null;
+    return switch (state) {
+      PersonLoaded(:final person)
+          when person.isClaimed && person.profileId != meId =>
+        PersonMenuButton(
+          personId: person.id,
+          name: person.displayName,
+          profileId: person.profileId,
+          onBlocked: () =>
+              context.canPop() ? context.pop() : context.go('/timeline'),
+        ),
+      PersonPreview(:final preview) => PersonMenuButton(
+        personId: preview.id,
+        name: preview.displayName,
+      ),
+      _ => null,
+    };
   }
 
   Widget _buildScaffold(BuildContext context) {
@@ -109,6 +149,7 @@ class PersonView extends StatelessWidget {
               onPressed: () =>
                   context.canPop() ? context.pop() : context.go('/timeline'),
             ),
+            actions: [?_menu(context, state)],
           ),
           body: switch (state) {
             PersonLoading() => const Center(child: CircularProgressIndicator()),
@@ -179,6 +220,8 @@ class PersonView extends StatelessWidget {
                   wish: wish,
                   index: i,
                   unknownAuthor: AppStrings.wishAuthorUnknown,
+                  canDelete: _canDelete(context, wish),
+                  onChanged: context.read<PersonCubit>().refreshWishes,
                 ),
             ],
           ),

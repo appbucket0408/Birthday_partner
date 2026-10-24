@@ -16,4 +16,7 @@ abstract final class ApiEndpoints {
   static const rpcMyNotifications = 'my_notifications';
   static const rpcMyUnseenNotificationCount = 'my_unseen_notification_count';
   static const rpcMarkNotificationsSeen = 'mark_notifications_seen';
+  static const rpcReportWish = 'rpc_report_wish';
+  static const rpcReportPerson = 'rpc_report_person';
+  static const rpcMyBlockedPeople = 'my_blocked_people';
 }

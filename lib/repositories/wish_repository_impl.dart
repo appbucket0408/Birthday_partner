@@ -76,6 +76,7 @@ class WishRepositoryImpl implements WishRepository {
               subjectName: row[ApiParams.subjectName] as String?,
               canOpenSubject: row[ApiParams.canOpenSubject] as bool? ?? false,
               authorPersonId: row[ApiParams.authorPersonId] as int?,
+              canDelete: row[ApiParams.canDelete] as bool? ?? false,
             ),
       ];
     } catch (e) {

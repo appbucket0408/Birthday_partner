@@ -86,6 +86,27 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
         }
       });
 
+  /// Re-reads the wall in place after a wish was deleted or its author blocked.
+  Future<void> refreshWishes() => guard('load', () async {
+        final current = state;
+        if (current is! PersonLoaded) return;
+        try {
+          final wishes = await _wishes.wishesFor(current.person.id);
+          if (state is! PersonLoaded) return;
+          emit(
+            PersonLoaded(
+              person: current.person,
+              celebratorCount: current.celebratorCount,
+              wishes: wishes,
+              viewerCelebrates: current.viewerCelebrates,
+              celebratesViewer: current.celebratesViewer,
+            ),
+          );
+        } catch (_) {
+          // Keep the wall on screen; the next visit reloads it.
+        }
+      });
+
   /// From a [PersonPreview]: celebrates them, then loads the full page.
   Future<void> celebrate() => guard('celebrate', () async {
         final current = state;

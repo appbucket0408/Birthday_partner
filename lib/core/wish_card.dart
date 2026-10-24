@@ -11,6 +11,8 @@ class WishCard extends StatelessWidget {
     required this.wish,
     required this.index,
     required this.unknownAuthor,
+    this.canDelete = false,
+    this.onChanged,
   });
 
   final Wish wish;
@@ -21,6 +23,20 @@ class WishCard extends StatelessWidget {
   /// Shown when the author is outside the viewer's graph, worded for the
   /// screen it is on.
   final String unknownAuthor;
+  final bool canDelete;
+
+  /// After the opened wish was deleted or its author blocked.
+  final VoidCallback? onChanged;
+
+  Future<void> _open(BuildContext context) async {
+    final changed = await WishPostScreen.open(
+      context,
+      wish: wish,
+      unknownAuthor: unknownAuthor,
+      canDelete: canDelete,
+    );
+    if (changed) onChanged?.call();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,11 +66,7 @@ class WishCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         borderRadius: BorderRadius.circular(AppSpacing.md),
         child: InkWell(
-          onTap: () => WishPostScreen.open(
-            context,
-            wish: wish,
-            unknownAuthor: unknownAuthor,
-          ),
+          onTap: () => _open(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -86,29 +98,34 @@ class WishCard extends StatelessWidget {
       );
     }
 
-    return Container(
+    // Tappable too, so report/delete are reachable from text-only wishes.
+    return Material(
       key: Key('wish_${wish.id}'),
-      padding: const EdgeInsets.all(AppSpacing.md - AppSpacing.xs),
-      decoration: BoxDecoration(
-        color: background,
+      color: background,
+      borderRadius: BorderRadius.circular(AppSpacing.md),
+      child: InkWell(
         borderRadius: BorderRadius.circular(AppSpacing.md),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Text(
-              wish.body,
-              overflow: TextOverflow.fade,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: foreground,
-                height: 1.3,
+        onTap: () => _open(context),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md - AppSpacing.xs),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  wish.body,
+                  overflow: TextOverflow.fade,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: foreground,
+                    height: 1.3,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(height: AppSpacing.sm),
+              author,
+            ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-          author,
-        ],
+        ),
       ),
     );
   }

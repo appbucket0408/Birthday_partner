@@ -11,6 +11,7 @@ import '../../repositories/push_repository.dart';
 import '../../repositories/settings_repository.dart';
 import '../../repositories/settings_repository_impl.dart';
 import '../../router/session_cubit.dart';
+import '../moderation/blocked_people_screen.dart';
 import '../push/notifications_off_banner.dart';
 import 'settings_cubit.dart';
 import 'settings_state.dart';
@@ -181,6 +182,17 @@ class _SettingsView extends StatelessWidget {
         const _SectionLabel(AppStrings.settingsSectionAccount),
         _Group(
           children: [
+            ListTile(
+              key: const Key('blocked_people_tile'),
+              leading: _IconTile(
+                icon: Icons.block_rounded,
+                background: scheme.surfaceContainerHigh,
+                foreground: scheme.onSurfaceVariant,
+              ),
+              title: Text(AppStrings.settingsBlocked, style: rowTitle),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => BlockedPeopleScreen.open(context),
+            ),
             ListTile(
               key: const Key('sign_out_tile'),
               leading: _IconTile(
