@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../core/analytics.dart';
 import '../../core/app_strings.dart';
 import '../../core/reentrancy_guard.dart';
 import '../../core/result.dart';
@@ -11,6 +12,15 @@ class FeedCubit extends Cubit<FeedState> with ReentrancyGuard {
 
   final WishRepository _wishes;
   final int pageSize;
+  bool _scrollLogged = false;
+
+  /// Logs feed_scrolled once per visit; [refresh] starts a new visit.
+  void userScrolled() {
+    final current = state;
+    if (_scrollLogged || current is! FeedLoaded) return;
+    _scrollLogged = true;
+    Analytics.feedScrolled(current.entries.length).ignore();
+  }
 
   Future<void> load() => guard('fetch', () async {
         emit(const FeedLoading());
@@ -31,6 +41,7 @@ class FeedCubit extends Cubit<FeedState> with ReentrancyGuard {
   /// Pull-to-refresh, and the tab coming back into view: reloads the newest
   /// page without blanking a list that is already on screen.
   Future<void> refresh() async {
+    _scrollLogged = false;
     final current = state;
     if (current is! FeedLoaded) return load();
     await guard('fetch', () async {

@@ -23,10 +23,14 @@ abstract final class Analytics {
   static Future<void> signUp() =>
       _guard(() => _fa.logSignUp(signUpMethod: 'phone'));
 
-  static Future<void> contactsImported(int added) => _log(
-        'contacts_imported',
-        {'added': added},
-      );
+  static Future<void> contactsPermission({required bool granted}) =>
+      _log('contacts_permission', {'granted': granted ? 1 : 0});
+
+  static Future<void> feedScrolled(int postsLoaded) =>
+      _log('feed_scrolled', {'posts_loaded': postsLoaded});
+
+  static Future<void> contactsImported(int added) =>
+      _log('contacts_imported', {'added': added});
 
   /// [source]: the screen the invite was shared from.
   static Future<void> inviteSent(String source) =>

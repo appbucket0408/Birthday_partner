@@ -33,6 +33,7 @@ class ImportCubit extends Cubit<ImportState> {
     emit(const ImportRequestingPermission());
     try {
       final granted = await _contactsRepo.requestPermission();
+      Analytics.contactsPermission(granted: granted).ignore();
       if (!granted) {
         emit(const ImportPermissionDenied());
         return;

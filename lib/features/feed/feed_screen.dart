@@ -104,23 +104,29 @@ class _List extends StatelessWidget {
       },
     );
     final entries = state.entries;
-    return ListView.builder(
-      key: const Key('feed_list'),
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(
-        top: AppSpacing.sm,
-        bottom: AppSpacing.lg,
-      ),
-      itemCount: entries.length + 1,
-      itemBuilder: (context, i) {
-        if (i == entries.length) return _Footer(state: state);
-        // Ask for the next page a few posts before the end, so scrolling
-        // rarely reaches the spinner. The cubit ignores repeats.
-        if (i >= entries.length - 3 && state.hasMore && !state.moreFailed) {
-          WidgetsBinding.instance.addPostFrameCallback((_) => cubit.loadMore());
-        }
-        return _Post(entry: entries[i], me: me, now: now);
+    return NotificationListener<UserScrollNotification>(
+      onNotification: (_) {
+        cubit.userScrolled();
+        return false;
       },
+      child: ListView.builder(
+        key: const Key('feed_list'),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(
+          top: AppSpacing.sm,
+          bottom: AppSpacing.lg,
+        ),
+        itemCount: entries.length + 1,
+        itemBuilder: (context, i) {
+          if (i == entries.length) return _Footer(state: state);
+          // Ask for the next page a few posts before the end, so scrolling
+          // rarely reaches the spinner. The cubit ignores repeats.
+          if (i >= entries.length - 3 && state.hasMore && !state.moreFailed) {
+            WidgetsBinding.instance.addPostFrameCallback((_) => cubit.loadMore());
+          }
+          return _Post(entry: entries[i], me: me, now: now);
+        },
+      ),
     );
   }
 }
