@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../api/api_client.dart';
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
+import '../../core/app_links.dart';
 import '../../core/app_text_styles.dart';
+import '../../core/open_link.dart';
 import '../../repositories/auth_repository.dart';
 import '../../repositories/push_repository.dart';
 import '../../repositories/settings_repository.dart';
@@ -215,6 +217,34 @@ class _SettingsView extends StatelessWidget {
                 style: rowTitle?.copyWith(color: scheme.error),
               ),
               onTap: () => _confirmDelete(context, cubit),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        const _SectionLabel(AppStrings.settingsSectionAbout),
+        _Group(
+          children: [
+            ListTile(
+              key: const Key('privacy_tile'),
+              leading: _IconTile(
+                icon: Icons.privacy_tip_outlined,
+                background: scheme.surfaceContainerHigh,
+                foreground: scheme.onSurfaceVariant,
+              ),
+              title: Text(AppStrings.privacyPolicy, style: rowTitle),
+              trailing: const Icon(Icons.open_in_new, size: 18),
+              onTap: () => openLink(context, AppLinks.privacy),
+            ),
+            ListTile(
+              key: const Key('terms_tile'),
+              leading: _IconTile(
+                icon: Icons.description_outlined,
+                background: scheme.surfaceContainerHigh,
+                foreground: scheme.onSurfaceVariant,
+              ),
+              title: Text(AppStrings.termsOfService, style: rowTitle),
+              trailing: const Icon(Icons.open_in_new, size: 18),
+              onTap: () => openLink(context, AppLinks.terms),
             ),
           ],
         ),

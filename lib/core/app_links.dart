@@ -6,4 +6,7 @@ abstract final class AppLinks {
   /// Store (or a smart link that picks the right store) before release. Every
   /// invite message reads it from here.
   static const download = 'https://birthday.app/download';
+
+  static const privacy = 'https://candlewish.web.app/privacy';
+  static const terms = 'https://candlewish.web.app/terms';
 }

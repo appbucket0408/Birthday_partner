@@ -509,4 +509,12 @@ abstract final class AppStrings {
   static const blockedEmpty = "You haven't blocked anyone.";
   static const unblock = 'Unblock';
   static const unblockFailed = 'Could not unblock them.';
+
+  // legal
+  static const settingsSectionAbout = 'About';
+  static const privacyPolicy = 'Privacy policy';
+  static const termsOfService = 'Terms of service';
+  static const signInAgreePrefix = 'By continuing, you agree to our';
+  static const signInAgreeAnd = 'and';
+  static const linkOpenFailed = 'Could not open the link.';
 }

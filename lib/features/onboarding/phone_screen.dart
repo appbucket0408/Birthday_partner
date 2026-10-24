@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../core/app_links.dart';
 import '../../core/app_spacing.dart';
 import '../../core/app_strings.dart';
+import '../../core/open_link.dart';
 import '../../repositories/auth_repository.dart';
 import 'otp_screen.dart';
 import 'phone_cubit.dart';
@@ -190,12 +192,52 @@ class _PhoneViewState extends State<_PhoneView> {
                           )
                         : const Text(AppStrings.sendCode),
                   ),
+                  const SizedBox(height: AppSpacing.md),
+                  const _LegalLine(),
                 ],
               ),
             ),
           ),
         );
       },
+    );
+  }
+}
+
+/// Consent line under Send code, linking the terms and privacy policy.
+class _LegalLine extends StatelessWidget {
+  const _LegalLine();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    Widget link(String label, String url, Key key) => InkWell(
+          key: key,
+          onTap: () => openLink(context, url),
+          child: Text(
+            label,
+            style: muted?.copyWith(
+              color: theme.colorScheme.primary,
+              decoration: TextDecoration.underline,
+            ),
+          ),
+        );
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 4,
+      children: [
+        Text(AppStrings.signInAgreePrefix, style: muted),
+        link(AppStrings.termsOfService, AppLinks.terms, const Key('terms_link')),
+        Text(AppStrings.signInAgreeAnd, style: muted),
+        link(
+          AppStrings.privacyPolicy,
+          AppLinks.privacy,
+          const Key('privacy_link'),
+        ),
+      ],
     );
   }
 }
