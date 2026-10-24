@@ -35,10 +35,15 @@ is kept once set, and a repeated wish is skipped. The TODAY and in-3-days
 birthdays are recomputed from the date you run it, so re-run it on another
 day to bring them back into "Today"/"This week".
 
-Local only: refuses any URL that is not 127.0.0.1/localhost.
+Local stack or candlewish_dev only; every other URL is refused. On dev the
+dummy numbers must be in Auth -> Phone -> Test Phone Numbers (123456).
 
 Run with:
     supabase start
+    python3 supabase/seed_dummy_users.py
+or against dev:
+    SUPABASE_URL=https://rdmynvwfunktrzizfcqr.supabase.co \
+    SUPABASE_ANON_KEY=<dev anon key> SEED_ME=+917073039115 \
     python3 supabase/seed_dummy_users.py
 """
 
@@ -97,18 +102,26 @@ def fail(msg):
     sys.exit(1)
 
 
-if not URL.startswith(("http://127.0.0.1:", "http://localhost:")):
-    fail(f"refusing to run against {URL} -- local stack only.")
+# The hosted dev project is the only remote allowed; prod must never get dummies.
+DEV_URL = "https://rdmynvwfunktrzizfcqr.supabase.co"
+IS_LOCAL = URL.startswith(("http://127.0.0.1:", "http://localhost:"))
+if not IS_LOCAL and URL != DEV_URL:
+    fail(f"refusing to run against {URL} -- local stack or candlewish_dev only.")
 
-try:
-    ANON = json.loads(
-        subprocess.run(
-            ["supabase", "status", "-o", "json"],
-            capture_output=True, text=True, check=True,
-        ).stdout
-    )["ANON_KEY"]
-except Exception as e:  # noqa: BLE001 -- any failure means "stack not up"
-    fail(f"could not read the anon key ({e}). Is `supabase start` running?")
+if not IS_LOCAL:
+    ANON = os.environ.get("SUPABASE_ANON_KEY", "")
+    if not ANON:
+        fail("set SUPABASE_ANON_KEY to candlewish_dev's anon key.")
+else:
+    try:
+        ANON = json.loads(
+            subprocess.run(
+                ["supabase", "status", "-o", "json"],
+                capture_output=True, text=True, check=True,
+            ).stdout
+        )["ANON_KEY"]
+    except Exception as e:  # noqa: BLE001 -- any failure means "stack not up"
+        fail(f"could not read the anon key ({e}). Is `supabase start` running?")
 
 
 def call(method, path, token=None, body=None, ok_conflict=False):
