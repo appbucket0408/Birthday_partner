@@ -266,7 +266,8 @@ class _Post extends StatelessWidget {
     final radius = BorderRadius.circular(AppSpacing.md);
 
     final header = InkWell(
-      onTap: entry.subjectName == null || !entry.canOpenSubject
+      // A stranger's page opens as a preview with Celebrate.
+      onTap: entry.subjectName == null
           ? null
           : () => context.push('/person/${wish.subjectPersonId}'),
       child: Padding(
@@ -285,7 +286,13 @@ class _Post extends StatelessWidget {
                 radius: 20,
               )
             else
-              InitialAvatar(name: author, radius: 20),
+              GestureDetector(
+                key: Key('feed_author_${wish.id}'),
+                onTap: entry.authorPersonId == null
+                    ? null
+                    : () => context.push('/person/${entry.authorPersonId}'),
+                child: InitialAvatar(name: author, radius: 20),
+              ),
             const SizedBox(width: AppSpacing.sm + 4),
             Expanded(
               child: Column(
@@ -326,7 +333,7 @@ class _Post extends StatelessWidget {
                 ],
               ),
             ),
-            if (entry.subjectName != null && entry.canOpenSubject)
+            if (entry.subjectName != null)
               Icon(
                 Icons.chevron_right,
                 size: 20,

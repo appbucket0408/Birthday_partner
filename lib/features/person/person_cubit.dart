@@ -5,6 +5,7 @@ import '../../core/app_strings.dart';
 import '../../core/photo_picker.dart';
 import '../../core/reentrancy_guard.dart';
 import '../../core/result.dart';
+import '../../models/person.dart';
 import '../../repositories/graph_repository.dart';
 import '../../repositories/person_repository.dart';
 import '../../repositories/wish_repository.dart';
@@ -44,10 +45,25 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
   final GraphRepository _graph;
   final DateTime Function() _now;
 
+  /// PostgREST's "zero rows" from .single(): RLS hides the person.
+  static const _notVisible = 'PGRST116';
+
   Future<void> load(int personId) => guard('load', () async {
         emit(const PersonLoading());
         try {
-          final person = await _people.person(personId);
+          final Person person;
+          try {
+            person = await _people.person(personId);
+          } on ServerFailure catch (f) {
+            if (f.code != _notVisible) rethrow;
+            final preview = await _people.preview(personId);
+            emit(
+              preview == null
+                  ? const PersonError(AppStrings.personNotAvailable)
+                  : PersonPreview(preview),
+            );
+            return;
+          }
           final count = await _people.celebratorCount(personId);
           final wishes = await _wishes.wishesFor(personId);
           final celebrations = await _graph.celebrations();
@@ -68,6 +84,36 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
         } catch (_) {
           emit(const PersonError(AppStrings.somethingWentWrong));
         }
+      });
+
+  /// From a [PersonPreview]: celebrates them, then loads the full page.
+  Future<void> celebrate() => guard('celebrate', () async {
+        final current = state;
+        if (current is! PersonPreview) return;
+        emit(PersonPreview(current.preview, celebrating: true));
+        try {
+          await _graph.celebrate(current.preview.id);
+          Analytics.log(AppEvent.celebrate, {AppParam.source: 'feed'}).ignore();
+        } on AppFailure catch (f) {
+          emit(
+            PersonPreview(
+              current.preview,
+              error: f is ServerFailure && f.code == '45008'
+                  ? AppStrings.celebrateDailyLimit
+                  : f.message,
+            ),
+          );
+          return;
+        } catch (_) {
+          emit(
+            PersonPreview(
+              current.preview,
+              error: AppStrings.somethingWentWrong,
+            ),
+          );
+          return;
+        }
+        await load(current.preview.id);
       });
 
   /// Only for someone who celebrates the viewer; the server refuses anyone else.

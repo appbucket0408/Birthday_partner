@@ -70,6 +70,9 @@ abstract final class ApiParams {
   static const authorName = 'author_name';
   static const subjectName = 'subject_name';
   static const canOpenSubject = 'can_open_subject';
+  static const authorPersonId = 'author_person_id';
+  static const celebratorCount = 'celebrator_count';
+  static const mutualCount = 'mutual_count';
 
   // my_birthday_stats
   static const statYear = 'stat_year';

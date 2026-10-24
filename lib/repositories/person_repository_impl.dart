@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../api/api_endpoints.dart';
 import '../api/api_error_mapper.dart';
 import '../api/api_params.dart';
+import '../models/member_preview.dart';
 import '../models/person.dart';
 import 'person_repository.dart';
 
@@ -32,6 +33,21 @@ class PersonRepositoryImpl implements PersonRepository {
         params: {ApiParams.pPersonId: personId},
       );
       return result as int;
+    } catch (e) {
+      throw mapError(e);
+    }
+  }
+
+  @override
+  Future<MemberPreview?> preview(int personId) async {
+    try {
+      final rows = await _client.rpc(
+        ApiEndpoints.rpcMemberPreview,
+        params: {ApiParams.pPersonId: personId},
+      ) as List;
+      return rows.isEmpty
+          ? null
+          : MemberPreview.fromRow(rows.first as Map<String, dynamic>);
     } catch (e) {
       throw mapError(e);
     }

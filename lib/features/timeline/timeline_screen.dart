@@ -22,6 +22,8 @@ import '../../models/profile.dart';
 import '../../repositories/graph_repository.dart';
 import '../../repositories/graph_repository_impl.dart';
 import '../../repositories/push_repository.dart';
+import '../../router/active_tab.dart';
+import '../../router/home_shell.dart';
 import '../../router/session_cubit.dart';
 import '../../router/session_state.dart';
 import '../notifications/notification_bell.dart';
@@ -102,9 +104,14 @@ class TimelineScreen extends StatelessWidget {
           create: (c) => PushCubit(c.read<PushRepository>())..enable(),
         ),
       ],
-      child: _TimelineView(
-        share: _share ?? _systemShare,
-        now: _now ?? DateTime.now,
+      // Celebrating from Feed or a person page happens off this tab.
+      child: RefreshWhenShown(
+        tab: HomeShell.dashboardTab,
+        onShown: (c) => c.read<TimelineCubit>().refresh(),
+        child: _TimelineView(
+          share: _share ?? _systemShare,
+          now: _now ?? DateTime.now,
+        ),
       ),
     );
   }

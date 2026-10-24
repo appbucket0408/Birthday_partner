@@ -59,6 +59,18 @@ class GraphRepositoryImpl implements GraphRepository {
   }
 
   @override
+  Future<void> celebrate(int personId) async {
+    try {
+      await _client.rpc(
+        ApiEndpoints.rpcCelebrate,
+        params: {ApiParams.pPersonId: personId},
+      );
+    } catch (e) {
+      throw mapError(e);
+    }
+  }
+
+  @override
   Future<void> stopCelebrating(int celebrationId) async {
     try {
       await _client

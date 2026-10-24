@@ -58,6 +58,24 @@ class TimelineCubit extends Cubit<TimelineState> {
     }
   }
 
+  /// Re-fetches when the tab comes back, without a spinner; a failure keeps
+  /// the last good timeline.
+  Future<void> refresh() async {
+    if (state is! TimelineLoaded && state is! TimelineEmpty) return;
+    if (!_inFlight.add('load')) return;
+    try {
+      _celebrations = await _repo.celebrations();
+      try {
+        _celebratesMe = await _repo.celebratesMe();
+      } catch (_) {}
+      _emitGrouped();
+    } catch (_) {
+      // Keep the last good timeline.
+    } finally {
+      _inFlight.remove('load');
+    }
+  }
+
   /// Deletes the edge and drops it from the in-memory list -- no
   /// [_repo.celebrations] re-fetch, since the local list minus this one row
   /// is already the correct next state.

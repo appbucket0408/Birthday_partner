@@ -54,6 +54,10 @@ export function wishBody(authorName: string | null): string {
   return `${safeName(authorName ?? "")} left you a birthday wish.`;
 }
 
+export function celebrationBody(name: string): string {
+  return `${safeName(name)} started celebrating you.`;
+}
+
 export function reminderBody(name: string, offsetDays: number): string {
   const safe = safeName(name);
   if (offsetDays === 0) return `It's ${safe}'s birthday today.`;

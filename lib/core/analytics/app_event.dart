@@ -12,7 +12,8 @@ enum AppEvent {
   inviteSent('invite_sent', toMeta: true),
   wishPosted('wish_posted', toMeta: true),
   feedScrolled('feed_scrolled'),
-  celebrateBack('celebrate_back');
+  celebrateBack('celebrate_back'),
+  celebrate('celebrate');
 
   const AppEvent(this.eventName, {this.toMeta = false, this.metaStandard});
 

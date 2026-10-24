@@ -258,6 +258,7 @@ abstract final class AppStrings {
   static const notificationsEmptyBody =
       'Birthday reminders and wishes people leave you will show up here.';
   static const notificationWishTemplate = '%s left you a birthday wish.';
+  static const notificationCelebrationTemplate = '%s started celebrating you.';
   static const notificationTodayTemplate = "It's %s's birthday today.";
   static const notificationTomorrowTemplate = "%s's birthday is tomorrow.";
   static const notificationInDaysTemplate = "%1's birthday is in %2 days.";
@@ -315,6 +316,28 @@ abstract final class AppStrings {
   static const profileCelebrates = 'Celebrate me';
   static const celebratesYou = 'Celebrates you';
   static const celebrateBack = 'Celebrate back';
+  static const celebrate = 'Celebrate';
+  static const personPreviewBirthdayHidden = 'Birthday hidden';
+  static const personPreviewUnlockTemplate = 'Celebrate %s to';
+  static const personPreviewSeeBirthday = 'See their birthday';
+  static const personPreviewSeeBirthdayHint =
+      'The date and a countdown, right on your Dashboard.';
+  static const personPreviewReminders = 'Never miss it';
+  static const personPreviewRemindersHint =
+      'Reminders a week before, the day before and on the day.';
+  static const personPreviewWishes = 'Send wishes';
+  static const personPreviewWishesHint =
+      'Leave a note on their birthday wall.';
+  static const personPreviewMutualOne =
+      '1 person you celebrate also celebrates them';
+  static const personPreviewMutualTemplate =
+      '%s people you celebrate also celebrate them';
+  static const personPreviewCelebrateTemplate = 'Celebrate %s';
+  static const personPreviewFooter =
+      "They'll see you celebrated them. You can stop anytime.";
+  static const personNotAvailable = "This profile isn't available.";
+  static const celebrateDailyLimit =
+      "You've celebrated a lot of new people today. Try again tomorrow.";
   static const celebratingAlready = 'Celebrating';
   static const profileWishesReceived = 'Wishes received';
   static const profileWishesSent = 'Wishes sent';

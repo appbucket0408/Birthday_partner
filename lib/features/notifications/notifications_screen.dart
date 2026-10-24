@@ -153,9 +153,11 @@ class _Row extends StatelessWidget {
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          item.kind == AppNotificationKind.wish
-                              ? Icons.chat_bubble
-                              : Icons.cake,
+                          switch (item.kind) {
+                            AppNotificationKind.wish => Icons.chat_bubble,
+                            AppNotificationKind.celebration => Icons.favorite,
+                            _ => Icons.cake,
+                          },
                           size: 14,
                           color: scheme.primary,
                         ),

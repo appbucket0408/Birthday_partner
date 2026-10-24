@@ -9,6 +9,8 @@ abstract final class ApiEndpoints {
   static const rpcMyBirthdayStats = 'my_birthday_stats';
   static const rpcMyCelebrates = 'my_celebrates';
   static const rpcCelebrateBack = 'rpc_celebrate_back';
+  static const rpcCelebrate = 'rpc_celebrate';
+  static const rpcMemberPreview = 'member_preview';
   static const rpcCreateGift = 'rpc_create_gift';
   static const rpcFeedPage = 'feed_page';
   static const rpcMyNotifications = 'my_notifications';

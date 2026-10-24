@@ -20,6 +20,10 @@ abstract interface class GraphRepository {
   /// [ServerFailure] code '45006'. Idempotent.
   Future<void> celebrateBack(int personId);
 
+  /// Celebrates a member found on the public feed. Refused with '45007' when
+  /// they are not discoverable, '45008' past the daily limit. Idempotent.
+  Future<void> celebrate(int personId);
+
   /// Deletes the edge. A plain DELETE -- `celebrations_delete_own` survived
   /// Phase 2a's write lockdown, so no RPC is needed.
   Future<void> stopCelebrating(int celebrationId);

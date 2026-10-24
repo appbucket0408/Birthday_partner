@@ -1,3 +1,4 @@
+import '../../models/member_preview.dart';
 import '../../models/person.dart';
 import '../../models/wish.dart';
 
@@ -75,6 +76,17 @@ final class PersonLoaded extends PersonState {
         celebrating: celebrating ?? false,
         celebrateError: celebrateError,
       );
+}
+
+/// A member from the public feed the viewer is not connected to yet.
+final class PersonPreview extends PersonState {
+  const PersonPreview(this.preview, {this.celebrating = false, this.error});
+
+  final MemberPreview preview;
+  final bool celebrating;
+
+  /// Transient, shown once.
+  final String? error;
 }
 
 final class PersonError extends PersonState {

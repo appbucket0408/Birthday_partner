@@ -19,6 +19,7 @@ import {
   reminderBody,
   type ServiceAccount,
   wishBody,
+  celebrationBody,
 } from "./fcm.ts";
 
 /// One row of rpc_next_reminder_batch. The outbox carries two kinds
@@ -72,6 +73,14 @@ export function outgoingFor(r: Reminder): Outgoing | null {
         person_id: String(r.subject_person_id),
         wish_id: String(r.wish_id),
       },
+    };
+  }
+  if (kind === "celebration") {
+    return {
+      body: celebrationBody(r.subject_name),
+      channel: "wishes",
+      // person_id is the celebrator: their page offers Celebrate back.
+      data: { person_id: String(r.subject_person_id) },
     };
   }
   return null;

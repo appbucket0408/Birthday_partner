@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -41,11 +42,7 @@ class PersonScreen extends StatelessWidget {
         context.read<GraphRepository>(),
         now: _now,
       )..load(personId),
-      child: PersonView(
-        personId: personId,
-        openWishId: openWishId,
-        now: _now,
-      ),
+      child: PersonView(personId: personId, openWishId: openWishId, now: _now),
     );
   }
 }
@@ -65,11 +62,10 @@ class PersonView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocListener<PersonCubit, PersonState>(
-      listenWhen: (_, current) =>
-          current is PersonLoaded && current.celebrateError != null,
-      listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text((state as PersonLoaded).celebrateError!)),
-      ),
+      listenWhen: (_, current) => _errorOf(current) != null,
+      listener: (context, state) => ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_errorOf(state)!))),
       child: _buildOpenWishListener(context),
     );
   }
@@ -110,29 +106,27 @@ class PersonView extends StatelessWidget {
               key: const Key('person_back_button'),
               icon: const Icon(Icons.arrow_back),
               tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-              onPressed: () => context.canPop()
-                  ? context.pop()
-                  : context.go('/timeline'),
+              onPressed: () =>
+                  context.canPop() ? context.pop() : context.go('/timeline'),
             ),
           ),
           body: switch (state) {
-            PersonLoading() =>
-              const Center(child: CircularProgressIndicator()),
+            PersonLoading() => const Center(child: CircularProgressIndicator()),
             PersonError() => Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(state.message),
-                    const SizedBox(height: AppSpacing.md),
-                    FilledButton(
-                      onPressed: () =>
-                          context.read<PersonCubit>().load(personId),
-                      child: const Text(AppStrings.retry),
-                    ),
-                  ],
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(state.message),
+                  const SizedBox(height: AppSpacing.md),
+                  FilledButton(
+                    onPressed: () => context.read<PersonCubit>().load(personId),
+                    child: const Text(AppStrings.retry),
+                  ),
+                ],
               ),
+            ),
             PersonLoaded() => _buildLoaded(context, state),
+            PersonPreview() => _PreviewCard(state: state),
           },
         );
       },
@@ -166,8 +160,9 @@ class PersonView extends StatelessWidget {
             child: Text(
               AppStrings.personWallEmpty,
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           )
         else
@@ -242,8 +237,9 @@ class _Header extends StatelessWidget {
               Text(
                 AppStrings.personNoBirthdayHint,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: scheme.onSurfaceVariant),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
             ] else ...[
               Text(
@@ -276,8 +272,9 @@ class _Header extends StatelessWidget {
                           '%s',
                           '${state.celebratorCount}',
                         ),
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: scheme.onSurfaceVariant),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -300,8 +297,9 @@ class _Header extends StatelessWidget {
                     const SizedBox(width: AppSpacing.xs),
                     Text(
                       AppStrings.celebratesYou,
-                      style: theme.textTheme.labelLarge
-                          ?.copyWith(color: scheme.primary),
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: scheme.primary,
+                      ),
                     ),
                   ],
                 ),
@@ -425,3 +423,295 @@ class _Header extends StatelessWidget {
 /// [PersonCubit.postWish]'s `postError` handling.
 bool _canComposeFor(PersonLoaded state) =>
     state.person.birthday != null && state.viewerCelebrates;
+
+String? _errorOf(PersonState state) => switch (state) {
+  PersonLoaded(:final celebrateError) => celebrateError,
+  PersonPreview(:final error) => error,
+  _ => null,
+};
+
+class _PreviewCard extends StatelessWidget {
+  const _PreviewCard({required this.state});
+
+  final PersonPreview state;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final preview = state.preview;
+    final firstName = preview.displayName.trim().split(' ').first;
+    final muted = theme.textTheme.bodyMedium?.copyWith(
+      color: scheme.onSurfaceVariant,
+    );
+    return Column(
+      key: const Key('person_preview'),
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.sm,
+              AppSpacing.md,
+              AppSpacing.lg,
+            ),
+            children: [
+              // Same ring as the full page's header, so the two read as one.
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: scheme.primary, width: 2),
+                  ),
+                  child: InitialAvatar(name: preview.displayName, radius: 48),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                preview.displayName,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (preview.handle != null) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  '@${preview.handle}',
+                  textAlign: TextAlign.center,
+                  style: muted,
+                ),
+              ],
+              const SizedBox(height: AppSpacing.md),
+              // Shows there is a birthday to unlock without giving it away.
+              Center(
+                child: Container(
+                  key: const Key('person_birthday_locked'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('🎂'),
+                      const SizedBox(width: AppSpacing.sm),
+                      Text(
+                        AppStrings.personPreviewBirthdayHidden,
+                        style: muted,
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Icon(
+                        Icons.lock_outline,
+                        size: 16,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              _SocialLine(
+                icon: Icons.people_outline,
+                color: scheme.onSurfaceVariant,
+                text: preview.celebratorCount == 1
+                    ? AppStrings.personCelebratorCountOne
+                    : AppStrings.personCelebratorCountTemplate.replaceFirst(
+                        '%s',
+                        '${preview.celebratorCount}',
+                      ),
+              ),
+              if (preview.mutualCount > 0) ...[
+                const SizedBox(height: AppSpacing.xs),
+                _SocialLine(
+                  key: const Key('person_mutuals'),
+                  icon: Icons.favorite,
+                  color: scheme.primary,
+                  text: preview.mutualCount == 1
+                      ? AppStrings.personPreviewMutualOne
+                      : AppStrings.personPreviewMutualTemplate.replaceFirst(
+                          '%s',
+                          '${preview.mutualCount}',
+                        ),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.xl),
+              Text(
+                AppStrings.personPreviewUnlockTemplate.replaceFirst(
+                  '%s',
+                  firstName,
+                ),
+                style: AppTextStyles.sectionHeader(context),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              const Card(
+                margin: EdgeInsets.zero,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                  child: Column(
+                    children: [
+                      _Benefit(
+                        icon: Icons.cake_outlined,
+                        title: AppStrings.personPreviewSeeBirthday,
+                        hint: AppStrings.personPreviewSeeBirthdayHint,
+                      ),
+                      _Benefit(
+                        icon: Icons.notifications_active_outlined,
+                        title: AppStrings.personPreviewReminders,
+                        hint: AppStrings.personPreviewRemindersHint,
+                      ),
+                      _Benefit(
+                        icon: Icons.mail_outline,
+                        title: AppStrings.personPreviewWishes,
+                        hint: AppStrings.personPreviewWishesHint,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Pinned, so the action stays in thumb reach on any screen size.
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.sm,
+              AppSpacing.md,
+              AppSpacing.md,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FilledButton.icon(
+                  key: const Key('person_celebrate'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52),
+                  ),
+                  icon: state.celebrating
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.cake_outlined),
+                  label: Text(
+                    AppStrings.personPreviewCelebrateTemplate.replaceFirst(
+                      '%s',
+                      firstName,
+                    ),
+                  ),
+                  onPressed: state.celebrating
+                      ? null
+                      : () {
+                          HapticFeedback.mediumImpact();
+                          context.read<PersonCubit>().celebrate();
+                        },
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  AppStrings.personPreviewFooter,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SocialLine extends StatelessWidget {
+  const _SocialLine({
+    super.key,
+    required this.icon,
+    required this.color,
+    required this.text,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: AppSpacing.xs),
+        Flexible(
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Benefit extends StatelessWidget {
+  const _Benefit({required this.icon, required this.title, required this.hint});
+
+  final IconData icon;
+  final String title;
+  final String hint;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: scheme.primaryContainer,
+            child: Icon(icon, size: 20, color: scheme.onPrimaryContainer),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  hint,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

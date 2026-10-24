@@ -1,3 +1,4 @@
+import '../models/member_preview.dart';
 import '../models/person.dart';
 
 /// Reads about a single person. One responsibility: this is deliberately NOT
@@ -14,4 +15,8 @@ abstract interface class PersonRepository {
   /// Throws [ServerFailure] with code '45004' when the caller cannot see the
   /// person -- people.id is a sequential bigint, so the count is gated.
   Future<int> celebratorCount(int personId);
+
+  /// A member on the public feed the caller is not connected to; null when
+  /// they are not discoverable.
+  Future<MemberPreview?> preview(int personId);
 }

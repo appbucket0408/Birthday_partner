@@ -5,6 +5,7 @@ import '../core/push_routes.dart';
 enum AppNotificationKind {
   reminder,
   wish,
+  celebration,
 
   /// A kind this build does not know yet. Shown generically rather than
   /// dropped, so a newer server never makes the list look emptier than it is.
@@ -13,6 +14,7 @@ enum AppNotificationKind {
   static AppNotificationKind fromWire(String? value) => switch (value) {
         'reminder' => reminder,
         'wish' => wish,
+        'celebration' => celebration,
         _ => other,
       };
 }
@@ -67,6 +69,9 @@ class AppNotification {
       case AppNotificationKind.wish:
         return AppStrings.notificationWishTemplate
             .replaceFirst('%s', _name(authorName));
+      case AppNotificationKind.celebration:
+        return AppStrings.notificationCelebrationTemplate
+            .replaceFirst('%s', _name(subjectName));
       case AppNotificationKind.reminder:
         final name = _name(subjectName);
         return switch (offsetDays) {
