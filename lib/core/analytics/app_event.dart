@@ -13,7 +13,8 @@ enum AppEvent {
   wishPosted('wish_posted', toMeta: true),
   feedScrolled('feed_scrolled'),
   celebrateBack('celebrate_back'),
-  celebrate('celebrate');
+  celebrate('celebrate'),
+  wallShared('wall_shared', toMeta: true);
 
   const AppEvent(this.eventName, {this.toMeta = false, this.metaStandard});
 
@@ -32,4 +33,5 @@ abstract final class AppParam {
   static const source = 'source';
   static const withPhoto = 'with_photo';
   static const postsLoaded = 'posts_loaded';
+  static const daysToBirthday = 'days_to_birthday';
 }

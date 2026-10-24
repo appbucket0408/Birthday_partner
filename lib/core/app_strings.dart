@@ -174,6 +174,25 @@ abstract final class AppStrings {
       "Hi %1! I've added you on Candlewish so I never miss your day 🎂 Join and "
       'add your birthday: %2';
 
+  // Share-your-wall prompt, the week before the user's own birthday.
+  static const wallPromptToday = "It's your birthday! 🎉";
+  static const wallPromptTomorrow = 'Your birthday is tomorrow 🎂';
+  static const wallPromptInDaysTemplate = 'Your birthday is in %s days 🎂';
+  static const wallPromptBody =
+      'Share your wish wall so friends can find you and wish you on the day.';
+  static const wallPromptShare = 'Share my wall';
+  static const wallPromptClose = 'Not now';
+
+  /// %1 the birthday ("4 November"), %2 the handle, %3 the download link.
+  static const wallShareTemplate =
+      'My birthday is on %1 🎂 I\'m on Candlewish. Add me (@%2) and leave a '
+      'wish on my wall on the day: %3';
+
+  /// %1 the handle, %2 the download link.
+  static const wallShareTodayTemplate =
+      "It's my birthday today 🎂 I'm on Candlewish. Add me (@%1) and leave a "
+      'wish on my wall: %2';
+
   // Settings
   static const settingsTitle = 'Settings';
   static const settingsSectionNotifications = 'Notifications';
@@ -262,6 +281,16 @@ abstract final class AppStrings {
   static const notificationTodayTemplate = "It's %s's birthday today.";
   static const notificationTomorrowTemplate = "%s's birthday is tomorrow.";
   static const notificationInDaysTemplate = "%1's birthday is in %2 days.";
+  // Must match drain_reminders' joinedBody / welcomeBody / wallBody.
+  static const notificationJoinedTemplate =
+      '%1 joined Candlewish. Birthday: %2 🎂';
+  static const notificationWelcomeOne =
+      '1 person already celebrates you on Candlewish. Celebrate them back 🎂';
+  static const notificationWelcomeTemplate =
+      '%s people already celebrate you on Candlewish. Celebrate them back 🎂';
+  static const notificationWall =
+      'Your birthday is in 7 days 🎂 Share your wish wall so friends can wish '
+      'you on the day.';
   static const notificationOther = 'Something new for you.';
   static const notificationSomeone = 'Someone';
   // The banner shown when Android has notifications turned off for the app.

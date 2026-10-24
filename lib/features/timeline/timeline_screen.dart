@@ -30,6 +30,8 @@ import '../notifications/notification_bell.dart';
 import '../push/push_cubit.dart';
 import 'timeline_cubit.dart';
 import 'timeline_state.dart';
+import 'wall_prompt_card.dart';
+import 'wall_prompt_cubit.dart';
 
 /// Section order: the four [TimelineGroup] values by how soon, then the
 /// `null` "no birthday yet" bucket last -- it is not a countdown, so it does
@@ -102,6 +104,15 @@ class TimelineScreen extends StatelessWidget {
         BlocProvider(
           lazy: false,
           create: (c) => PushCubit(c.read<PushRepository>())..enable(),
+        ),
+        BlocProvider(
+          create: (c) => WallPromptCubit(
+            birthday: switch (c.read<SessionCubit>().state) {
+              SessionReady(:final profile) => profile.birthday,
+              _ => null,
+            },
+            now: _now,
+          )..load(),
         ),
       ],
       // Celebrating from Feed or a person page happens off this tab.
@@ -183,6 +194,7 @@ class _TimelineView extends StatelessWidget {
           TimelineEmpty() => Column(
               children: [
                 const _MeHeader(),
+                _WallPrompt(share: share),
                 Expanded(
                   child: Center(
                     child: Padding(
@@ -335,6 +347,7 @@ class _TimelineView extends StatelessWidget {
     return CustomScrollView(
       slivers: [
         const SliverToBoxAdapter(child: _MeHeader()),
+        SliverToBoxAdapter(child: _WallPrompt(share: share)),
         SliverToBoxAdapter(
           child: _AddPeopleRow(onTap: () => _addPeople(context)),
         ),
@@ -359,6 +372,24 @@ class _TimelineView extends StatelessWidget {
     );
   }
 }
+class _WallPrompt extends StatelessWidget {
+  const _WallPrompt({required this.share});
+
+  final Future<void> Function(String text) share;
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = context.select<SessionCubit, Profile?>(
+      (cubit) => switch (cubit.state) {
+        SessionReady(:final profile) => profile,
+        _ => null,
+      },
+    );
+    if (profile == null) return const SizedBox.shrink();
+    return WallPromptCard(profile: profile, share: share);
+  }
+}
+
 class _MeHeader extends StatelessWidget {
   const _MeHeader();
 

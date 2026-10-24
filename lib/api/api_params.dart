@@ -78,6 +78,7 @@ abstract final class ApiParams {
   static const pLimit = 'p_limit';
   static const authorName = 'author_name';
   static const subjectName = 'subject_name';
+  static const subjectCount = 'subject_count';
   static const canOpenSubject = 'can_open_subject';
   static const authorPersonId = 'author_person_id';
   static const celebratorCount = 'celebrator_count';

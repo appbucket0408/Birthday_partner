@@ -58,6 +58,27 @@ export function celebrationBody(name: string): string {
   return `${safeName(name)} started celebrating you.`;
 }
 
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/// occasionDate is "YYYY-MM-DD"; the app's notification_joined matches.
+export function joinedBody(name: string, occasionDate: string): string {
+  const [, month, day] = occasionDate.split("-").map(Number);
+  return `${safeName(name)} joined Candlewish. Birthday: ${day} ${MONTHS[month - 1]} 🎂`;
+}
+
+export function welcomeBody(count: number): string {
+  return count === 1
+    ? "1 person already celebrates you on Candlewish. Celebrate them back 🎂"
+    : `${count} people already celebrate you on Candlewish. Celebrate them back 🎂`;
+}
+
+export function wallBody(): string {
+  return "Your birthday is in 7 days 🎂 Share your wish wall so friends can wish you on the day.";
+}
+
 export function reminderBody(name: string, offsetDays: number): string {
   const safe = safeName(name);
   if (offsetDays === 0) return `It's ${safe}'s birthday today.`;

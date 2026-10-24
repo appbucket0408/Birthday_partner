@@ -1,11 +1,16 @@
 import '../api/api_params.dart';
 import '../core/app_strings.dart';
+import '../core/date_labels.dart';
 import '../core/push_routes.dart';
+import 'birthday.dart';
 
 enum AppNotificationKind {
   reminder,
   wish,
   celebration,
+  joined,
+  welcome,
+  wall,
 
   /// A kind this build does not know yet. Shown generically rather than
   /// dropped, so a newer server never makes the list look emptier than it is.
@@ -15,6 +20,9 @@ enum AppNotificationKind {
         'reminder' => reminder,
         'wish' => wish,
         'celebration' => celebration,
+        'joined' => joined,
+        'welcome' => welcome,
+        'wall' => wall,
         _ => other,
       };
 }
@@ -33,6 +41,8 @@ class AppNotification {
     this.subjectName,
     this.authorName,
     this.offsetDays,
+    this.occasionDate,
+    this.subjectCount,
   });
 
   final int id;
@@ -49,6 +59,8 @@ class AppNotification {
   final String? subjectName;
   final String? authorName;
   final int? offsetDays;
+  final DateTime? occasionDate;
+  final int? subjectCount;
 
   factory AppNotification.fromRow(Map<String, dynamic> row) => AppNotification(
         id: row[ApiParams.id] as int,
@@ -60,6 +72,11 @@ class AppNotification {
         subjectName: row[ApiParams.subjectName] as String?,
         authorName: row[ApiParams.authorName] as String?,
         offsetDays: row[ApiParams.offsetDays] as int?,
+        occasionDate: switch (row[ApiParams.occasionDate]) {
+          final String d => DateTime.tryParse(d),
+          _ => null,
+        },
+        subjectCount: row[ApiParams.subjectCount] as int?,
       );
 
   /// The same words the push used (drain_reminders' reminderBody and
@@ -72,6 +89,24 @@ class AppNotification {
       case AppNotificationKind.celebration:
         return AppStrings.notificationCelebrationTemplate
             .replaceFirst('%s', _name(subjectName));
+      case AppNotificationKind.joined:
+        final date = occasionDate;
+        if (date == null) return AppStrings.notificationOther;
+        return AppStrings.notificationJoinedTemplate
+            .replaceFirst('%1', _name(subjectName))
+            .replaceFirst(
+              '%2',
+              DateLabels.birthday(Birthday(month: date.month, day: date.day)),
+            );
+      case AppNotificationKind.welcome:
+        return switch (subjectCount) {
+          1 => AppStrings.notificationWelcomeOne,
+          final n? when n > 1 =>
+            AppStrings.notificationWelcomeTemplate.replaceFirst('%s', '$n'),
+          _ => AppStrings.notificationOther,
+        };
+      case AppNotificationKind.wall:
+        return AppStrings.notificationWall;
       case AppNotificationKind.reminder:
         final name = _name(subjectName);
         return switch (offsetDays) {
@@ -96,6 +131,8 @@ class AppNotification {
   /// a tap here validates and routes exactly like a tap on the push.
   String? get route => routeForPayload({
         'person_id': '$personId',
+        if (kind == AppNotificationKind.welcome) 'screen': 'celebrates',
+        if (kind == AppNotificationKind.wall) 'screen': 'dashboard',
         if (kind == AppNotificationKind.wish && wishId != null)
           'wish_id': '$wishId',
       });

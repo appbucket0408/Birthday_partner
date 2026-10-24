@@ -20,6 +20,9 @@ import {
   type ServiceAccount,
   wishBody,
   celebrationBody,
+  joinedBody,
+  welcomeBody,
+  wallBody,
 } from "./fcm.ts";
 
 /// One row of rpc_next_reminder_batch. The outbox carries two kinds
@@ -38,6 +41,7 @@ type Reminder = {
   kind?: string;
   author_name?: string | null;
   wish_id?: number | null;
+  subject_count?: number | null;
 };
 
 type Outgoing = {
@@ -81,6 +85,28 @@ export function outgoingFor(r: Reminder): Outgoing | null {
       channel: "wishes",
       // person_id is the celebrator: their page offers Celebrate back.
       data: { person_id: String(r.subject_person_id) },
+    };
+  }
+  if (kind === "joined" && r.occasion_date) {
+    return {
+      body: joinedBody(r.subject_name, r.occasion_date),
+      channel: "birthday_reminders",
+      data: { person_id: String(r.subject_person_id) },
+    };
+  }
+  // screen: the app routes these to a tab, not the person page.
+  if (kind === "welcome" && r.subject_count) {
+    return {
+      body: welcomeBody(r.subject_count),
+      channel: "wishes",
+      data: { person_id: String(r.subject_person_id), screen: "celebrates" },
+    };
+  }
+  if (kind === "wall") {
+    return {
+      body: wallBody(),
+      channel: "birthday_reminders",
+      data: { person_id: String(r.subject_person_id), screen: "dashboard" },
     };
   }
   return null;

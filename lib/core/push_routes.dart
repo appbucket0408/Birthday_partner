@@ -1,6 +1,13 @@
 import 'dart:convert';
 
+// Only these tab routes may come from a payload.
+const _screens = {
+  'celebrates': '/profile/celebrates',
+  'dashboard': '/timeline',
+};
+
 String? routeForPayload(Map<String, dynamic> data) {
+  if (_screens[data['screen']] case final route?) return route;
   final id = _positiveId(data['person_id']);
   if (id == null) return null;
   final wishId = _positiveId(data['wish_id']);

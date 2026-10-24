@@ -156,6 +156,9 @@ class _Row extends StatelessWidget {
                           switch (item.kind) {
                             AppNotificationKind.wish => Icons.chat_bubble,
                             AppNotificationKind.celebration => Icons.favorite,
+                            AppNotificationKind.joined => Icons.person_add_alt_1,
+                            AppNotificationKind.welcome => Icons.favorite,
+                            AppNotificationKind.wall => Icons.ios_share,
                             _ => Icons.cake,
                           },
                           size: 14,
