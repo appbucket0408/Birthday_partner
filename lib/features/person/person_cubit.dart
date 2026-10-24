@@ -70,6 +70,30 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
         }
       });
 
+  /// Only for someone who celebrates the viewer; the server refuses anyone else.
+  Future<void> celebrateBack() => guard('celebrateBack', () async {
+        final current = state;
+        if (current is! PersonLoaded || current.viewerCelebrates) return;
+        emit(current.copyWith(celebrating: true));
+        try {
+          await _graph.celebrateBack(current.person.id);
+          Analytics.log(
+            AppEvent.celebrateBack,
+            {AppParam.source: 'person'},
+          ).ignore();
+          emit(
+            current.copyWith(
+              viewerCelebrates: true,
+              celebratorCount: current.celebratorCount + 1,
+            ),
+          );
+        } on AppFailure catch (f) {
+          emit(current.copyWith(celebrateError: f.message));
+        } catch (_) {
+          emit(current.copyWith(celebrateError: AppStrings.somethingWentWrong));
+        }
+      });
+
   /// Posts a wish on the currently loaded person's wall, then reloads it so
   /// the new wish appears.
   ///

@@ -65,6 +65,17 @@ class PersonView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocListener<PersonCubit, PersonState>(
+      listenWhen: (_, current) =>
+          current is PersonLoaded && current.celebrateError != null,
+      listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text((state as PersonLoaded).celebrateError!)),
+      ),
+      child: _buildOpenWishListener(context),
+    );
+  }
+
+  Widget _buildOpenWishListener(BuildContext context) {
+    return BlocListener<PersonCubit, PersonState>(
       // Only on the load that FIRST produces the wall, not on every later
       // PersonLoaded (posting a wish re-emits one). A wish that is no longer
       // there -- deleted since the notification went out -- simply leaves
@@ -294,6 +305,25 @@ class _Header extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+            ],
+            if (state.celebratesViewer && !state.viewerCelebrates) ...[
+              const SizedBox(height: AppSpacing.lg),
+              FilledButton.icon(
+                key: const Key('person_celebrate_back'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                ),
+                icon: state.celebrating
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.cake_outlined),
+                label: const Text(AppStrings.celebrateBack),
+                onPressed: state.celebrating
+                    ? null
+                    : () => context.read<PersonCubit>().celebrateBack(),
               ),
             ],
             // Both actions need the same thing -- see _canComposeFor:

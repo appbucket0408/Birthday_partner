@@ -38,6 +38,8 @@ final class PersonLoaded extends PersonState {
     this.celebratesViewer = false,
     this.posting = false,
     this.postError,
+    this.celebrating = false,
+    this.celebrateError,
   });
 
   final Person person;
@@ -50,6 +52,29 @@ final class PersonLoaded extends PersonState {
   final bool celebratesViewer;
   final bool posting;
   final String? postError;
+
+  /// A "Celebrate back" write in flight.
+  final bool celebrating;
+
+  /// Transient, like [postError]: shown once, cleared by the next copy.
+  final String? celebrateError;
+
+  PersonLoaded copyWith({
+    bool? viewerCelebrates,
+    int? celebratorCount,
+    bool? celebrating,
+    String? celebrateError,
+  }) =>
+      PersonLoaded(
+        person: person,
+        celebratorCount: celebratorCount ?? this.celebratorCount,
+        wishes: wishes,
+        viewerCelebrates: viewerCelebrates ?? this.viewerCelebrates,
+        celebratesViewer: celebratesViewer,
+        posting: posting,
+        celebrating: celebrating ?? false,
+        celebrateError: celebrateError,
+      );
 }
 
 final class PersonError extends PersonState {

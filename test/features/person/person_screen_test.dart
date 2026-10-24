@@ -9,6 +9,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 /// A mocked PersonCubit -- same pattern as
 /// test/features/onboarding/otp_screen_test.dart's `_MockPhoneCubit`. Using
@@ -449,6 +450,70 @@ void main() {
 
       expect(find.byKey(const Key('person_header')), findsOneWidget);
       expect(find.byKey(const Key('wish_post_9')), findsNothing);
+    });
+  });
+
+  group('Celebrate back', () {
+    PersonLoaded loaded({
+      required bool celebratesViewer,
+      required bool viewerCelebrates,
+      bool celebrating = false,
+    }) =>
+        PersonLoaded(
+          person: _person(1, birthday: const Birthday(month: 4, day: 25)),
+          celebratorCount: 1,
+          wishes: const [],
+          viewerCelebrates: viewerCelebrates,
+          celebratesViewer: celebratesViewer,
+          celebrating: celebrating,
+        );
+
+    for (final (celebratesViewer, viewerCelebrates, matcher) in [
+      (true, false, findsOneWidget),
+      (true, true, findsNothing),
+      (false, true, findsNothing),
+    ]) {
+      testWidgets(
+          'shown=${matcher == findsOneWidget} when celebratesViewer='
+          '$celebratesViewer, viewerCelebrates=$viewerCelebrates',
+          (tester) async {
+        await _pump(
+          tester,
+          cubit,
+          loaded(
+            celebratesViewer: celebratesViewer,
+            viewerCelebrates: viewerCelebrates,
+          ),
+        );
+        expect(find.byKey(const Key('person_celebrate_back')), matcher);
+      });
+    }
+
+    testWidgets('tapping it celebrates them', (tester) async {
+      when(() => cubit.celebrateBack()).thenAnswer((_) async {});
+      await _pump(
+        tester,
+        cubit,
+        loaded(celebratesViewer: true, viewerCelebrates: false),
+      );
+      await tester.tap(find.byKey(const Key('person_celebrate_back')));
+      verify(() => cubit.celebrateBack()).called(1);
+    });
+
+    testWidgets('disabled while the write is in flight', (tester) async {
+      await _pump(
+        tester,
+        cubit,
+        loaded(
+          celebratesViewer: true,
+          viewerCelebrates: false,
+          celebrating: true,
+        ),
+      );
+      final button = tester.widget<ButtonStyleButton>(
+        find.byKey(const Key('person_celebrate_back')),
+      );
+      expect(button.onPressed, isNull);
     });
   });
 }

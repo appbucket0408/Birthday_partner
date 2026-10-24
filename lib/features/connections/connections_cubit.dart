@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../core/analytics.dart';
 import '../../core/app_strings.dart';
 import '../../core/reentrancy_guard.dart';
 import '../../core/result.dart';
@@ -40,6 +41,10 @@ class ConnectionsCubit extends Cubit<ConnectionsState> with ReentrancyGuard {
   Future<void> celebrateBack(int personId) =>
       _write(personId, () async {
         await _graph.celebrateBack(personId);
+        Analytics.log(
+          AppEvent.celebrateBack,
+          {AppParam.source: 'connections'},
+        ).ignore();
         return _graph.celebrations();
       });
 

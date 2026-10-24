@@ -113,13 +113,16 @@ class _FakeWish implements WishRepository {
 class _FakeGraph implements GraphRepository {
   Set<int> celebratesMeSet = const {};
   final celebratedBack = <int>[];
+  Object? celebrateBackError;
 
   @override
   Future<Set<int>> celebratesMe() async => celebratesMeSet;
 
   @override
-  Future<void> celebrateBack(int personId) async =>
-      celebratedBack.add(personId);
+  Future<void> celebrateBack(int personId) async {
+    celebratedBack.add(personId);
+    if (celebrateBackError != null) throw celebrateBackError!;
+  }
 
   _FakeGraph({this.celebrationsList = const []});
 
@@ -566,6 +569,48 @@ void main() {
       await cubit.postWish('Happy birthday!', photo: photo);
 
       expect(wish.removed, isEmpty);
+    });
+  });
+
+  group('celebrateBack()', () {
+    PersonCubit cubitFor(_FakeGraph graph) => PersonCubit(
+          _FakePerson(personToReturn: _person(1))..countToReturn = 2,
+          _FakeWish(),
+          graph,
+          now: _fixedNow,
+        );
+
+    test('celebrates them and counts the viewer in', () async {
+      final graph = _FakeGraph()..celebratesMeSet = {1};
+      final cubit = cubitFor(graph);
+      await cubit.load(1);
+      await cubit.celebrateBack();
+      final s = cubit.state as PersonLoaded;
+      expect(graph.celebratedBack, [1]);
+      expect(s.viewerCelebrates, isTrue);
+      expect(s.celebratorCount, 3);
+      expect(s.celebrating, isFalse);
+    });
+
+    test('a refusal keeps the page and reports the error', () async {
+      final graph = _FakeGraph()
+        ..celebratesMeSet = {1}
+        ..celebrateBackError = const ServerFailure('nope', code: '45006');
+      final cubit = cubitFor(graph);
+      await cubit.load(1);
+      await cubit.celebrateBack();
+      final s = cubit.state as PersonLoaded;
+      expect(s.viewerCelebrates, isFalse);
+      expect(s.celebratorCount, 2);
+      expect(s.celebrateError, 'nope');
+    });
+
+    test('does nothing when the viewer already celebrates them', () async {
+      final graph = _FakeGraph(celebrationsList: [_celeb(1)]);
+      final cubit = cubitFor(graph);
+      await cubit.load(1);
+      await cubit.celebrateBack();
+      expect(graph.celebratedBack, isEmpty);
     });
   });
 }
