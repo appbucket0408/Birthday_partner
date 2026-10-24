@@ -21,6 +21,9 @@ Future<void> main() async {
   runApp(const BirthdayApp());
 }
 
+/// `--dart-define=ANALYTICS_DEBUG=true`: debug builds send events, for DebugView.
+const _analyticsDebug = bool.fromEnvironment('ANALYTICS_DEBUG');
+
 Future<void> _initMonitoring() async {
   final crashlytics = FirebaseCrashlytics.instance;
   // Debug runs stay out of the dashboards.
@@ -32,7 +35,9 @@ Future<void> _initMonitoring() async {
   };
   Log.enableCrashReporting();
   await Analytics.init([
-    FirebaseAnalyticsProvider(collectionEnabled: !kDebugMode),
+    FirebaseAnalyticsProvider(
+      collectionEnabled: !kDebugMode || _analyticsDebug,
+    ),
     if (!kDebugMode) MetaAnalyticsProvider(),
   ]);
 }
