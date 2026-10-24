@@ -1,4 +1,4 @@
-package com.flutzo.candlewish
+package app.candlewish
 
 import android.content.Intent
 import android.os.Build

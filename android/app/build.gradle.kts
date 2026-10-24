@@ -33,7 +33,7 @@ if (wantsRelease && !keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.flutzo.candlewish"
+    namespace = "app.candlewish"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -50,7 +50,7 @@ android {
     defaultConfig {
         // Permanent: Play identifies the app by this forever after the first
         // upload. Firebase is registered against it too (google-services.json).
-        applicationId = "com.flutzo.candlewish"
+        applicationId = "app.candlewish"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
