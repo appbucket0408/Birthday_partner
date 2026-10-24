@@ -438,6 +438,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.1"
+  flutter_meta_appads_sdk:
+    dependency: "direct main"
+    description:
+      name: flutter_meta_appads_sdk
+      sha256: "93886349a0c7b6a29c08c976a44a7b1474cda881e3ff6a54b2a07603fa7247c2"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.4.0"
   flutter_plugin_android_lifecycle:
     dependency: transitive
     description:

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/material.dart';
@@ -77,10 +76,7 @@ class _BirthdayAppState extends State<BirthdayApp> {
   )..check();
   late final _router = buildRouter(
     _session,
-    observers: [
-      if (Analytics.enabled)
-        FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
-    ],
+    observers: Analytics.navigatorObservers,
   );
   late final StreamSubscription<String> _tapSub;
   late final StreamSubscription<SessionState> _userSub;
@@ -98,8 +94,15 @@ class _BirthdayAppState extends State<BirthdayApp> {
       if (mounted) _router.go(r);
     });
     _userSub = _session.stream.listen((s) {
-      if (s is SessionReady) Analytics.setUser(s.profile.id).ignore();
-      if (s is SessionSignedOut) Analytics.setUser(null).ignore();
+      if (s is SessionReady) {
+        Analytics.identify(
+          AnalyticsUser.fromProfile(
+            s.profile,
+            phone: ApiClient.instance.auth.currentUser?.phone,
+          ),
+        ).ignore();
+      }
+      if (s is SessionSignedOut) Analytics.clearUser().ignore();
     });
   }
 

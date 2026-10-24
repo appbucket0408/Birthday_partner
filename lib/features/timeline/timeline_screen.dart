@@ -310,7 +310,10 @@ class _TimelineView extends StatelessWidget {
                     visualDensity: VisualDensity.compact,
                   ),
                   onPressed: () {
-                    Analytics.inviteSent('timeline').ignore();
+                    Analytics.log(
+                      AppEvent.inviteSent,
+                      {AppParam.source: 'timeline'},
+                    ).ignore();
                     share(_inviteMessage(person.displayName));
                   },
                   icon: const Icon(Icons.send, size: 16),

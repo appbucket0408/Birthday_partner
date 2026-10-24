@@ -182,7 +182,10 @@ class PersonCubit extends Cubit<PersonState> with ReentrancyGuard {
             occasionYear: occasionYear,
             photoPath: photoPath,
           );
-          Analytics.wishPosted(withPhoto: photoPath != null).ignore();
+          Analytics.log(
+            AppEvent.wishPosted,
+            {AppParam.withPhoto: photoPath != null ? 1 : 0},
+          ).ignore();
         } on AppFailure catch (f) {
           // Only a refusal with a SQLSTATE is certain the row was not
           // written. A timeout may have landed server-side, and deleting the

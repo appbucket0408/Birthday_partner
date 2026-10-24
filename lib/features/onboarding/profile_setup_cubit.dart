@@ -41,7 +41,7 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
         city: city,
         birthday: birthday,
       );
-      Analytics.signUp().ignore();
+      Analytics.log(AppEvent.signUp, {AppParam.method: 'phone'}).ignore();
       // After the profile, not before: completeProfile is what can reject
       // the handle, and uploading first would re-upload on every rename.
       if (photo != null) {

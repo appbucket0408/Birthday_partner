@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TODO: Candlewish app's values from developers.facebook.com → App settings → Basic / Advanced -->
+    <string name="facebook_app_id">REPLACE_WITH_META_APP_ID</string>
+    <string name="facebook_client_token">REPLACE_WITH_META_CLIENT_TOKEN</string>
+</resources>

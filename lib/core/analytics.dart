@@ -1,53 +1,59 @@
-import 'package:firebase_analytics/firebase_analytics.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/widgets.dart';
 
+import 'analytics/analytics_provider.dart';
+import 'analytics/analytics_user.dart';
+import 'analytics/app_event.dart';
 import 'logger.dart';
 
-/// No-op until [enable]d in main.dart, so tests and the ops console skip it.
+export 'analytics/analytics_user.dart';
+export 'analytics/app_event.dart';
+
+/// The app's single analytics entry point: fans every call out to all providers.
+/// A no-op until [init], so tests and the ops console never touch an SDK.
 abstract final class Analytics {
-  static bool _enabled = false;
-  static bool get enabled => _enabled;
+  static List<AnalyticsProvider> _providers = const [];
 
-  static void enable() => _enabled = true;
+  static bool get enabled => _providers.isNotEmpty;
 
-  static FirebaseAnalytics get _fa => FirebaseAnalytics.instance;
+  static List<NavigatorObserver> get navigatorObservers => [
+        for (final p in _providers) ?p.navigatorObserver,
+      ];
 
-  static Future<void> setUser(String? id) async {
-    if (!_enabled) return;
-    await _guard(() async {
-      await _fa.setUserId(id: id);
-      await FirebaseCrashlytics.instance.setUserIdentifier(id ?? '');
-    });
+  /// Call once from main(), after Firebase.initializeApp().
+  static Future<void> init(List<AnalyticsProvider> providers) async {
+    _providers = List.unmodifiable(providers);
+    await _forEach('init', (p) => p.init());
   }
 
-  static Future<void> signUp() =>
-      _guard(() => _fa.logSignUp(signUpMethod: 'phone'));
+  @visibleForTesting
+  static void reset() => _providers = const [];
 
-  static Future<void> contactsPermission({required bool granted}) =>
-      _log('contacts_permission', {'granted': granted ? 1 : 0});
+  static Future<void> identify(AnalyticsUser user) =>
+      _forEach('identify', (p) => p.identify(user));
 
-  static Future<void> feedScrolled(int postsLoaded) =>
-      _log('feed_scrolled', {'posts_loaded': postsLoaded});
+  /// On sign-out, so the next user on the device doesn't inherit the identity.
+  static Future<void> clearUser() => _forEach('clearUser', (p) => p.clearUser());
 
-  static Future<void> contactsImported(int added) =>
-      _log('contacts_imported', {'added': added});
+  /// Fire with `.ignore()`: never awaited by a user flow, never throws.
+  static Future<void> log(
+    AppEvent event, [
+    Map<String, Object> params = const {},
+  ]) =>
+      _forEach(event.eventName, (p) => p.logEvent(event, params));
 
-  /// [source]: the screen the invite was shared from.
-  static Future<void> inviteSent(String source) =>
-      _log('invite_sent', {'source': source});
-
-  static Future<void> wishPosted({required bool withPhoto}) =>
-      _log('wish_posted', {'with_photo': withPhoto ? 1 : 0});
-
-  static Future<void> _log(String name, Map<String, Object> params) =>
-      _guard(() => _fa.logEvent(name: name, parameters: params));
-
-  static Future<void> _guard(Future<void> Function() call) async {
-    if (!_enabled) return;
-    try {
-      await call();
-    } catch (e, s) {
-      Log.error('analytics failed', e, s);
-    }
+  /// One provider failing never affects the others or the caller.
+  static Future<void> _forEach(
+    String label,
+    Future<void> Function(AnalyticsProvider) action,
+  ) async {
+    await Future.wait(
+      _providers.map((p) async {
+        try {
+          await action(p);
+        } catch (e, s) {
+          Log.error('${p.name} analytics $label failed', e, s);
+        }
+      }),
+    );
   }
 }

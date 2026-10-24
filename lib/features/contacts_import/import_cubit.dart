@@ -33,7 +33,10 @@ class ImportCubit extends Cubit<ImportState> {
     emit(const ImportRequestingPermission());
     try {
       final granted = await _contactsRepo.requestPermission();
-      Analytics.contactsPermission(granted: granted).ignore();
+      Analytics.log(
+        AppEvent.contactsPermission,
+        {AppParam.granted: granted ? 1 : 0},
+      ).ignore();
       if (!granted) {
         emit(const ImportPermissionDenied());
         return;
@@ -97,7 +100,10 @@ class ImportCubit extends Cubit<ImportState> {
         toSend,
         onProgress: (done, total) => emit(ImportCommitting(done, total)),
       );
-      Analytics.contactsImported(summary.added).ignore();
+      Analytics.log(
+        AppEvent.contactsImported,
+        {AppParam.added: summary.added},
+      ).ignore();
       emit(ImportDone(summary));
     } on AppFailure catch (f) {
       emit(ImportFailed(f.message));

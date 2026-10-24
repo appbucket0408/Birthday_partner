@@ -231,7 +231,10 @@ class ProfileView extends StatelessWidget {
                 icon: const Icon(Icons.person_add_alt_1, size: 18),
                 label: const Text(AppStrings.profileInviteFriends),
                 onPressed: () {
-                  Analytics.inviteSent('profile').ignore();
+                  Analytics.log(
+                    AppEvent.inviteSent,
+                    {AppParam.source: 'profile'},
+                  ).ignore();
                   share(
                     AppStrings.profileInviteMessageTemplate
                         .replaceFirst('%1', profile.handle)

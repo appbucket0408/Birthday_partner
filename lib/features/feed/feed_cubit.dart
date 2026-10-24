@@ -19,7 +19,10 @@ class FeedCubit extends Cubit<FeedState> with ReentrancyGuard {
     final current = state;
     if (_scrollLogged || current is! FeedLoaded) return;
     _scrollLogged = true;
-    Analytics.feedScrolled(current.entries.length).ignore();
+    Analytics.log(
+      AppEvent.feedScrolled,
+      {AppParam.postsLoaded: current.entries.length},
+    ).ignore();
   }
 
   Future<void> load() => guard('fetch', () async {
