@@ -300,8 +300,6 @@ abstract final class AppStrings {
   static const calendarPreviousMonth = 'Previous month';
   static const calendarNextMonth = 'Next month';
   static const calendarNoBirthdays = 'No birthdays on this day.';
-  static const calendarTurnsTemplate = 'turns %s';
-  static const calendarYearUnknown = 'year unknown';
   static const calendarToday = 'Today';
   static const calendarNoneThisMonth = 'No birthdays this month';
   static const calendarOneThisMonth = '1 birthday this month';

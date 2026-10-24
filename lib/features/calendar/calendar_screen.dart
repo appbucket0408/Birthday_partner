@@ -396,7 +396,7 @@ class _DayCard extends StatelessWidget {
                   indent: 72,
                   color: scheme.outlineVariant.withValues(alpha: 0.5),
                 ),
-              _PersonRow(celebration: c, day: day, now: now),
+              _PersonRow(celebration: c, now: now),
             ]
           else
             Padding(
@@ -450,19 +450,16 @@ class _DayCard extends StatelessWidget {
 class _PersonRow extends StatelessWidget {
   const _PersonRow({
     required this.celebration,
-    required this.day,
     required this.now,
   });
 
   final Celebration celebration;
-  final DateTime day;
   final DateTime now;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final person = celebration.person;
-    final born = person.birthday?.year;
     return ListTile(
       key: Key('calendar_person_${person.id}'),
       leading: InitialAvatar(name: person.displayName, radius: 22),
@@ -472,14 +469,6 @@ class _PersonRow extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style:
             theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-      ),
-      subtitle: Text(
-        born == null
-            ? AppStrings.calendarYearUnknown
-            : AppStrings.calendarTurnsTemplate
-                .replaceFirst('%s', '${day.year - born}'),
-        style: theme.textTheme.bodySmall
-            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
       ),
       trailing: person.birthday == null
           ? null
